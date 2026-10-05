@@ -6,6 +6,7 @@ import {
   priorityLabel,
   TAGS,
   BATTERY,
+  MODES,
   modeLabel,
   tagLabel,
   sortedCommitments,
@@ -363,7 +364,9 @@ function WhatsImportantCard() {
 }
 
 function ModeCard() {
-  const { state } = useAxzio();
+  const axzio = useAxzio();
+  const { state } = axzio;
+  const current = (state.modes && state.modes.current) || null;
   const sel = (state.modes && state.modes.day) || {
     primary: null,
     secondary: null,
@@ -376,26 +379,61 @@ function ModeCard() {
         help={
           <HelpBubble title="What mode am I in">
             <HelpText
-              what="The energy mode organizing today: Production, Pleasure, or People — a primary and a secondary."
-              why="No mode is superior; problems arise when one mode claims the whole system."
-              how="Quick-switch today's modes inline, or open Modes to set the day, week, and month."
+              what="Two readings of your energy. IN: the mode you're in right now — descriptive, where your energy actually is. FOCUS: the modes you're pointing attention at today — prescriptive, where focus goes even when that's not where you are."
+              why="Naming both keeps the tension honest: in Pleasure but focusing Production is a real, workable state — but only when it's named."
+              how="Set your current mode with the three buttons; quick-switch today's focus inline, or open Modes for the full picture."
             />
           </HelpBubble>
         }
       />
       <div className="flex-1">
+        {/* the mode you're IN — prominent */}
+        {current ? (
+          <p className="mb-3">
+            <Pill tone="lit">In · {modeLabel(current)}</Pill>
+          </p>
+        ) : (
+          <p className="mb-3 text-[15px] leading-relaxed text-white/40">
+            Current mode not set — where is your energy right now?
+          </p>
+        )}
+        <div className="mb-5 flex flex-wrap gap-2">
+          {MODES.map((m) => {
+            const isSel = current === m.key;
+            return (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() =>
+                  axzio.setCurrentMode(isSel ? null : m.key)
+                }
+                aria-pressed={isSel}
+                aria-label={`I am in ${m.label} mode`}
+                className={`rounded-full border px-3.5 py-1.5 text-[11px] uppercase tracking-[0.16em] transition-all duration-200 ${
+                  isSel
+                    ? "border-white/70 bg-white/10 text-white shadow-[0_0_20px_rgba(255,255,255,0.12)]"
+                    : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
+                }`}
+              >
+                {m.label}
+              </button>
+            );
+          })}
+        </div>
+        {/* where FOCUS goes today */}
+        <MicroLabel className="mb-2">Focus today</MicroLabel>
         {sel.primary || sel.secondary ? (
           <p className="mb-4 flex flex-wrap gap-2">
             {sel.primary && (
-              <Pill tone="lit">Primary · {modeLabel(sel.primary)}</Pill>
+              <Pill tone="lit">Focus · {modeLabel(sel.primary)}</Pill>
             )}
             {sel.secondary && (
-              <Pill>Secondary · {modeLabel(sel.secondary)}</Pill>
+              <Pill>{modeLabel(sel.secondary)}</Pill>
             )}
           </p>
         ) : (
           <p className="mb-4 text-[15px] leading-relaxed text-white/40">
-            No mode set for today — choose how energy is organizing.
+            No focus set for today — where is attention going?
           </p>
         )}
         <ModePicker interval="day" compact />

@@ -53,7 +53,7 @@ axzio/
 │   ├── store.jsx         # single state store (context + localStorage)
 │   ├── components/
 │   │   ├── Starfield.jsx # decorative twinkling starfield background
-│   │   ├── ModePicker.jsx# primary/secondary mode picker (shared)
+│   │   ├── ModePicker.jsx# primary/secondary focus picker per interval (shared)
 │   │   └── ui.jsx        # Card, MicroLabel, Btn, Field, TextArea, Pill,
 │   │                     # SectionHead, Empty, HelpBubble, HelpText…
 │   └── views/
@@ -61,7 +61,7 @@ axzio/
 │       ├── Onboarding.jsx    # first-use walkthrough + setup sequence (11 steps)
 │       ├── Deck.jsx          # command deck: overview dashboard of module cards
 │       ├── Focus.jsx         # decision engine home: Eisenhower matrix + One Thing
-│       ├── Modes.jsx         # the three Modes of Energy, per day/week/month
+│       ├── Modes.jsx         # the three Modes of Energy: current mode (IN) + per-interval focus modes
 │       ├── Constellation.jsx # SVG star map of the 8 stages + user stars
 │       ├── Identity.jsx      # Identity Core editor + primitives assessment
 │       └── Journeys.jsx      # guided step-through flows + launch sequence locator
@@ -79,7 +79,7 @@ axzio/
 | (first run)       | Onboarding    | 11-step walkthrough: welcome → 6 module tour screens → identity (name + 4 orientation statements) → Human Battery baseline → today's modes → first intention. Every step skippable; progress persisted |
 | `#/deck`          | Command Deck  | Overview dashboard: Who am I (top 3 commitments) / What's important today (day 1st/2nd/3rd priorities) / What mode am I in / State / Orientation (4 micro-practices) cards in an OVERVIEW zone; a separate CAPTURE zone below holds intention, action log, signals, stars |
 | `#/focus`         | Focus         | Decision Engine home: doing-first voice, per-timeframe 1st/2nd/3rd priorities (1st = the one thing to focus on), capture with commitment/mode/pillar tagging, Eisenhower 2×2 with Day/Week/Month/Year tabs, Q1 emphasized as where focus goes first. Items are living objects: tap to expand an inline editor (text, quadrant, timeframe + repeats, mode/pillar tags, commitment, attach-to nesting, notes, subtasks, priority); "Explore in Guided Reset" threads an action into a journey |
-| `#/modes`         | Modes         | The three Modes of Energy (Production, Pleasure, People): primary + secondary per Day / Week / Month, with each mode's gift and risk |
+| `#/modes`         | Modes         | The three Modes of Energy (Production, Pleasure, People): "Right now" single-select for the mode you're IN + "Where focus goes" primary/secondary per Day / Week / Month, each mode's gift and risk |
 | `#/constellation` | Constellation | 8-stage star map, detail readings, orbiting user stars       |
 | `#/identity`      | Identity      | Identity Core (4 orientation statements, values, ordered commitments), Four Pillars (Mind, Body, Heart, Spirit), primitives sliders + radar, walkthrough replay, reset |
 | `#/journeys`      | Journeys      | Morning Alignment, Evening Review, Ignite a Star, Guided Reset (phase-labeled) + Identity Launch Sequence locator + past reset Action Cards |
@@ -251,11 +251,29 @@ shape with the same migration pattern.
 The three Modes of Energy (WE ARE ALCHEMY, ch. TUNING) — Production,
 Pleasure, People — each with what it organizes energy around, its gift,
 and its risk. No mode is superior; problems arise when one claims the
-whole system. For each interval (Day, Week, Month) the user picks a
-PRIMARY and a SECONDARY mode (tapping a selected mode clears it; the newly
-set value wins a primary/secondary conflict). The Deck's mode card reads
-the Day interval. `state.modes = { day: {primary, secondary}, week: {...},
-month: {...} }`; `MODES` / `MODE_INTERVALS` constants live in the store.
+whole system.
+
+Two distinct readings, kept deliberately separate:
+- **`modes.current`** — the mode you're IN right now (descriptive): a single
+  nullable value ("production" | "pleasure" | "people" | null). "Where your
+  energy actually is." Set via `setCurrentMode(key)`; tapping the selected
+  mode clears it.
+- **Per-interval focus modes** (prescriptive) — for each interval (Day,
+  Week, Month), a PRIMARY and a SECONDARY mode: "where focus goes," even
+  when that's not where you are. Set via `setMode(interval, slot, key)`;
+  tapping a selected mode clears it and the newly set value wins a
+  primary/secondary conflict.
+
+The gap between the two is a feature, not a bug: in Pleasure but focusing
+Production is a legitimate, nameable state — and the current-vs-focus
+tension over time is future signal for AI.D nudges (e.g., chronic
+mismatch between state and intention).
+
+The Deck's "What mode am I in" card shows both: "In: X" prominent, then
+"Focus: Y · Z" for today's focus modes, each with inline setters and
+graceful empty states. `state.modes = { current, day: {primary, secondary},
+week: {...}, month: {...} }`; `MODES` / `MODE_INTERVALS` constants live in
+the store. Migration: old state without `current` normalizes to null.
 
 ## Guided Reset
 

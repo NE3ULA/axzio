@@ -432,9 +432,12 @@ function defaultState() {
     focusItems: [],
     // Identity Launch Sequence locator: stage key or null.
     launchStage: null,
-    // Modes of Energy: per interval (day/week/month), a primary and a
-    // secondary mode. Mode keys: production | pleasure | people | null.
+    // Modes of Energy: `current` is the mode I'm IN right now
+    // (descriptive, single nullable value). Per interval (day/week/month),
+    // primary + secondary are where FOCUS goes (prescriptive intention).
+    // Mode keys: production | pleasure | people | null.
     modes: {
+      current: null,
       day: { primary: null, secondary: null },
       week: { primary: null, secondary: null },
       month: { primary: null, secondary: null },
@@ -498,14 +501,16 @@ function uid() {
 /** Normalize saved mode selections; unknown keys fall back to null. */
 function normalizeModes(raw) {
   const blank = {
+    current: null,
     day: { primary: null, secondary: null },
     week: { primary: null, secondary: null },
     month: { primary: null, secondary: null },
   };
   if (!raw || typeof raw !== "object") return blank;
   const valid = new Set(MODES.map((m) => m.key));
-  const out = {};
-  for (const interval of Object.keys(blank)) {
+  const current = valid.has(raw.current) ? raw.current : null;
+  const out = { current };
+  for (const interval of ["day", "week", "month"]) {
     const r = raw[interval] && typeof raw[interval] === "object" ? raw[interval] : {};
     const primary = valid.has(r.primary) ? r.primary : null;
     let secondary = valid.has(r.secondary) ? r.secondary : null;
@@ -1251,6 +1256,7 @@ export function AxzioProvider({ children }) {
       update((d) => {
         if (!d.modes || typeof d.modes !== "object") {
           d.modes = {
+            current: null,
             day: { primary: null, secondary: null },
             week: { primary: null, secondary: null },
             month: { primary: null, secondary: null },
@@ -1262,6 +1268,24 @@ export function AxzioProvider({ children }) {
         if (valid && d.modes[interval][other] === valid) {
           d.modes[interval][other] = null;
         }
+      });
+    },
+
+    /* The mode I'm IN right now (descriptive) — distinct from the
+       per-interval focus modes (prescriptive). Tapping the selected
+       mode clears it. */
+    setCurrentMode(modeKey) {
+      const valid = MODES.some((m) => m.key === modeKey) ? modeKey : null;
+      update((d) => {
+        if (!d.modes || typeof d.modes !== "object") {
+          d.modes = {
+            current: null,
+            day: { primary: null, secondary: null },
+            week: { primary: null, secondary: null },
+            month: { primary: null, secondary: null },
+          };
+        }
+        d.modes.current = valid;
       });
     },
 
