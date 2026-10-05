@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
 import {
   useAxzio,
-  MANTRA,
+  ORIENTATION_PRACTICES,
+  PRIORITY_RANKS,
+  priorityLabel,
   TAGS,
   BATTERY,
   modeLabel,
   tagLabel,
+  sortedCommitments,
   localDateKey,
   formatLongDate,
   formatTime,
@@ -41,7 +44,6 @@ export default function Deck() {
   const todaysActions = actionsOn(state, today).slice().reverse();
   const todaysSignals = signalsOn(state, today).slice().reverse();
   const streak = useMemo(() => computeStreak(state), [state]);
-  const mantraDone = MANTRA.filter((m) => day.mantra[m.key]).length;
 
   return (
     <div className="mx-auto w-full max-w-5xl px-5 pb-24 pt-8">
@@ -66,17 +68,28 @@ export default function Deck() {
         </div>
       </header>
 
-      {/* overview grid */}
+      {/* zone: overview */}
+      <div className="mb-5 flex items-center gap-4">
+        <MicroLabel>Overview</MicroLabel>
+        <div className="h-px flex-1 bg-white/10" />
+      </div>
       <div className="grid gap-6 md:grid-cols-2">
         <WhoAmICard />
         <WhatsImportantCard />
         <ModeCard />
         <StateCard />
-        <OrientationCard day={day} today={today} mantraDone={mantraDone} />
+        <OrientationCard day={day} today={today} />
+      </div>
+
+      {/* zone: capture */}
+      <div className="mb-5 mt-14 flex items-center gap-4">
+        <div className="h-px flex-1 bg-white/10" />
+        <MicroLabel>Capture</MicroLabel>
+        <div className="h-px flex-1 bg-white/10" />
       </div>
 
       {/* intention */}
-      <section className="axzio-rise axzio-rise-3 mt-6">
+      <section className="axzio-rise axzio-rise-3">
         <Card className="p-6">
           <SectionHead
             label="Intention for the day"
@@ -233,7 +246,7 @@ function ModuleLink({ href, children }) {
 function WhoAmICard() {
   const { state } = useAxzio();
   const becoming = state.identity.becoming?.trim();
-  const topCommitment = state.identity.commitments?.[0];
+  const topCommitments = sortedCommitments(state).slice(0, 3);
 
   return (
     <Card className="axzio-rise axzio-rise-1 flex flex-col p-6">
@@ -242,9 +255,9 @@ function WhoAmICard() {
         help={
           <HelpBubble title="Who am I">
             <HelpText
-              what="A mirror of your Identity Core: the person you are choosing to become, plus your top commitment."
+              what="A mirror of your Identity Core: the person you are choosing to become, plus your top three commitments in priority order."
               why="AXZIO reads every day against your authored identity — not a mood, a role, or a performance."
-              how="Open Identity to author the four orientation statements, values, and commitments."
+              how="Open Identity to author the four orientation statements, values, and prioritized commitments."
             />
           </HelpBubble>
         }
@@ -260,9 +273,22 @@ function WhoAmICard() {
             No orientation statement yet — open Identity to author yours.
           </p>
         )}
-        {topCommitment && (
-          <p className="mt-3">
-            <Pill>{topCommitment}</Pill>
+        {topCommitments.length > 0 ? (
+          <ul className="mt-4 space-y-2">
+            {topCommitments.map((c, i) => (
+              <li key={c.id} className="flex items-baseline gap-3">
+                <span className="shrink-0 text-[11px] tabular-nums tracking-[0.2em] text-white/40">
+                  {i + 1}
+                </span>
+                <span className="line-clamp-1 text-[14px] leading-snug text-white/85">
+                  {c.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-4 text-[13px] leading-relaxed text-white/35">
+            No commitments named yet.
           </p>
         )}
       </div>
@@ -273,11 +299,15 @@ function WhoAmICard() {
 
 function WhatsImportantCard() {
   const { state } = useAxzio();
-  const openItems = state.focusItems.filter((f) => !f.done);
-  const oneThing =
-    state.focusItems.find((f) => f.oneThing && !f.done) || null;
-  const q1 = openItems.filter((f) => f.quadrant === "q1").length;
-  const q2 = openItems.filter((f) => f.quadrant === "q2").length;
+  const openDay = state.focusItems.filter(
+    (f) => !f.done && f.timeframe === "day" && !f.parentId
+  );
+  const priorities = PRIORITY_RANKS.map((r) => ({
+    ...r,
+    item: openDay.find((f) => f.priority === r.rank) || null,
+  }));
+  const q1 = openDay.filter((f) => f.quadrant === "q1").length;
+  const q2 = openDay.filter((f) => f.quadrant === "q2").length;
 
   return (
     <Card className="axzio-rise axzio-rise-2 flex flex-col p-6">
@@ -286,26 +316,32 @@ function WhatsImportantCard() {
         help={
           <HelpBubble title="What's important today">
             <HelpText
-              what="Your One Thing and the open priorities the Decision Engine is holding."
-              why="The matrix separates urgency from importance to preserve attention for aligned action."
-              how="Flag one item as the One Thing in Focus; the counts here update live."
+              what="Today's three ranked priorities — 1st is the One Thing — plus the open counts in Do and Decide."
+              why="The matrix separates urgency from importance to preserve attention for aligned action; the ranks make the day's trade visible."
+              how="Rank items 1st/2nd/3rd in Focus; the lists here update live."
             />
           </HelpBubble>
         }
       />
       <div className="flex-1">
-        {oneThing ? (
-          <div>
-            <MicroLabel className="mb-1.5">The One Thing</MicroLabel>
-            <p className="line-clamp-2 text-[15px] leading-snug text-white">
-              {oneThing.text}
-            </p>
-          </div>
-        ) : (
-          <p className="text-[15px] leading-relaxed text-white/40">
-            No One Thing flagged — the day has no single point of aim yet.
-          </p>
-        )}
+        <ul className="space-y-2.5">
+          {priorities.map((p) => (
+            <li key={p.rank} className="flex items-baseline gap-3">
+              <span className="shrink-0 text-[10px] uppercase tracking-[0.2em] text-white/40">
+                {priorityLabel(p.rank)}
+              </span>
+              {p.item ? (
+                <span className="line-clamp-1 text-[15px] text-white">
+                  {p.item.text}
+                </span>
+              ) : (
+                <span className="text-[13px] tracking-wide text-white/30">
+                  Not set
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
         <div className="mt-4 flex gap-6">
           <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
             Do{" "}
@@ -430,8 +466,11 @@ function StateCard() {
   );
 }
 
-function OrientationCard({ day, today, mantraDone }) {
-  const axzio = useAxzio();
+function OrientationCard({ day, today }) {
+  const doneCount = ORIENTATION_PRACTICES.filter(
+    (p) => day.orientation?.[p.key]?.done
+  ).length;
+
   return (
     <Card className="axzio-rise axzio-rise-1 p-6 md:col-span-2">
       <SectionHead
@@ -439,34 +478,25 @@ function OrientationCard({ day, today, mantraDone }) {
         help={
           <HelpBubble title="Orientation">
             <HelpText
-              what="The daily mantra: four anchors for attention — receive what is real, notice what is alive, participate, stay connected to care."
-              why="Orientation is the practice of returning: when you drift, the anchors are what you come back through."
-              how="Hold each anchor as you practice it. Take Action links into Focus — live now; gratitude, beauty, and love practices are coming."
+              what="The daily mantra as four micro-practices: a gratitude entry, a beauty noticed, one action for today, one thing for someone else."
+              why="Named practices make the anchors concrete — each asks for something specific rather than a vague “done”."
+              how="Expand a practice and write the entry; it saves for today and marks the practice complete. Unmark by hand any time. Take Action links into Focus — live now; the other three are standalone practices."
             />
           </HelpBubble>
         }
         right={
           <span className="text-[11px] uppercase tracking-[0.2em] text-white/40">
-            {mantraDone} / 4
+            {doneCount} / 4
           </span>
         }
       />
-      <p className="mb-4 text-[11px] uppercase tracking-[0.22em] text-white/35">
-        the daily mantra
-      </p>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {MANTRA.map((m) => (
-          <AnchorToggle
-            key={m.key}
-            label={m.label}
-            hint={m.hint}
-            active={day.mantra[m.key]}
-            onToggle={() => axzio.setMantra(today, m.key, !day.mantra[m.key])}
-            link={
-              m.key === "action"
-                ? { label: "Open in Focus", href: "#/focus" }
-                : null
-            }
+      <div className="space-y-2">
+        {ORIENTATION_PRACTICES.map((p) => (
+          <PracticeRow
+            key={p.key}
+            practice={p}
+            entry={day.orientation?.[p.key]}
+            today={today}
           />
         ))}
       </div>
@@ -474,46 +504,104 @@ function OrientationCard({ day, today, mantraDone }) {
   );
 }
 
-function AnchorToggle({ label, hint, active, onToggle, link }) {
+function PracticeRow({ practice, entry, today }) {
+  const { setOrientationText, setOrientationDone } = useAxzio();
+  const [expanded, setExpanded] = useState(false);
+  const text = entry?.text || "";
+  const done = entry?.done === true;
+
   return (
-    <button
-      onClick={onToggle}
-      aria-pressed={active}
-      className={`rounded-2xl border p-4 text-left transition-all duration-300 ${
-        active
-          ? "border-white/60 bg-white/[0.07] shadow-[0_0_28px_rgba(255,255,255,0.12)]"
-          : "border-white/15 bg-white/[0.02] hover:border-white/35"
+    <div
+      className={`rounded-xl border transition-colors ${
+        done ? "border-white/30 bg-white/[0.03]" : "border-white/10"
       }`}
     >
-      <span
-        className={`mb-2 block h-1.5 w-1.5 rounded-full transition-colors ${
-          active ? "bg-white shadow-[0_0_10px_rgba(255,255,255,0.9)]" : "bg-white/25"
-        }`}
-      />
-      <span className="block text-[13px] font-medium tracking-wide">{label}</span>
-      <span className="mt-1 block text-[11px] leading-snug text-white/40">
-        {hint}
-      </span>
-      {link && (
-        <span
-          role="link"
-          tabIndex={0}
-          onClick={(e) => {
-            e.stopPropagation();
-            window.location.hash = link.href;
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.stopPropagation();
-              window.location.hash = link.href;
-            }
-          }}
-          className="mt-2 inline-block text-[10px] uppercase tracking-[0.2em] text-white/55 underline decoration-white/30 underline-offset-4 transition-colors hover:text-white"
+      <div className="flex items-center gap-3 px-4 py-3">
+        <button
+          onClick={() => setOrientationDone(today, practice.key, !done)}
+          aria-label={
+            done
+              ? `Unmark ${practice.label}`
+              : `Mark ${practice.label} as practiced`
+          }
+          aria-pressed={done}
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+            done
+              ? "border-white/70 bg-white text-black"
+              : "border-white/30 hover:border-white/70"
+          }`}
         >
-          {link.label} →
-        </span>
+          {done && (
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path
+                d="M1.5 5.5l2.5 2.5 4.5-5.5"
+                stroke="currentColor"
+                strokeWidth="1.6"
+              />
+            </svg>
+          )}
+        </button>
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          aria-label={expanded ? "Collapse practice" : "Expand practice"}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13px] font-medium tracking-wide">
+              {practice.label}
+            </span>
+            <span className="block truncate text-[12px] text-white/40">
+              {text.trim() || practice.prompt}
+            </span>
+          </span>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            aria-hidden="true"
+            className={`shrink-0 text-white/40 transition-transform duration-200 ${
+              expanded ? "rotate-180" : ""
+            }`}
+          >
+            <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+        </button>
+      </div>
+      {expanded && (
+        <div className="border-t border-white/10 px-4 py-4">
+          <p className="mb-2 text-[13px] leading-relaxed text-white/55">
+            {practice.prompt}
+          </p>
+          <TextArea
+            value={text}
+            onChange={(e) =>
+              setOrientationText(today, practice.key, e.target.value)
+            }
+            rows={2}
+            maxLength={280}
+            placeholder={practice.prompt}
+          />
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <button
+              onClick={() => setOrientationDone(today, practice.key, !done)}
+              className="text-[11px] uppercase tracking-[0.2em] text-white/45 transition-colors hover:text-white"
+            >
+              {done ? "Unmark" : "Mark as practiced"}
+            </button>
+            {practice.focusLink && (
+              <a
+                href="#/focus"
+                className="text-[11px] uppercase tracking-[0.2em] text-white/55 underline decoration-white/30 underline-offset-4 transition-colors hover:text-white"
+              >
+                Open in Focus →
+              </a>
+            )}
+          </div>
+        </div>
       )}
-    </button>
+    </div>
   );
 }
 

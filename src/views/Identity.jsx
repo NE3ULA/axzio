@@ -1,5 +1,11 @@
 import { useMemo, useState } from "react";
-import { useAxzio, PRIMITIVES, formatLongDate } from "../store.jsx";
+import {
+  useAxzio,
+  PRIMITIVES,
+  PILLARS,
+  sortedCommitments,
+  formatLongDate,
+} from "../store.jsx";
 import {
   Card,
   MicroLabel,
@@ -102,14 +108,50 @@ export default function Identity() {
               onAdd={(v) => axzio.addIdentityListItem("values", v)}
               onRemove={(i) => axzio.removeIdentityListItem("values", i)}
             />
-            <ListEditor
-              label="Commitments"
-              items={state.identity.commitments}
-              placeholder="Add a commitment — e.g. “Write every morning”"
-              onAdd={(v) => axzio.addIdentityListItem("commitments", v)}
-              onRemove={(i) => axzio.removeIdentityListItem("commitments", i)}
-            />
+            <CommitmentList />
           </div>
+        </Card>
+      </section>
+
+      <section className="axzio-rise axzio-rise-2 mb-6">
+        <Card className="p-6 md:p-8">
+          <SectionHead
+            label="Four Pillars"
+            help={
+              <HelpBubble title="Four Pillars">
+                <HelpText
+                  what="Mind, Body, Heart, Spirit — the four lenses the person is read through."
+                  why="Pillars read the person; Primitives read the life. Together, the pillars prevent transformation from collapsing into thought alone."
+                  how="When you tag a Focus item with a pillar, read the task through these lenses — over time the tags reveal where effort actually goes."
+                />
+              </HelpBubble>
+            }
+          />
+          <p className="mb-6 max-w-xl text-sm leading-relaxed text-white/55">
+            Where the Primitives read your <span className="text-white/80">life</span> —
+            its domains and conditions — the Pillars read{" "}
+            <span className="text-white/80">you</span>: the four dimensions
+            every experience moves through.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            {PILLARS.map((p) => (
+              <div
+                key={p.key}
+                className="rounded-xl border border-white/10 bg-white/[0.02] p-5"
+              >
+                <h4 className="text-[15px] font-medium tracking-[0.14em] uppercase">
+                  {p.label}
+                </h4>
+                <p className="mt-2 text-[14px] leading-relaxed text-white/60">
+                  {p.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-6 max-w-xl text-[13px] leading-relaxed text-white/40">
+            Together, these Four Pillars prevent transformation from
+            collapsing into thought alone.
+          </p>
         </Card>
       </section>
 
@@ -210,6 +252,96 @@ function ListEditor({ label, items, placeholder, onAdd, onRemove }) {
           Add
         </Btn>
       </form>
+    </div>
+  );
+}
+
+/* Commitments as an ordered list: position IS the priority (1 = highest).
+   Up/down arrows reorder; new commitments append at the lowest
+   priority; deleting re-numbers. Focus items link by commitment id,
+   so reordering never breaks their links. */
+function CommitmentList() {
+  const { state, addCommitment, removeCommitment, moveCommitment } =
+    useAxzio();
+  const [draft, setDraft] = useState("");
+  const commitments = sortedCommitments(state);
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (addCommitment(draft)) setDraft("");
+  };
+
+  return (
+    <div>
+      <MicroLabel className="mb-2">
+        Commitments{" "}
+        <span className="text-white/30">
+          — ordered, 1 is highest priority
+        </span>
+      </MicroLabel>
+      {commitments.length === 0 && (
+        <p className="mb-3 text-sm text-white/35">None named yet.</p>
+      )}
+      <ul className="mb-3 space-y-2">
+        {commitments.map((c, i) => (
+          <li
+            key={c.id}
+            className="flex items-center gap-3 rounded-xl border border-white/10 px-4 py-2.5"
+          >
+            <span className="w-5 shrink-0 text-[11px] tabular-nums tracking-[0.2em] text-white/40">
+              {i + 1}
+            </span>
+            <span className="min-w-0 flex-1 text-[15px]">{c.text}</span>
+            <span className="flex shrink-0 items-center gap-1">
+              <button
+                onClick={() => moveCommitment(c.id, -1)}
+                disabled={i === 0}
+                aria-label={`Move “${c.text}” up in priority`}
+                className="rounded p-1 text-white/40 transition-colors hover:text-white disabled:opacity-20 disabled:hover:text-white/40"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 7.5l4-4 4 4" stroke="currentColor" strokeWidth="1.4" />
+                </svg>
+              </button>
+              <button
+                onClick={() => moveCommitment(c.id, 1)}
+                disabled={i === commitments.length - 1}
+                aria-label={`Move “${c.text}” down in priority`}
+                className="rounded p-1 text-white/40 transition-colors hover:text-white disabled:opacity-20 disabled:hover:text-white/40"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 4.5l4 4 4-4" stroke="currentColor" strokeWidth="1.4" />
+                </svg>
+              </button>
+              <button
+                onClick={() => removeCommitment(c.id)}
+                aria-label={`Remove “${c.text}”`}
+                className="rounded p-1 text-white/25 transition-colors hover:text-white/80"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="currentColor" strokeWidth="1.3" />
+                </svg>
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <form onSubmit={submit} className="flex gap-3">
+        <Field
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Add a commitment — e.g. “Write every morning”"
+          maxLength={120}
+          className="flex-1"
+        />
+        <Btn type="submit" variant="ghost" disabled={!draft.trim()}>
+          Add
+        </Btn>
+      </form>
+      <p className="mt-2 text-[12px] leading-relaxed text-white/35">
+        New commitments start at the lowest priority. Reorder with the
+        arrows — the Deck reads the top three.
+      </p>
     </div>
   );
 }

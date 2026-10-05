@@ -77,17 +77,17 @@ axzio/
 | ----------------- | ------------- | ------------------------------------------------------------ |
 | (boot)            | Boot          | Cinematic mark + "initializing interface", ~2s               |
 | (first run)       | Onboarding    | 11-step walkthrough: welcome → 6 module tour screens → identity (name + 4 orientation statements) → Human Battery baseline → today's modes → first intention. Every step skippable; progress persisted |
-| `#/deck`          | Command Deck  | Overview dashboard: Who am I / What's important today / What mode am I in / State / Orientation cards (live summaries, expand inline or route to modules) + intention, action log, signals, stars |
-| `#/focus`         | Focus         | Decision Engine home: the two questions, Eisenhower 2×2, One Thing, commitment links. Items are living objects: tap to expand an inline editor (text, quadrant, commitment, notes, subtasks, One Thing); "Explore in Guided Reset" threads a decision into a journey |
+| `#/deck`          | Command Deck  | Overview dashboard: Who am I (top 3 commitments) / What's important today (day 1st/2nd/3rd priorities) / What mode am I in / State / Orientation (4 micro-practices) cards in an OVERVIEW zone; a separate CAPTURE zone below holds intention, action log, signals, stars |
+| `#/focus`         | Focus         | Decision Engine home: doing-first voice, per-timeframe 1st/2nd/3rd priorities (1st = the One Thing), capture with commitment/mode/pillar tagging, Eisenhower 2×2 with Day/Week/Month/Year tabs, Q1 emphasized as where focus goes first. Items are living objects: tap to expand an inline editor (text, quadrant, timeframe + repeats, mode/pillar tags, commitment, attach-to nesting, notes, subtasks, priority); "Explore in Guided Reset" threads an action into a journey |
 | `#/modes`         | Modes         | The three Modes of Energy (Production, Pleasure, People): primary + secondary per Day / Week / Month, with each mode's gift and risk |
 | `#/constellation` | Constellation | 8-stage star map, detail readings, orbiting user stars       |
-| `#/identity`      | Identity      | Identity Core (4 orientation statements, values, commitments), primitives sliders + radar, walkthrough replay, reset |
+| `#/identity`      | Identity      | Identity Core (4 orientation statements, values, ordered commitments), Four Pillars (Mind, Body, Heart, Spirit), primitives sliders + radar, walkthrough replay, reset |
 | `#/journeys`      | Journeys      | Morning Alignment, Evening Review, Ignite a Star, Guided Reset (phase-labeled) + Identity Launch Sequence locator + past reset Action Cards |
 
 ## Onboarding flow
 
 `App.jsx` gates on `state.identity.onboarded` (persisted). The old bare
-setup screen is gone; new users walk an 11-step flow in
+setup screen is gone; new users walk a 12-step flow in
 `views/Onboarding.jsx`:
 
 1. **Welcome** — what AXZIO is ("the interface layer — where signal becomes
@@ -96,7 +96,10 @@ setup screen is gone; new users walk an 11-step flow in
    Constellation, Identity, Journeys) with a single-sentence purpose each.
 3. **Setup sequence** — display name + the 4 orientation statements;
    Human Battery baseline sliders; today's primary + secondary mode;
-   first intention.
+   first intention; **"What's important today?"** — capture up to 3 focus
+   items (Day timeframe, Q2 default). The step's helper notes that once
+   accounts exist it will be able to pull from history; for now it is a
+   fresh capture.
 
 Every step is skippable ("Skip for now"; tour screens also offer "Skip the
 tour"). Inputs write live into the store and the current step is persisted
@@ -107,23 +110,62 @@ users (their data is kept).
 
 ## Command Deck as overview
 
-The Deck is a dashboard, not a scroll of inputs. Each overview card shows a
-live summary of its module and offers an inline expansion or a route to the
-module:
+The Deck reads as **overview up top, capture down below** — two visually
+distinct zones separated by a labeled divider:
 
-- **WHO AM I** — becoming-statement + top commitment → `#/identity`
-- **WHAT'S IMPORTANT TODAY** — the One Thing + open Q1/Q2 counts → `#/focus`
-- **WHAT MODE AM I IN** — today's primary/secondary mode with inline
-  quick-switch (shared `ModePicker`) → `#/modes`
-- **STATE** — battery most-depleted / most-available; expands inline to the
-  sliders
-- **ORIENTATION** — the daily mantra (4 toggles); "Take Action" carries an
-  "Open in Focus →" link. Future weaving is noted in its help bubble:
-  Grateful → gratitude practice, Beauty → attention practice, Give Love →
-  people practice (coming); Take Action → Focus (live).
+- **OVERVIEW** — five cards in a grid: Who am I (becoming-statement + top 3
+  commitments in priority order) / What's important today (the day's
+  1st/2nd/3rd priorities + open Do/Decide counts) / What mode am I in
+  (inline quick-switch) / State (battery most-depleted / most-available,
+  expandable sliders) / Orientation (the 4 micro-practices, n/4 + entry
+  previews).
+- **CAPTURE** — its own zone below the divider: intention for the day,
+  action log, signal feed, ignite-a-star.
 
-Below the grid: intention field, action log, signal feed, ignite-a-star —
-kept, tightened. 2-column grid on desktop, stacked on phone.
+Each overview card shows a live summary of its module and offers an inline
+expansion or a route to the module. 2-column grid on desktop, stacked on
+phone.
+
+## Orientation as micro-practices
+
+The old 4 mantra toggles are now 4 expandable practice rows on the Deck's
+Orientation card, one per anchor:
+
+- **Be Grateful** → "What are you grateful for right now?"
+- **See Beauty** → "What beauty did you notice today?"
+- **Take Action** → "One action you will take today" (+ "Open in Focus →")
+- **Give Love** → "One thing you will do today for someone else"
+
+Entries save per day under `days[date].orientation = { <anchor>:
+{ text, done } }`. A row counts as complete when it has text (entering
+text auto-marks it); the check can also be set/cleared by hand. The card
+shows n/4 with a one-line preview of each entry. The legacy `mantra`
+boolean map is kept in sync so the Morning Alignment journey step and the
+Constellation's "anchors held" count keep working; old held-anchors
+migrate into the new done flags.
+
+## Four Pillars
+
+The Identity view carries a **Four Pillars** section (WE ARE ALCHEMY, ch.
+INTEGRATION): Mind (what you understand, believe, and perceive), Body
+(what you sense, carry, enact, and physically require), Heart (what you
+feel, love, grieve, fear, and need in relationship), Spirit (what gives
+experience meaning, direction, connection, or sacred weight). The help
+bubble draws the book's distinction: **Pillars read the person;
+Primitives read the life** — together the pillars prevent transformation
+from collapsing into thought alone. This section grounds the pillar tags
+on Focus items.
+
+## Commitment ordering
+
+Commitments on the Identity page are an **ordered list** —
+`[{ id, text, order }]`; position IS the priority, numbered 1..n, with
+up/down arrows to reorder. New commitments append at the lowest priority;
+deleting one re-numbers the rest. Focus items link to commitments **by
+id, never by position**, so reordering never breaks their "Serves:" links
+(deleting a commitment clears its links). The Deck's "Who Am I" card
+reads the top three. Plain-string commitments from older states migrate
+to objects with their position preserved as priority.
 
 ## Help bubbles
 
@@ -140,18 +182,64 @@ card + the three-mode overview, and every Action Card.
 ## Focus items as living objects
 
 Matrix items are editable in place: tapping an item expands an inline
-editor (text, quadrant, commitment link, notes textarea, subtasks with
-add/check-off/delete, One Thing toggle). Edits apply on Save, discard on
-Cancel. Collapsed items show a subtle "n subtasks · x/y done" line when
-subtasks exist.
+editor (text, quadrant, timeframe + repeats, mode/pillar tags, commitment
+link, attach-to nesting, notes, subtasks, priority rank). Edits apply on
+Save, discard on Cancel. Collapsed items show tag pills for
+timeframe/mode/pillar/priority, an "n subtasks · x/y done" line when
+subtasks exist, and a "Serves: <commitment>" pill when linked.
+
+The page's voice is doing-first: capture asks "What needs doing?", the
+intro copy emphasizes action over deliberation, and **Q1 (Do — urgent +
+important) carries visual primacy** as "where focus goes first". Q2 keeps
+its "Decide" name — it is accurate there.
 
 **Decision → journey thread** (the first module interconnection): each
 expanded item offers "Explore in Guided Reset". It saves pending edits,
 sets a transient (never persisted) `resetPrefill` in the store, and routes
 to `#/journeys`, where the Guided Reset opens with its Situation
-pre-filled from the decision's text (+ notes). Completing the reset stores
+pre-filled from the action's text (+ notes). Completing the reset stores
 `sourceItemId` on it; the Action Card renders a "From decision: <text>"
 line linking back to `#/focus`, and the copied card includes it.
+
+### Priorities per timeframe (replaces the single One Thing)
+
+Each item holds `priority: null | 1 | 2 | 3`, **unique within its
+timeframe** — setting rank N clears rank N from every other item in the
+same timeframe; day/week/month/year each hold independent 1/2/3 sets.
+Rank 1 keeps the book's "One Thing" language ("1st — the One Thing").
+The top strip shows the three slots for the active timeframe tab with
+per-slot clear; the editor offers a None/1st/2nd/3rd selector and each
+collapsed row a compact rank control. The Deck's "What's important today"
+card lists the day's three priorities. Old `oneThing: true` items migrate
+to `priority: 1` in their timeframe.
+
+### Timeframes + tagging (feeds future AI.D effort analysis)
+
+The matrix carries Day | Week | Month | Year tabs filtering items by
+`item.timeframe` (default `'day'`); the capture form includes a timeframe
+select defaulting to the active tab. Week items take `daysOfWeek` [0–6]
+(Mon–Sun multi-select for repeating); month items take `months` [0–11]
+(Jan–Dec multi-select). Items are taggable by mode
+(`production|pleasure|people`) and pillar (`mind|body|heart|spirit`) —
+this tagging exists so effort can be analyzed across dimensions over time
+(the future AI.D nudges read these tags). Old items default to timeframe
+`'day'`, empty repeat arrays, and null tags.
+
+### Subtask nesting (attach-to)
+
+Beyond the free-text subtasks, any item can be **attached to** another
+open item via `parentId`: it leaves the top-level quadrant lists and
+renders nested (indented) inside its parent's card. The picker's
+candidates exclude the item itself and its descendants (`descendantIds`),
+and `updateFocusItem` re-guards against cycles — a refused attach leaves
+the item where it was. "Move to top level" detaches; deleting a parent
+detaches (not orphans) its children.
+
+### Commitment at capture
+
+The capture form's commitment select lists existing commitments plus an
+inline "New commitment…" option that reveals a text input; the
+commitment is created on Place and linked by its new id.
 
 **Planned (not built):** SMART goal structuring on items. The schema is
 kept extensible for it — notes/subtasks are the first layer; future fields
@@ -193,14 +281,22 @@ everything else; the help bubble says so.
     standFor,       // "I stand for…"
     practice,       // "I practice…"
     returnThrough,  // "When I drift, I return through…"
-    values: [], commitments: [],
+    values: [],
+    // Ordered commitments [{ id, text, order }]; position IS priority
+    // (order 0 = highest). Focus items link by commitment id.
+    commitments: [],
     setupComplete: bool,
     onboarded: bool,        // first-use walkthrough completed
     onboardingStep: number, // walkthrough resume position
   },
   days: {
     "YYYY-MM-DD": {
-      mantra: { gratitude, beauty, action, love },  // booleans
+      mantra: { gratitude, beauty, action, love },  // booleans (legacy, kept in sync)
+      // Orientation micro-practices: one text entry per mantra anchor.
+      orientation: {
+        gratitude: { text, done }, beauty: { text, done },
+        action: { text, done },    love: { text, done },
+      },
       intention: string,
       battery: { physical, mental, emotional, social, purpose }  // 1–10
     }
@@ -209,8 +305,15 @@ everything else; the help bubble says so.
   signals:     [{ id, date, ts, text }],
   stars:       [{ id, name, note, created }],
   assessments: [{ id, date, ts, money, engagement, building, being }],  // 1–10
-  focusItems:  [{ id, text, quadrant, commitmentId, oneThing, done,
-                 notes, subtasks: [{ id, text, done }], created }],
+  focusItems:  [{ id, text, quadrant, commitmentId, priority, done,
+                 notes, subtasks: [{ id, text, done }],
+                 // timeframe layer (feeds future AI.D effort analysis):
+                 timeframe,            // 'day'|'week'|'month'|'year'
+                 daysOfWeek: [0-6], months: [0-11],
+                 mode,                 // production|pleasure|people|null
+                 pillar,               // mind|body|heart|spirit|null
+                 parentId,             // linked-subtask nesting | null
+                 created }],
   launchStage: string | null,  // Identity Launch Sequence stage key
   // Modes of Energy (production | pleasure | people | null):
   modes: {
@@ -236,12 +339,21 @@ existing users never see the new walkthrough. `modes` and `resets`
 default to empty selections / `[]`, with unknown mode keys normalized to
 `null` (primary wins a primary/secondary conflict). Older focus items gain
 `notes: ""` and `subtasks: []`; older resets gain `sourceItemId: null`.
+Round-3 migrations: days gain `orientation` micro-practice entries (old
+held `mantra` booleans migrate into their done flags; the `mantra` map
+stays in sync afterwards); focus items gain `timeframe: 'day'`,
+`daysOfWeek: []`, `months: []`, `mode: null`, `pillar: null`,
+`parentId: null`, and `priority: null` — except old `oneThing: true`
+items, which become `priority: 1` in their timeframe; plain-string
+commitments migrate to `{ id, text, order }` objects (position preserved
+as priority), and focus-item `commitmentId` links holding old text remap
+to the new ids (unmatched links drop to null).
 
 - One React context (`AxzioProvider` in `src/store.jsx`) owns all
   mutations; every mutation persists the whole state to localStorage.
 - Corrupted storage is quarantined to `<key>.corrupt-<timestamp>` and the
   app starts clean instead of crashing.
-- Derived data (streak, today's actions, mantra count) is computed from
+- Derived data (streak, today's actions, orientation count) is computed from
   state, never stored.
 
 ## How to run

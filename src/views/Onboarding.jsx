@@ -63,7 +63,7 @@ export default function Onboarding({ onComplete }) {
   const axzio = useAxzio();
   const { state, setOnboardingStep, completeOnboarding } = axzio;
 
-  const total = 1 + MODULES.length + 4; // welcome + tour + identity/battery/modes/intention
+  const total = 1 + MODULES.length + 5; // welcome + tour + identity/battery/modes/intention/important-today
   const [step, setStep] = useState(() => {
     const s = state.identity.onboardingStep;
     return Number.isInteger(s) && s >= 0 && s < total ? s : 0;
@@ -114,6 +114,7 @@ export default function Onboarding({ onComplete }) {
           {step === IDENTITY_STEP + 1 && <BatteryStep />}
           {step === IDENTITY_STEP + 2 && <ModesStep />}
           {step === IDENTITY_STEP + 3 && <IntentionStep />}
+          {step === IDENTITY_STEP + 4 && <ImportantTodayStep />}
         </div>
 
         {/* nav */}
@@ -336,6 +337,90 @@ function IntentionStep() {
           autoFocus
         />
       </div>
+    </div>
+  );
+}
+
+/* "What's important today?" — capture 1–3 focus items (Day timeframe,
+   Q2 by default). Writes live into the store, so it is skip-safe like
+   every other step. Once accounts exist this step will be able to pull
+   from history; for now it is a fresh capture. */
+const IMPORTANT_TODAY_MAX = 3;
+
+function ImportantTodayStep() {
+  const { state, addFocusItem, deleteFocusItem } = useAxzio();
+  const [draft, setDraft] = useState("");
+  const todays = state.focusItems
+    .filter((f) => f.timeframe === "day" && !f.parentId)
+    .slice()
+    .sort((a, b) => b.created - a.created);
+  const full = todays.length >= IMPORTANT_TODAY_MAX;
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (full) return;
+    if (addFocusItem(draft, "q2", { timeframe: "day" })) setDraft("");
+  };
+
+  return (
+    <div>
+      <MicroLabel className="mb-3">Setup — today's focus</MicroLabel>
+      <h2 className="text-3xl font-light tracking-wide md:text-4xl">
+        What's important today?
+      </h2>
+      <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/60">
+        Name up to three things that matter today. They land in{" "}
+        <span className="text-white">Focus</span> as today's items, ready to
+        be placed, tagged, and ranked.
+      </p>
+      <p className="mt-3 max-w-md text-[13px] leading-relaxed text-white/40">
+        Once accounts exist, this step will be able to pull from your
+        history — for now, it's a fresh capture.
+      </p>
+      <form onSubmit={submit} className="mt-7 flex gap-3">
+        <Field
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={
+            full
+              ? "Three captured — enough for one day"
+              : "What needs doing today?"
+          }
+          maxLength={160}
+          className="flex-1"
+          disabled={full}
+          autoFocus
+        />
+        <Btn type="submit" variant="ghost" disabled={full || !draft.trim()}>
+          Add
+        </Btn>
+      </form>
+      {todays.length > 0 && (
+        <ul className="mt-5 space-y-2">
+          {todays.slice(0, IMPORTANT_TODAY_MAX).map((f) => (
+            <li
+              key={f.id}
+              className="flex items-center justify-between gap-3 rounded-xl border border-white/10 px-4 py-2.5"
+            >
+              <span className="min-w-0 flex-1 truncate text-[15px]">
+                {f.text}
+              </span>
+              <button
+                onClick={() => deleteFocusItem(f.id)}
+                aria-label={`Remove “${f.text}”`}
+                className="shrink-0 text-white/25 transition-colors hover:text-white/80"
+              >
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                  <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.4" />
+                </svg>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-4 text-[11px] uppercase tracking-[0.2em] text-white/35">
+        {todays.length} of {IMPORTANT_TODAY_MAX} captured
+      </p>
     </div>
   );
 }

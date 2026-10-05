@@ -39,6 +39,34 @@ export const MANTRA = [
   { key: "love", label: "Give Love", hint: "Relational generosity" },
 ];
 
+/* The four orientation micro-practices — one per mantra anchor. Each is
+   named and asks for something specific, saved per day under
+   days[date].orientation. A practice counts as complete when it has text;
+   the done flag can also be set/cleared by hand. */
+export const ORIENTATION_PRACTICES = [
+  {
+    key: "gratitude",
+    label: "Be Grateful",
+    prompt: "What are you grateful for right now?",
+  },
+  {
+    key: "beauty",
+    label: "See Beauty",
+    prompt: "What beauty did you notice today?",
+  },
+  {
+    key: "action",
+    label: "Take Action",
+    prompt: "One action you will take today",
+    focusLink: true, // links into #/focus
+  },
+  {
+    key: "love",
+    label: "Give Love",
+    prompt: "One thing you will do today for someone else",
+  },
+];
+
 /* The Four Primitives (E3 human engine, identity stack). */
 export const PRIMITIVES = [
   {
@@ -272,6 +300,97 @@ export function tagLabel(key) {
   return t ? t.label : key;
 }
 
+/* The Four Pillars (WE ARE ALCHEMY, ch. INTEGRATION): the four lenses
+   the *person* is read through — distinct from the Four Primitives,
+   which read the *life* (its domains and conditions). Together, the
+   pillars prevent transformation from collapsing into thought alone. */
+export const PILLARS = [
+  {
+    key: "mind",
+    label: "Mind",
+    desc: "What you understand, believe, and perceive.",
+  },
+  {
+    key: "body",
+    label: "Body",
+    desc: "What you sense, carry, enact, and physically require.",
+  },
+  {
+    key: "heart",
+    label: "Heart",
+    desc: "What you feel, love, grieve, fear, and need in relationship.",
+  },
+  {
+    key: "spirit",
+    label: "Spirit",
+    desc: "What gives experience meaning, direction, connection, or sacred weight.",
+  },
+];
+
+export function pillarLabel(key) {
+  const p = PILLARS.find((p) => p.key === key);
+  return p ? p.label : null;
+}
+
+/* Focus item timeframes. Items are tagged by timeframe, mode, and
+   pillar so effort can be analyzed across dimensions over time
+   (future AI.D nudges read these tags). */
+export const TIMEFRAMES = [
+  { key: "day", label: "Day" },
+  { key: "week", label: "Week" },
+  { key: "month", label: "Month" },
+  { key: "year", label: "Year" },
+];
+
+export function timeframeLabel(key) {
+  const t = TIMEFRAMES.find((t) => t.key === key);
+  return t ? t.label : "Day";
+}
+
+const TIMEFRAME_KEYS = new Set(TIMEFRAMES.map((t) => t.key));
+
+/* Priority ranks per timeframe. Each rank (1|2|3) is unique within its
+   timeframe — week/month/year each hold their own independent 1/2/3.
+   Rank 1 keeps the book's "One Thing" language. */
+export const PRIORITY_RANKS = [
+  { rank: 1, label: "1st", note: "the One Thing" },
+  { rank: 2, label: "2nd", note: null },
+  { rank: 3, label: "3rd", note: null },
+];
+
+export function priorityLabel(rank) {
+  const r = PRIORITY_RANKS.find((r) => r.rank === rank);
+  if (!r) return null;
+  return r.note ? `${r.label} — ${r.note}` : r.label;
+}
+
+/* Week items repeat on selected days (0 = Sunday … 6 = Saturday);
+   month items repeat in selected months (0 = January … 11 = December). */
+export const DAYS_OF_WEEK = [
+  { key: 1, label: "Mon" },
+  { key: 2, label: "Tue" },
+  { key: 3, label: "Wed" },
+  { key: 4, label: "Thu" },
+  { key: 5, label: "Fri" },
+  { key: 6, label: "Sat" },
+  { key: 0, label: "Sun" },
+];
+
+export const MONTHS_OF_YEAR = [
+  { key: 0, label: "Jan" },
+  { key: 1, label: "Feb" },
+  { key: 2, label: "Mar" },
+  { key: 3, label: "Apr" },
+  { key: 4, label: "May" },
+  { key: 5, label: "Jun" },
+  { key: 6, label: "Jul" },
+  { key: 7, label: "Aug" },
+  { key: 8, label: "Sep" },
+  { key: 9, label: "Oct" },
+  { key: 10, label: "Nov" },
+  { key: 11, label: "Dec" },
+];
+
 function defaultState() {
   return {
     version: 1,
@@ -283,6 +402,9 @@ function defaultState() {
       practice: "", // "I practice…"
       returnThrough: "", // "When I drift, I return through…"
       values: [],
+      // Commitments are ordered objects [{ id, text, order }]; array
+      // order IS the priority (order 0 = highest). Focus items link by
+      // commitment id, never by position.
       commitments: [],
       setupComplete: false,
       // First-use walkthrough (replaces the bare setup screen). Existing
@@ -290,7 +412,9 @@ function defaultState() {
       onboarded: false,
       onboardingStep: 0,
     },
-    // "YYYY-MM-DD" -> { mantra: {gratitude,beauty,action,love}, intention, battery: {physical,mental,emotional,social,purpose} }
+    // "YYYY-MM-DD" -> { mantra: {gratitude,beauty,action,love},
+    //   orientation: { <anchor>: { text, done } }, intention,
+    //   battery: {physical,mental,emotional,social,purpose} }
     days: {},
     actions: [], // { id, date, ts, text, tag }
     signals: [], // { id, date, ts, text }
@@ -298,8 +422,13 @@ function defaultState() {
     assessments: [], // { id, date, ts, money, engagement, building, being }
     // Decision Engine — Eisenhower matrix items. Entries are living
     // objects: editable text, quadrant, commitment link, notes, and
-    // subtasks. { id, text, quadrant: q1|q2|q3|q4, commitmentId,
-    // oneThing, done, notes, subtasks: [{id, text, done}], created }
+    // subtasks — plus timeframe ('day'|'week'|'month'|'year'),
+    // repeat selections (daysOfWeek [0-6], months [0-11]), mode and
+    // pillar tags, per-timeframe priority rank (1|2|3, unique within
+    // the timeframe), and optional parentId nesting (linked subtasks).
+    // { id, text, quadrant: q1|q2|q3|q4, commitmentId, priority, done,
+    // notes, subtasks: [{id, text, done}], timeframe, daysOfWeek,
+    // months, mode, pillar, parentId, created }
     focusItems: [],
     // Identity Launch Sequence locator: stage key or null.
     launchStage: null,
@@ -319,6 +448,14 @@ function defaultState() {
 function blankDay() {
   return {
     mantra: { gratitude: false, beauty: false, action: false, love: false },
+    // Orientation micro-practices: one text entry per mantra anchor.
+    // { gratitude: { text, done }, beauty: {...}, action: {...}, love: {...} }
+    orientation: {
+      gratitude: { text: "", done: false },
+      beauty: { text: "", done: false },
+      action: { text: "", done: false },
+      love: { text: "", done: false },
+    },
     intention: "",
     battery: { physical: 5, mental: 5, emotional: 5, social: 5, purpose: 5 },
   };
@@ -413,6 +550,157 @@ function normalizeSubtasks(raw) {
     .filter((s) => s.id && s.text.trim());
 }
 
+/**
+ * Normalize commitments to ordered objects [{ id, text, order }].
+ * Older states store plain strings — they migrate in place, keeping
+ * their position as priority (0 = highest). Returns the list plus
+ * lookup maps used to remap focus-item links from text to id.
+ */
+function normalizeCommitments(raw) {
+  const arr = Array.isArray(raw) ? raw : [];
+  const list = [];
+  const textToId = new Map();
+  arr.forEach((c, i) => {
+    let text = "";
+    let id = null;
+    let order = i;
+    if (c && typeof c === "object") {
+      text = typeof c.text === "string" ? c.text : "";
+      id = typeof c.id === "string" && c.id ? c.id : null;
+      if (Number.isInteger(c.order)) order = c.order;
+    } else {
+      text = String(c ?? "");
+    }
+    text = text.trim();
+    if (!text) return;
+    if (!id) id = `cmt-${Date.now().toString(36)}-${i}`;
+    if (!textToId.has(text)) textToId.set(text, id);
+    list.push({ id, text: text.slice(0, 120), order });
+  });
+  list.sort((a, b) => a.order - b.order);
+  list.forEach((c, i) => {
+    c.order = i;
+  });
+  return { list, textToId, validIds: new Set(list.map((c) => c.id)) };
+}
+
+/**
+ * Remap a focus item's commitment link: old links hold the commitment
+ * text, new links hold its id. Unknown values drop to null.
+ */
+function remapCommitmentId(cid, textToId, validIds) {
+  if (typeof cid !== "string" || !cid) return null;
+  if (validIds.has(cid)) return cid;
+  return textToId.get(cid) ?? null;
+}
+
+/** Read-only lookup of a commitment's text by id (links are by id). */
+export function commitmentText(state, id) {
+  const list = state?.identity?.commitments;
+  if (!Array.isArray(list) || !id) return null;
+  const c = list.find((c) => c && c.id === id);
+  return c ? c.text : null;
+}
+
+/** Commitments sorted by priority (order 0 = highest). */
+export function sortedCommitments(state) {
+  const list = state?.identity?.commitments;
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((c) => c && typeof c.text === "string")
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+/**
+ * Normalize a day's orientation micro-practices. Each anchor becomes
+ * { text, done }. The pre-practice mantra booleans migrate into done,
+ * so a previously "held" anchor still reads as complete.
+ */
+function normalizeOrientation(raw, mantraRaw) {
+  const out = {};
+  const keys = ["gratitude", "beauty", "action", "love"];
+  for (const k of keys) {
+    const r = raw && typeof raw === "object" ? raw[k] : null;
+    const text =
+      r && typeof r.text === "string"
+        ? r.text
+        : typeof r === "string"
+          ? r
+          : "";
+    const done =
+      r && typeof r === "object" && r.done === true
+        ? true
+        : text.trim() !== ""
+          ? true
+          : mantraRaw && mantraRaw[k] === true;
+    out[k] = { text, done: done === true };
+  }
+  return out;
+}
+
+const VALID_MODE_KEYS = new Set(["production", "pleasure", "people"]);
+const VALID_PILLAR_KEYS = new Set(["mind", "body", "heart", "spirit"]);
+
+/** Normalize the extended focus-item fields; old items gain defaults. */
+function normalizeFocusItem(f, validQuadrants) {
+  const daysOfWeek = Array.isArray(f.daysOfWeek)
+    ? f.daysOfWeek.filter(
+        (n) => Number.isInteger(n) && n >= 0 && n <= 6
+      )
+    : [];
+  const months = Array.isArray(f.months)
+    ? f.months.filter((n) => Number.isInteger(n) && n >= 0 && n <= 11)
+    : [];
+  return {
+    id: String(f.id ?? ""),
+    text: String(f.text ?? ""),
+    quadrant: validQuadrants.has(f.quadrant) ? f.quadrant : "q2",
+    commitmentId: f.commitmentId ?? null,
+    // The old single "One Thing" flag migrates to priority 1 in the
+    // item's timeframe; ranks are unique per timeframe.
+    priority: [1, 2, 3].includes(f.priority)
+      ? f.priority
+      : f.oneThing === true
+        ? 1
+        : null,
+    done: f.done === true,
+    // Older items predate notes/subtasks — they gain empty defaults.
+    notes: typeof f.notes === "string" ? f.notes : "",
+    subtasks: normalizeSubtasks(f.subtasks),
+    created: Number(f.created) || 0,
+    // Timeframe + tagging layer (round 3): old items are day-scoped,
+    // untagged, and top-level.
+    timeframe: TIMEFRAME_KEYS.has(f.timeframe) ? f.timeframe : "day",
+    daysOfWeek,
+    months,
+    mode: VALID_MODE_KEYS.has(f.mode) ? f.mode : null,
+    pillar: VALID_PILLAR_KEYS.has(f.pillar) ? f.pillar : null,
+    parentId: typeof f.parentId === "string" && f.parentId ? f.parentId : null,
+  };
+}
+
+/**
+ * All ids under itemId (its linked children, recursively). Used to
+ * guard the "attach to" picker against cycles.
+ */
+export function descendantIds(items, itemId) {
+  const out = [];
+  const children = items.filter((f) => f.parentId === itemId);
+  for (const c of children) {
+    out.push(c.id);
+    out.push(...descendantIds(items, c.id));
+  }
+  return out;
+}
+
+/** True when attaching itemId under newParentId would create a cycle. */
+function wouldCreateCycle(items, itemId, newParentId) {
+  if (!newParentId) return false;
+  if (newParentId === itemId) return true;
+  return descendantIds(items, itemId).includes(newParentId);
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -450,6 +738,16 @@ function loadState() {
       identity.onboardingStep = 0;
     }
 
+    /* Commitments migrate from plain strings to ordered objects
+       [{ id, text, order }]; order IS the priority (0 = highest).
+       Focus-item links (which held text) remap to ids below. */
+    const {
+      list: commitments,
+      textToId: commitmentTextToId,
+      validIds: commitmentValidIds,
+    } = normalizeCommitments(oldIdentity.commitments);
+    identity.commitments = commitments;
+
     /* Normalize saved days: older entries predate the battery check. */
     const blank = blankDay();
     const rawDays =
@@ -457,11 +755,13 @@ function loadState() {
     const days = {};
     for (const [k, d] of Object.entries(rawDays)) {
       if (!d || typeof d !== "object") continue;
+      const mantra = { ...blank.mantra, ...(d.mantra || {}) };
       days[k] = {
         ...blank,
         ...d,
-        mantra: { ...blank.mantra, ...(d.mantra || {}) },
+        mantra,
         battery: { ...blank.battery, ...(d.battery || {}) },
+        orientation: normalizeOrientation(d.orientation, mantra),
       };
     }
 
@@ -479,18 +779,16 @@ function loadState() {
       signals: Array.isArray(parsed.signals) ? parsed.signals : [],
       stars: Array.isArray(parsed.stars) ? parsed.stars : [],
       assessments: Array.isArray(parsed.assessments) ? parsed.assessments : [],
-      focusItems: focusItems.map((f) => ({
-        id: String(f.id ?? ""),
-        text: String(f.text ?? ""),
-        quadrant: validQuadrants.has(f.quadrant) ? f.quadrant : "q2",
-        commitmentId: f.commitmentId ?? null,
-        oneThing: f.oneThing === true,
-        done: f.done === true,
-        // Older items predate notes/subtasks — they gain empty defaults.
-        notes: typeof f.notes === "string" ? f.notes : "",
-        subtasks: normalizeSubtasks(f.subtasks),
-        created: Number(f.created) || 0,
-      })),
+      focusItems: focusItems.map((f) => {
+        const n = normalizeFocusItem(f, validQuadrants);
+        // Old links hold commitment text; remap to the migrated id.
+        n.commitmentId = remapCommitmentId(
+          n.commitmentId,
+          commitmentTextToId,
+          commitmentValidIds
+        );
+        return n;
+      }),
       launchStage:
         typeof parsed.launchStage === "string" &&
         LAUNCH_STAGES.some((s) => s.key === parsed.launchStage)
@@ -592,11 +890,93 @@ export function AxzioProvider({ children }) {
         if (Array.isArray(d.identity[list])) d.identity[list].splice(index, 1);
       });
     },
+    /* commitments — ordered; position IS the priority (1st = highest).
+       New commitments append at the lowest priority; deleting
+       re-numbers. Focus items link by id, so reordering never breaks
+       their links. */
+    addCommitment(text) {
+      const t = text.trim();
+      if (!t) return null;
+      const entry = { id: uid(), text: t.slice(0, 120), order: 0 };
+      update((d) => {
+        if (!Array.isArray(d.identity.commitments)) {
+          d.identity.commitments = [];
+        }
+        entry.order = d.identity.commitments.length;
+        d.identity.commitments.push({ ...entry });
+      });
+      return entry;
+    },
+    removeCommitment(id) {
+      update((d) => {
+        const list = (d.identity.commitments || []).filter(
+          (c) => c && c.id !== id
+        );
+        list.forEach((c, i) => {
+          c.order = i;
+        });
+        d.identity.commitments = list;
+        // Focus items linked to the deleted commitment lose the link.
+        for (const f of d.focusItems) {
+          if (f.commitmentId === id) f.commitmentId = null;
+        }
+      });
+    },
+    /** Move a commitment up (dir=-1) or down (dir=+1) in priority. */
+    moveCommitment(id, dir) {
+      if (dir !== -1 && dir !== 1) return;
+      update((d) => {
+        const list = Array.isArray(d.identity.commitments)
+          ? d.identity.commitments
+          : [];
+        const i = list.findIndex((c) => c && c.id === id);
+        const j = i + dir;
+        if (i < 0 || j < 0 || j >= list.length) return;
+        const [c] = list.splice(i, 1);
+        list.splice(j, 0, c);
+        list.forEach((x, k) => {
+          x.order = k;
+        });
+      });
+    },
 
     /* daily */
+    /** Legacy mantra toggle — kept in sync with the orientation practice's done flag. */
     setMantra(key, anchor, val) {
       update((d) => {
-        ensureDay(d, key).mantra[anchor] = val;
+        const day = ensureDay(d, key);
+        day.mantra[anchor] = val;
+        if (day.orientation && day.orientation[anchor]) {
+          day.orientation[anchor].done = val;
+        }
+      });
+    },
+    /**
+     * Orientation micro-practices (one text entry per mantra anchor,
+     * saved per day). Entering text marks the practice complete; the
+     * done flag can also be set/cleared by hand.
+     */
+    setOrientationText(key, anchor, text) {
+      update((d) => {
+        const day = ensureDay(d, key);
+        if (!day.orientation) day.orientation = blankDay().orientation;
+        const p = day.orientation[anchor];
+        if (!p) return;
+        p.text = String(text ?? "").slice(0, 280);
+        if (p.text.trim()) {
+          p.done = true;
+          day.mantra[anchor] = true;
+        }
+      });
+    },
+    setOrientationDone(key, anchor, done) {
+      update((d) => {
+        const day = ensureDay(d, key);
+        if (!day.orientation) day.orientation = blankDay().orientation;
+        const p = day.orientation[anchor];
+        if (!p) return;
+        p.done = done === true;
+        day.mantra[anchor] = p.done;
       });
     },
     setIntention(key, text) {
@@ -679,21 +1059,35 @@ export function AxzioProvider({ children }) {
     },
 
     /* decision engine — Eisenhower matrix items */
-    addFocusItem(text, quadrant = "q2") {
+    /**
+     * Capture a new focus item. opts: timeframe ('day'|'week'|'month'|'year'),
+     * daysOfWeek [0-6], months [0-11], mode, pillar, commitmentId, parentId.
+     * Old call sites (text, quadrant) keep working — everything else defaults.
+     */
+    addFocusItem(text, quadrant = "q2", opts = {}) {
       const t = text.trim();
       if (!t) return null;
       const q = ["q1", "q2", "q3", "q4"].includes(quadrant) ? quadrant : "q2";
-      const entry = {
-        id: uid(),
-        text: t,
-        quadrant: q,
-        commitmentId: null,
-        oneThing: false,
-        done: false,
-        notes: "",
-        subtasks: [],
-        created: Date.now(),
-      };
+      const entry = normalizeFocusItem(
+        {
+          id: uid(),
+          text: t,
+          quadrant: q,
+          commitmentId: opts.commitmentId ?? null,
+          priority: null,
+          done: false,
+          notes: "",
+          subtasks: [],
+          created: Date.now(),
+          timeframe: opts.timeframe,
+          daysOfWeek: opts.daysOfWeek,
+          months: opts.months,
+          mode: opts.mode,
+          pillar: opts.pillar,
+          parentId: opts.parentId,
+        },
+        new Set(["q1", "q2", "q3", "q4"])
+      );
       update((d) => {
         d.focusItems.push(entry);
       });
@@ -715,6 +1109,10 @@ export function AxzioProvider({ children }) {
     deleteFocusItem(id) {
       update((d) => {
         d.focusItems = d.focusItems.filter((x) => x.id !== id);
+        // Linked children become top-level rather than orphaned.
+        for (const f of d.focusItems) {
+          if (f.parentId === id) f.parentId = null;
+        }
       });
     },
     linkFocusCommitment(id, commitmentId) {
@@ -723,16 +1121,38 @@ export function AxzioProvider({ children }) {
         if (f) f.commitmentId = commitmentId || null;
       });
     },
-    /** Exactly one item may hold the One Thing at a time. */
-    setOneThing(id) {
+    /**
+     * Set a focus item's priority rank (1|2|3) — or null to clear it.
+     * Each rank is unique within its timeframe: setting rank N clears
+     * rank N from every other item in the same timeframe (day/week/
+     * month/year hold independent 1/2/3 sets). Rank 1 is the One Thing.
+     */
+    setPriority(id, rank) {
+      const r = rank === 1 || rank === 2 || rank === 3 ? rank : null;
       update((d) => {
-        for (const f of d.focusItems) f.oneThing = f.id === id;
+        const f = d.focusItems.find((x) => x.id === id);
+        if (!f) return;
+        if (r !== null) {
+          for (const x of d.focusItems) {
+            if (
+              x.id !== id &&
+              x.timeframe === f.timeframe &&
+              x.priority === r
+            ) {
+              x.priority = null;
+            }
+          }
+        }
+        f.priority = r;
       });
     },
     /**
      * Patch a focus item from its expanded editor. Accepted keys: text,
      * quadrant, commitmentId, notes, subtasks ([{id, text, done}]),
-     * done, oneThing. oneThing:true clears the flag on every other item.
+     * timeframe, daysOfWeek, months, mode, pillar, parentId, priority,
+     * done. priority 1|2|3 claims that rank in the item's timeframe
+     * (clearing it from the previous holder); null clears the item's
+     * rank. parentId is cycle-guarded: self and descendants are refused.
      */
     updateFocusItem(id, patch = {}) {
       update((d) => {
@@ -759,11 +1179,57 @@ export function AxzioProvider({ children }) {
             }))
           );
         }
+        if (TIMEFRAME_KEYS.has(patch.timeframe)) {
+          f.timeframe = patch.timeframe;
+        }
+        if (Array.isArray(patch.daysOfWeek)) {
+          f.daysOfWeek = patch.daysOfWeek.filter(
+            (n) => Number.isInteger(n) && n >= 0 && n <= 6
+          );
+        }
+        if (Array.isArray(patch.months)) {
+          f.months = patch.months.filter(
+            (n) => Number.isInteger(n) && n >= 0 && n <= 11
+          );
+        }
+        if ("mode" in patch) {
+          f.mode = VALID_MODE_KEYS.has(patch.mode) ? patch.mode : null;
+        }
+        if ("pillar" in patch) {
+          f.pillar = VALID_PILLAR_KEYS.has(patch.pillar) ? patch.pillar : null;
+        }
+        if ("parentId" in patch) {
+          const pid =
+            typeof patch.parentId === "string" && patch.parentId
+              ? patch.parentId
+              : null;
+          const parentExists =
+            pid && d.focusItems.some((x) => x.id === pid && !x.done);
+          if (pid && parentExists && !wouldCreateCycle(d.focusItems, id, pid)) {
+            f.parentId = pid;
+          } else if (!pid) {
+            f.parentId = null; // move to top level
+          }
+          // A refused attach (self, descendant, missing parent) leaves
+          // the item where it was — never half-moved.
+        }
         if (typeof patch.done === "boolean") f.done = patch.done;
-        if (patch.oneThing === true) {
-          for (const x of d.focusItems) x.oneThing = x.id === id;
-        } else if (patch.oneThing === false && f.oneThing) {
-          f.oneThing = false;
+        if ("priority" in patch) {
+          const p = patch.priority;
+          if (p === 1 || p === 2 || p === 3) {
+            for (const x of d.focusItems) {
+              if (
+                x.id !== id &&
+                x.timeframe === f.timeframe &&
+                x.priority === p
+              ) {
+                x.priority = null;
+              }
+            }
+            f.priority = p;
+          } else {
+            f.priority = null;
+          }
         }
       });
     },
