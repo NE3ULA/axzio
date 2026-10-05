@@ -41,7 +41,7 @@ const MODULES = [
     key: "constellation",
     label: "Constellation",
     purpose:
-      "Your map: the eight stages of the system, plus the stars you ignite along the way.",
+      "Follow the seeds you ignite — from spark to understanding, placement, planning, and action — until each one roots into your legend or is released.",
   },
   {
     key: "identity",
