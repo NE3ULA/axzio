@@ -57,7 +57,7 @@ export const ORIENTATION_PRACTICES = [
   {
     key: "action",
     label: "Take Action",
-    prompt: "One action you will take today",
+    prompt: "The one thing to focus on today — pulled from Focus",
     focusLink: true, // links into #/focus
   },
   {
@@ -120,6 +120,19 @@ export const BATTERY = [
     desc: "Meaning, direction, contribution — what the effort belongs to.",
   },
 ];
+
+/* Human Battery priorities — how much attention a dimension gets today.
+   STATE (1–10) is where the instrument is; PRIORITY (low/med/high) is where
+   focus goes. A low state with low priority is rest, not failure. */
+export const BATTERY_PRIORITIES = [
+  { key: "low", label: "Low" },
+  { key: "med", label: "Med" },
+  { key: "high", label: "High" },
+];
+
+export function validBatteryPriority(v) {
+  return BATTERY_PRIORITIES.some((p) => p.key === v) ? v : "med";
+}
 
 /* The master practice loop — the Alchemist Path (WE ARE ALCHEMY, ch. INTEGRATION). */
 export const PHASES = ["Reveal", "Interpret", "Align", "Act", "Integrate"];
@@ -276,6 +289,41 @@ export function modeLabel(key) {
   return m ? m.label : null;
 }
 
+/* Tribe v1 — core-group circles for the people directory. Thin local
+   foundation; sharing / identity-stack exchange arrives later with
+   accounts. Give Love entries can tag a personId from these circles. */
+export const CIRCLES = [
+  { key: "partner", label: "Spouse/Partner" },
+  { key: "family", label: "Family" },
+  { key: "friends", label: "Closest friends" },
+  { key: "business", label: "Key Business Relationships" },
+  { key: "other", label: "Other" },
+];
+
+export function circleLabel(key) {
+  const c = CIRCLES.find((c) => c.key === key);
+  return c ? c.label : "Other";
+}
+
+export function validCircle(key) {
+  return CIRCLES.some((c) => c.key === key) ? key : "other";
+}
+
+/** Normalize the people directory; old states predate it. */
+function normalizePeople(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((p) => p && typeof p === "object")
+    .map((p) => ({
+      id: typeof p.id === "string" && p.id ? p.id : uid(),
+      name: typeof p.name === "string" ? p.name.trim().slice(0, 80) : "",
+      circle: validCircle(p.circle),
+      notes: typeof p.notes === "string" ? p.notes.slice(0, 500) : "",
+      createdAt: Number(p.createdAt) || 0,
+    }))
+    .filter((p) => p.name !== "");
+}
+
 /* The seven fields of a Guided Reset (mirrors the guided practice at
    ne3ula.com/e3-reset/guided): Situation, then the Alchemist Path —
    Reveal → Interpret → Align → Act — plus a LifeMod, then Integrate. */
@@ -414,8 +462,8 @@ function defaultState() {
     },
     // "YYYY-MM-DD" -> { mantra: {gratitude,beauty,action,love},
     //   orientation: { <anchor>: { text, done } }, intention,
-    //   battery: {physical,mental,emotional,social,purpose} }
-    days: {},
+    //   battery: {physical,mental,emotional,social,purpose}  // 1–10 state
+    //   batteryPriority: {physical,mental,...}  // 'low'|'med'|'high' focus }    days: {},
     actions: [], // { id, date, ts, text, tag }
     signals: [], // { id, date, ts, text }
     stars: [], // { id, name, note, created }
@@ -430,6 +478,9 @@ function defaultState() {
     // notes, subtasks: [{id, text, done}], timeframe, daysOfWeek,
     // months, mode, pillar, parentId, created }
     focusItems: [],
+    // Tribe v1 — people directory: [{ id, name, circle, notes, createdAt }].
+    // Give Love entries tag a personId; local-only for now.
+    people: [],
     // Identity Launch Sequence locator: stage key or null.
     launchStage: null,
     // Modes of Energy: `current` is the mode I'm IN right now
@@ -456,11 +507,18 @@ function blankDay() {
     orientation: {
       gratitude: { text: "", done: false },
       beauty: { text: "", done: false },
-      action: { text: "", done: false },
-      love: { text: "", done: false },
+      action: { text: "", done: false, focusItemId: null },
+      love: { text: "", done: false, personId: null },
     },
     intention: "",
     battery: { physical: 5, mental: 5, emotional: 5, social: 5, purpose: 5 },
+    batteryPriority: {
+      physical: "med",
+      mental: "med",
+      emotional: "med",
+      social: "med",
+      purpose: "med",
+    },
   };
 }
 
@@ -639,13 +697,34 @@ function normalizeOrientation(raw, mantraRaw) {
         : text.trim() !== ""
           ? true
           : mantraRaw && mantraRaw[k] === true;
-    out[k] = { text, done: done === true };
+    // Take Action may link a focus item (the day's one thing); old
+    // free-text entries carry no link and are grandfathered as-is.
+    const focusItemId =
+      r && typeof r === "object" && typeof r.focusItemId === "string"
+        ? r.focusItemId
+        : null;
+    // Give Love may tag a person from the Tribe directory; old entries
+    // carry no tag and migrate cleanly to null.
+    const personId =
+      r && typeof r === "object" && typeof r.personId === "string"
+        ? r.personId
+        : null;
+    out[k] = { text, done: done === true, focusItemId, personId };
   }
   return out;
 }
 
 const VALID_MODE_KEYS = new Set(["production", "pleasure", "people"]);
 const VALID_PILLAR_KEYS = new Set(["mind", "body", "heart", "spirit"]);
+
+/** Normalize a day's battery priorities; old days (pre-priority) gain 'med'. */
+function normalizeBatteryPriority(raw, blankPriority) {
+  const out = { ...blankPriority };
+  if (raw && typeof raw === "object") {
+    for (const b of BATTERY) out[b.key] = validBatteryPriority(raw[b.key]);
+  }
+  return out;
+}
 
 /** Normalize the extended focus-item fields; old items gain defaults. */
 function normalizeFocusItem(f, validQuadrants) {
@@ -766,6 +845,10 @@ function loadState() {
         ...d,
         mantra,
         battery: { ...blank.battery, ...(d.battery || {}) },
+        batteryPriority: normalizeBatteryPriority(
+          d.batteryPriority,
+          blank.batteryPriority
+        ),
         orientation: normalizeOrientation(d.orientation, mantra),
       };
     }
@@ -784,6 +867,8 @@ function loadState() {
       signals: Array.isArray(parsed.signals) ? parsed.signals : [],
       stars: Array.isArray(parsed.stars) ? parsed.stars : [],
       assessments: Array.isArray(parsed.assessments) ? parsed.assessments : [],
+      // Tribe v1: old states predate the people directory.
+      people: normalizePeople(parsed.people),
       focusItems: focusItems.map((f) => {
         const n = normalizeFocusItem(f, validQuadrants);
         // Old links hold commitment text; remap to the migrated id.
@@ -851,6 +936,19 @@ export function AxzioProvider({ children }) {
   const ensureDay = (draft, key) => {
     if (!draft.days[key]) draft.days[key] = blankDay();
     return draft.days[key];
+  };
+
+  /* When an item claims day rank 1, mirror it into today's Take Action
+     practice (auto-completes; the manual done toggle still overrides). */
+  const mirrorDayOneThing = (draft, item) => {
+    const day = ensureDay(draft, localDateKey());
+    if (!day.orientation) day.orientation = blankDay().orientation;
+    const p = day.orientation.action;
+    if (!p) return;
+    p.focusItemId = item.id;
+    p.text = item.text;
+    p.done = true;
+    day.mantra.action = true;
   };
 
   const api = {
@@ -984,6 +1082,92 @@ export function AxzioProvider({ children }) {
         day.mantra[anchor] = p.done;
       });
     },
+    /**
+     * Take Action — link a focus item as today's one thing instead of
+     * free text. Claims rank 1 in the item's own timeframe (uniqueness
+     * rule), mirrors its text, and marks the practice complete.
+     */
+    setOrientationFocusItem(key, itemId) {
+      update((d) => {
+        const f = d.focusItems.find((x) => x.id === itemId && !x.done);
+        if (!f) return;
+        for (const x of d.focusItems) {
+          if (x.id !== itemId && x.timeframe === f.timeframe && x.priority === 1) {
+            x.priority = null;
+          }
+        }
+        f.priority = 1;
+        const day = ensureDay(d, key);
+        if (!day.orientation) day.orientation = blankDay().orientation;
+        const p = day.orientation.action;
+        if (!p) return;
+        p.focusItemId = itemId;
+        p.text = f.text;
+        p.done = true;
+        day.mantra.action = true;
+      });
+    },
+    /**
+     * Tribe v1 — people directory (local-only). Removing a person nulls
+     * their personIds on Give Love entries; entries themselves are never
+     * deleted.
+     */
+    addPerson(name, circle, notes) {
+      const n = typeof name === "string" ? name.trim().slice(0, 80) : "";
+      if (!n) return null;
+      const person = {
+        id: uid(),
+        name: n,
+        circle: validCircle(circle),
+        notes: typeof notes === "string" ? notes.trim().slice(0, 500) : "",
+        createdAt: Date.now(),
+      };
+      update((d) => {
+        if (!Array.isArray(d.people)) d.people = [];
+        d.people.push(person);
+      });
+      return person;
+    },
+    updatePerson(id, patch = {}) {
+      update((d) => {
+        const p = (d.people || []).find((x) => x.id === id);
+        if (!p) return;
+        if (typeof patch.name === "string" && patch.name.trim()) {
+          p.name = patch.name.trim().slice(0, 80);
+        }
+        if (typeof patch.circle === "string") {
+          p.circle = validCircle(patch.circle);
+        }
+        if (typeof patch.notes === "string") {
+          p.notes = patch.notes.slice(0, 500);
+        }
+      });
+    },
+    removePerson(id) {
+      update((d) => {
+        d.people = (d.people || []).filter((x) => x.id !== id);
+        // Entries keep their text; only the person tag is cleared.
+        for (const day of Object.values(d.days || {})) {
+          const love = day.orientation?.love;
+          if (love && love.personId === id) love.personId = null;
+        }
+      });
+    },
+    /** Tag (or untag) a person on a day's Give Love entry. */
+    setLovePerson(key, personId) {
+      update((d) => {
+        const valid =
+          typeof personId === "string" &&
+          (d.people || []).some((x) => x.id === personId)
+            ? personId
+            : null;
+        const day = ensureDay(d, key);
+        if (!day.orientation) day.orientation = blankDay().orientation;
+        const love = day.orientation.love;
+        if (!love) return;
+        love.personId = valid;
+      });
+    },
     setIntention(key, text) {
       update((d) => {
         ensureDay(d, key).intention = text;
@@ -1060,6 +1244,16 @@ export function AxzioProvider({ children }) {
       if (!BATTERY.some((b) => b.key === dim)) return;
       update((d) => {
         ensureDay(d, key).battery[dim] = clamp(val);
+      });
+    },
+
+    /* human battery priority — where focus goes (low|med|high).
+       Mirrors setBattery; STATE stays untouched. */
+    setBatteryPriority(key, dim, level) {
+      if (!BATTERY.some((b) => b.key === dim)) return;
+      const v = validBatteryPriority(level);
+      update((d) => {
+        ensureDay(d, key).batteryPriority[dim] = v;
       });
     },
 
@@ -1149,6 +1343,17 @@ export function AxzioProvider({ children }) {
           }
         }
         f.priority = r;
+        // A day rank-1 is today's one thing — mirror it into Take Action.
+        if (r === 1 && f.timeframe === "day" && !f.done) {
+          mirrorDayOneThing(d, f);
+        } else if (r === null) {
+          // Rank cleared — unlink today's Take Action if it pointed here
+          // (text/done are kept; the row falls back to the select).
+          const day = ensureDay(d, localDateKey());
+          if (day.orientation?.action?.focusItemId === id) {
+            day.orientation.action.focusItemId = null;
+          }
+        }
       });
     },
     /**
@@ -1232,8 +1437,17 @@ export function AxzioProvider({ children }) {
               }
             }
             f.priority = p;
+            // A day rank-1 is today's one thing — mirror it into Take Action.
+            if (p === 1 && f.timeframe === "day" && !f.done) {
+              mirrorDayOneThing(d, f);
+            }
           } else {
             f.priority = null;
+            // Rank cleared — unlink today's Take Action if it pointed here.
+            const day = ensureDay(d, localDateKey());
+            if (day.orientation?.action?.focusItemId === id) {
+              day.orientation.action.focusItemId = null;
+            }
           }
         }
       });

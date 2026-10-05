@@ -2,7 +2,7 @@ import { useAxzio, MODES, modeLabel } from "../store.jsx";
 import { MicroLabel } from "./ui.jsx";
 
 /**
- * ModePicker — primary + secondary mode selection for one interval
+ * ModePicker — primary + secondary FOCUS mode selection for one interval
  * (day / week / month). Shared by the Modes view, the first-use
  * walkthrough, and the Command Deck's inline quick-switch.
  */
@@ -16,7 +16,7 @@ export default function ModePicker({ interval, compact = false }) {
     <div className={compact ? "space-y-4" : "space-y-6"}>
       <SlotRow
         slot="primary"
-        label="Primary"
+        label="Primary focus"
         interval={interval}
         selected={sel.primary}
         onSelect={(key) => axzio.setMode(interval, "primary", key)}
@@ -24,7 +24,7 @@ export default function ModePicker({ interval, compact = false }) {
       />
       <SlotRow
         slot="secondary"
-        label="Secondary"
+        label="Secondary focus"
         interval={interval}
         selected={sel.secondary}
         onSelect={(key) => axzio.setMode(interval, "secondary", key)}

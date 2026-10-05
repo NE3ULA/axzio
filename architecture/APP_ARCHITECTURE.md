@@ -80,6 +80,7 @@ axzio/
 | `#/deck`          | Command Deck  | Overview dashboard: Who am I (top 3 commitments) / What's important today (day 1st/2nd/3rd priorities) / What mode am I in / State / Orientation (4 micro-practices) cards in an OVERVIEW zone; a separate CAPTURE zone below holds intention, action log, signals, stars |
 | `#/focus`         | Focus         | Decision Engine home: doing-first voice, per-timeframe 1st/2nd/3rd priorities (1st = the one thing to focus on), capture with commitment/mode/pillar tagging, Eisenhower 2×2 with Day/Week/Month/Year tabs, Q1 emphasized as where focus goes first. Items are living objects: tap to expand an inline editor (text, quadrant, timeframe + repeats, mode/pillar tags, commitment, attach-to nesting, notes, subtasks, priority); "Explore in Guided Reset" threads an action into a journey |
 | `#/modes`         | Modes         | The three Modes of Energy (Production, Pleasure, People): "Right now" single-select for the mode you're IN + "Where focus goes" primary/secondary per Day / Week / Month, each mode's gift and risk |
+| `#/tribe`         | Tribe         | People directory in core-group circles (Spouse/Partner, Family, Closest friends, Key Business Relationships, Other): add/edit/remove people, per-person Give Love history. Local-only v1; sharing arrives later with accounts |
 | `#/constellation` | Constellation | 8-stage star map, detail readings, orbiting user stars       |
 | `#/identity`      | Identity      | Identity Core (4 orientation statements, values, ordered commitments), Four Pillars (Mind, Body, Heart, Spirit), primitives sliders + radar, walkthrough replay, reset |
 | `#/journeys`      | Journeys      | Morning Alignment, Evening Review, Ignite a Star, Guided Reset (phase-labeled) + Identity Launch Sequence locator + past reset Action Cards |
@@ -95,7 +96,7 @@ setup screen is gone; new users walk a 12-step flow in
 2. **Module tour** — one screen per module (Deck, Focus, Modes,
    Constellation, Identity, Journeys) with a single-sentence purpose each.
 3. **Setup sequence** — display name + the 4 orientation statements;
-   Human Battery baseline sliders; today's primary + secondary mode;
+   Human Battery baseline sliders; today's primary + secondary focus mode;
    first intention; **"What's important today?"** — capture up to 3 focus
    items (Day timeframe, Q2 default). The step's helper notes that once
    accounts exist it will be able to pull from history; for now it is a
@@ -116,8 +117,8 @@ distinct zones separated by a labeled divider:
 - **OVERVIEW** — five cards in a grid: Who am I (becoming-statement + top 3
   commitments in priority order) / What's important today (the day's
   1st/2nd/3rd priorities + open Do/Decide counts) / What mode am I in
-  (inline quick-switch) / State (battery most-depleted / most-available,
-  expandable sliders) / Orientation (the 4 micro-practices, n/4 + entry
+  (inline quick-switch) / State (gap-aware battery summary — Needs attention /
+  Charged / Resting — with expandable state-slider + priority inputs) / Orientation (the 4 micro-practices, n/4 + entry
   previews).
 - **CAPTURE** — its own zone below the divider: intention for the day,
   action log, signal feed, ignite-a-star.
@@ -133,16 +134,22 @@ Orientation card, one per anchor:
 
 - **Be Grateful** → "What are you grateful for right now?"
 - **See Beauty** → "What beauty did you notice today?"
-- **Take Action** → "One action you will take today" (+ "Open in Focus →")
+- **Take Action** → pulls from Focus: shows the day's rank-1 item as "The
+  one thing to focus on today" (+ "Open in Focus →"); with no rank-1 it
+  offers open focus items to promote, or links to Focus when empty.
+  Legacy free-text entries are grandfathered (shown as "Saved earlier").
 - **Give Love** → "One thing you will do today for someone else"
 
 Entries save per day under `days[date].orientation = { <anchor>:
-{ text, done } }`. A row counts as complete when it has text (entering
-text auto-marks it); the check can also be set/cleared by hand. The card
-shows n/4 with a one-line preview of each entry. The legacy `mantra`
-boolean map is kept in sync so the Morning Alignment journey step and the
-Constellation's "anchors held" count keep working; old held-anchors
-migrate into the new done flags.
+{ text, done } }` (action also carries optional `focusItemId`). A row
+counts as complete when it has text (entering text auto-marks it); the
+check can also be set/cleared by hand. Take Action auto-completes when a
+day rank-1 item is set — in Focus or via the row's select — mirroring
+the item's text into the entry; the manual toggle still overrides. The
+card shows n/4 with a one-line preview of each entry. The legacy
+`mantra` boolean map is kept in sync so the Morning Alignment journey
+step and the Constellation's "anchors held" count keep working; old
+held-anchors migrate into the new done flags.
 
 ## Four Pillars
 
@@ -313,10 +320,16 @@ everything else; the help bubble says so.
       // Orientation micro-practices: one text entry per mantra anchor.
       orientation: {
         gratitude: { text, done }, beauty: { text, done },
-        action: { text, done },    love: { text, done },
+        action: { text, done, focusItemId },  // links the day's one thing
+        love: { text, done, personId },        // tags someone from Tribe
       },
       intention: string,
-      battery: { physical, mental, emotional, social, purpose }  // 1–10
+      battery: { physical, mental, emotional, social, purpose }  // 1–10 STATE
+      // batteryPriority: { physical, mental, ... } // 'low'|'med'|'high' FOCUS
+      // STATE is where the instrument is; PRIORITY is where focus goes.
+      // A low state on a low priority is rest, not failure. The Deck's State
+      // card reads the gap: "Needs attention" = low state on high priority;
+      // "Charged" = highest state; "Resting" = low state on low priority.
     }
   },
   actions:     [{ id, date, ts, text, tag }],       // tag: mantra anchor or primitive
@@ -333,11 +346,15 @@ everything else; the help bubble says so.
                  parentId,             // linked-subtask nesting | null
                  created }],
   launchStage: string | null,  // Identity Launch Sequence stage key
+  // Tribe v1 — people directory (local-only):
+  // people: [{ id, name, circle, notes, createdAt }]
+  // circle: partner|family|friends|business|other
   // Modes of Energy (production | pleasure | people | null):
   modes: {
-    day:   { primary, secondary },
-    week:  { primary, secondary },
-    month: { primary, secondary },
+    current,             // the mode you're IN right now (descriptive) | null
+    day:   { primary, secondary },   // modes to FOCUS on (prescriptive)
+    week:  { primary, secondary },   // — labeled "Primary focus"/"Secondary focus"
+    month: { primary, secondary },   // in the shared picker
   },
   // Guided Reset completions (private, local only):
   resets: [{ id, ts, date, situation, reveal, interpret, align, act, lifemod,
@@ -350,7 +367,8 @@ everything else; the help bubble says so.
 **Migration:** v1 saved states keep working. On load, the old
 `identity.authored` / `identity.orientation` fields migrate into the
 `becoming` / `standFor` statements (old keys removed), days gain a
-default 5/5/5/5/5 battery, and `focusItems` / `launchStage` default to
+default 5/5/5/5/5 battery plus all-'med' batteryPriority, `people` defaults
+to `[]`, love entries gain `personId: null`, and `focusItems` / `launchStage` default to
 `[]` / `null`. Focus items with unknown quadrants fall back to Q2.
 `identity.onboarded` defaults to the old `setupComplete` value, so
 existing users never see the new walkthrough. `modes` and `resets`
@@ -382,6 +400,37 @@ npm run dev      # local dev server
 npm run build    # production build → dist/
 npm run preview  # serve the production build locally
 ```
+
+## Tribe v1 (thin local foundation)
+
+A people directory seeded by the Give Love practice — the core-group
+circles the legend is lived with:
+
+- **Circles:** `partner` (Spouse/Partner), `family` (Family), `friends`
+  (Closest friends), `business` (Key Business Relationships), `other`
+  (Other). Circles describe relationship distance, not worth.
+- **Schema:** `people: [{ id, name, circle, notes, createdAt }]`.
+  Actions: `addPerson`, `updatePerson`, `removePerson` (nulls personIds;
+  entries are never deleted), `setLovePerson(dayKey, personId)`.
+- **Give Love tagging:** `orientation.<day>.love = { text, done, personId }`.
+  The Deck's Give Love row has an optional "For whom?" select (grouped by
+  circle); the row shows the person's name once tagged. Old love entries
+  (no personId) migrate cleanly to `null`.
+- **Tribe view** (`#/tribe`, in nav): people grouped by circle with
+  counts; add-person form (name + circle + optional notes); tap a person
+  for circle/notes editing, their Give Love history (newest first), and
+  removal (with confirm). Empty states throughout.
+- **Local-only.** No sharing UI, no network calls, no profile linking,
+  no circles-based visibility.
+
+**Explicitly later (needs accounts + the user-flow revamp):** tiered
+identity-stack sharing with tribe members (boundaries/needs/desires
+fields on the identity stack, shareable by circle); profile linking
+(names → real profiles, a relationship tool — not social media);
+neglect/investment nudges from the tagged history (who is being invested
+in vs. neglected — the gap reading, like the battery); the tribe
+"offer/accept" mechanic (grabbing one another's one-things as Give Love
+actions).
 
 ## Deliberately left for v2
 

@@ -6,6 +6,9 @@ import {
   priorityLabel,
   TAGS,
   BATTERY,
+  BATTERY_PRIORITIES,
+  validBatteryPriority,
+  CIRCLES,
   MODES,
   modeLabel,
   tagLabel,
@@ -452,9 +455,20 @@ function StateCard() {
   const entries = BATTERY.map((b) => ({
     ...b,
     value: Number.isFinite(day.battery?.[b.key]) ? day.battery[b.key] : 5,
+    priority: validBatteryPriority(day.batteryPriority?.[b.key]),
   }));
-  const depleted = entries.reduce((a, b) => (a.value <= b.value ? a : b));
-  const available = entries.reduce((a, b) => (a.value >= b.value ? a : b));
+  /* Gap-aware reading: state vs. priority, not raw depletion. */
+  const highPri = entries.filter((e) => e.priority === "high");
+  const lowPri = entries.filter((e) => e.priority === "low");
+  const needsAttention =
+    highPri.length > 0
+      ? highPri.reduce((a, b) => (a.value <= b.value ? a : b))
+      : null;
+  const charged = entries.reduce((a, b) => (a.value >= b.value ? a : b));
+  const resting =
+    lowPri.length > 0
+      ? lowPri.reduce((a, b) => (a.value <= b.value ? a : b))
+      : null;
 
   return (
     <Card className="axzio-rise axzio-rise-4 flex flex-col p-6">
@@ -463,9 +477,9 @@ function StateCard() {
         help={
           <HelpBubble title="State">
             <HelpText
-              what="Your Human Battery: five dimensions of available capacity — physical, mental, emotional, social, purpose."
-              why="State is not identity. Hear the instrument before trying to force the performance."
-              how="Expand to slide each dimension; begin with the one asking most clearly for attention."
+              what="Your Human Battery: five dimensions of available capacity — physical, mental, emotional, social, purpose. Each dimension has a STATE (where the instrument is, 1–10) and a PRIORITY (how much attention it gets: low, medium, high)."
+              why="State is not a work order. A low reading on a low priority is rest, not failure. The card reads the gap between state and priority — not raw depletion."
+              how="Expand to slide each dimension's state, then set where focus goes. 'Needs attention' is a low state on a high priority; 'Resting' is a low state on a low priority — intentional, not a problem."
             />
           </HelpBubble>
         }
@@ -481,18 +495,28 @@ function StateCard() {
       />
       <div className="flex-1">
         <div className="flex flex-wrap gap-x-8 gap-y-2">
+          {needsAttention && (
+            <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
+              Needs attention{" "}
+              <span className="ml-1 text-white">
+                {needsAttention.label} · {needsAttention.value}/10
+              </span>
+            </p>
+          )}
           <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
-            Most depleted{" "}
+            Charged{" "}
             <span className="ml-1 text-white">
-              {depleted.label} · {depleted.value}/10
+              {charged.label} · {charged.value}/10
             </span>
           </p>
-          <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
-            Most available{" "}
-            <span className="ml-1 text-white">
-              {available.label} · {available.value}/10
-            </span>
-          </p>
+          {resting && (
+            <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
+              Resting{" "}
+              <span className="ml-1 text-white/70">
+                {resting.label} · {resting.value}/10
+              </span>
+            </p>
+          )}
         </div>
         {expanded && (
           <div className="axzio-rise mt-5 border-t border-white/10 pt-5">
@@ -518,7 +542,7 @@ function OrientationCard({ day, today }) {
             <HelpText
               what="The daily mantra as four micro-practices: a gratitude entry, a beauty noticed, one action for today, one thing for someone else."
               why="Named practices make the anchors concrete — each asks for something specific rather than a vague “done”."
-              how="Expand a practice and write the entry; it saves for today and marks the practice complete. Unmark by hand any time. Take Action links into Focus — live now; the other three are standalone practices."
+              how="Expand a practice and write the entry; it saves for today and marks the practice complete. Unmark by hand any time. Take Action pulls from Focus — it shows your day's rank-1 item automatically, or lets you pick one to promote to rank 1. No duplicate entry needed. Give Love can tag someone from your Tribe."
             />
           </HelpBubble>
         }
@@ -529,14 +553,30 @@ function OrientationCard({ day, today }) {
         }
       />
       <div className="space-y-2">
-        {ORIENTATION_PRACTICES.map((p) => (
-          <PracticeRow
-            key={p.key}
-            practice={p}
-            entry={day.orientation?.[p.key]}
-            today={today}
-          />
-        ))}
+        {ORIENTATION_PRACTICES.map((p) =>
+          p.key === "action" ? (
+            <TakeActionRow
+              key={p.key}
+              practice={p}
+              entry={day.orientation?.[p.key]}
+              today={today}
+            />
+          ) : p.key === "love" ? (
+            <GiveLoveRow
+              key={p.key}
+              practice={p}
+              entry={day.orientation?.[p.key]}
+              today={today}
+            />
+          ) : (
+            <PracticeRow
+              key={p.key}
+              practice={p}
+              entry={day.orientation?.[p.key]}
+              today={today}
+            />
+          )
+        )}
       </div>
     </Card>
   );
@@ -643,13 +683,338 @@ function PracticeRow({ practice, entry, today }) {
   );
 }
 
+/**
+ * TakeActionRow — the Take Action practice pulls from Focus instead of
+ * duplicating it. Shows the day's rank-1 item when one exists (auto-
+ * completes), otherwise offers open focus items to promote to rank 1,
+ * otherwise links to Focus. Legacy free-text entries are preserved.
+ */
+function TakeActionRow({ practice, entry, today }) {
+  const { state, setOrientationDone, setOrientationFocusItem } = useAxzio();
+  const [expanded, setExpanded] = useState(false);
+  const done = entry?.done === true;
+
+  const openItems = (state.focusItems || []).filter((f) => !f.done);
+  const linked = openItems.find((f) => f.id === entry?.focusItemId) || null;
+  const dayOneThing =
+    openItems.find((f) => f.timeframe === "day" && f.priority === 1) || null;
+  const displayItem = dayOneThing || linked;
+  const legacyText =
+    !displayItem && entry?.text?.trim() ? entry.text.trim() : "";
+  const candidates = [
+    ...openItems.filter((f) => f.timeframe === "day"),
+    ...openItems.filter((f) => f.timeframe !== "day"),
+  ];
+
+  const checkClass = `flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+    done
+      ? "border-white/70 bg-white text-black"
+      : "border-white/30 hover:border-white/70"
+  }`;
+  const toggleClass =
+    "text-[11px] uppercase tracking-[0.2em] text-white/45 transition-colors hover:text-white";
+  const focusLinkClass =
+    "text-[11px] uppercase tracking-[0.2em] text-white/55 underline decoration-white/30 underline-offset-4 transition-colors hover:text-white";
+
+  return (
+    <div
+      className={`rounded-xl border transition-colors ${
+        done ? "border-white/30 bg-white/[0.03]" : "border-white/10"
+      }`}
+    >
+      <div className="flex items-center gap-3 px-4 py-3">
+        <button
+          onClick={() => setOrientationDone(today, practice.key, !done)}
+          aria-label={
+            done
+              ? `Unmark ${practice.label}`
+              : `Mark ${practice.label} as practiced`
+          }
+          aria-pressed={done}
+          className={checkClass}
+        >
+          {done && (
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path
+                d="M1.5 5.5l2.5 2.5 4.5-5.5"
+                stroke="currentColor"
+                strokeWidth="1.6"
+              />
+            </svg>
+          )}
+        </button>
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          aria-label={expanded ? "Collapse practice" : "Expand practice"}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13px] font-medium tracking-wide">
+              {practice.label}
+            </span>
+            <span className="block truncate text-[12px] text-white/40">
+              {displayItem ? displayItem.text : legacyText || practice.prompt}
+            </span>
+          </span>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            aria-hidden="true"
+            className={`shrink-0 text-white/40 transition-transform duration-200 ${
+              expanded ? "rotate-180" : ""
+            }`}
+          >
+            <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+        </button>
+      </div>
+      {expanded && (
+        <div className="border-t border-white/10 px-4 py-4">
+          {displayItem ? (
+            <>
+              <MicroLabel className="mb-2">
+                The one thing to focus on today
+              </MicroLabel>
+              <p className="text-[15px] leading-relaxed text-white">
+                {displayItem.text}
+              </p>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <button
+                  onClick={() => setOrientationDone(today, practice.key, !done)}
+                  className={toggleClass}
+                >
+                  {done ? "Unmark" : "Mark as practiced"}
+                </button>
+                <a href="#/focus" className={focusLinkClass}>
+                  Open in Focus →
+                </a>
+              </div>
+            </>
+          ) : (
+            <>
+              {legacyText && (
+                <div className="mb-4">
+                  <MicroLabel className="mb-1.5">Saved earlier</MicroLabel>
+                  <p className="text-[14px] leading-relaxed text-white/70">
+                    {legacyText}
+                  </p>
+                </div>
+              )}
+              {candidates.length > 0 ? (
+                <>
+                  <MicroLabel className="mb-2">
+                    Choose today&apos;s one thing
+                  </MicroLabel>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value)
+                        setOrientationFocusItem(today, e.target.value);
+                    }}
+                    className="w-full appearance-none rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white/85 outline-none transition-colors hover:border-white/30"
+                    aria-label="Choose today's one thing from Focus"
+                  >
+                    <option value="" disabled>
+                      Select a focus item…
+                    </option>
+                    {candidates.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {(f.text.length > 64
+                          ? f.text.slice(0, 64) + "…"
+                          : f.text) +
+                          (f.timeframe !== "day" ? ` · ${f.timeframe}` : "")}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-[12px] leading-relaxed text-white/40">
+                    Choosing one makes it rank 1 in Focus.
+                  </p>
+                </>
+              ) : (
+                <a href="#/focus" className={focusLinkClass}>
+                  No focus items yet — capture one in Focus →
+                </a>
+              )}
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <button
+                  onClick={() => setOrientationDone(today, practice.key, !done)}
+                  className={toggleClass}
+                >
+                  {done ? "Unmark" : "Mark as practiced"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * GiveLoveRow — the Give Love practice keeps its free-text entry and adds
+ * an optional person tag ("For whom?") from the Tribe directory. The row
+ * shows the person's name once tagged; their history gathers in Tribe.
+ */
+function GiveLoveRow({ practice, entry, today }) {
+  const { state, setOrientationText, setOrientationDone, setLovePerson } =
+    useAxzio();
+  const [expanded, setExpanded] = useState(false);
+  const text = entry?.text || "";
+  const done = entry?.done === true;
+  const people = Array.isArray(state.people) ? state.people : [];
+  const tagged = people.find((p) => p.id === entry?.personId) || null;
+
+  const preview = tagged
+    ? `${tagged.name} · ${text.trim() || "…"}`
+    : text.trim() || practice.prompt;
+
+  return (
+    <div
+      className={`rounded-xl border transition-colors ${
+        done ? "border-white/30 bg-white/[0.03]" : "border-white/10"
+      }`}
+    >
+      <div className="flex items-center gap-3 px-4 py-3">
+        <button
+          onClick={() => setOrientationDone(today, practice.key, !done)}
+          aria-label={
+            done
+              ? `Unmark ${practice.label}`
+              : `Mark ${practice.label} as practiced`
+          }
+          aria-pressed={done}
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+            done
+              ? "border-white/70 bg-white text-black"
+              : "border-white/30 hover:border-white/70"
+          }`}
+        >
+          {done && (
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path
+                d="M1.5 5.5l2.5 2.5 4.5-5.5"
+                stroke="currentColor"
+                strokeWidth="1.6"
+              />
+            </svg>
+          )}
+        </button>
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          aria-label={expanded ? "Collapse practice" : "Expand practice"}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13px] font-medium tracking-wide">
+              {practice.label}
+            </span>
+            <span className="block truncate text-[12px] text-white/40">
+              {preview}
+            </span>
+          </span>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            aria-hidden="true"
+            className={`shrink-0 text-white/40 transition-transform duration-200 ${
+              expanded ? "rotate-180" : ""
+            }`}
+          >
+            <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+        </button>
+      </div>
+      {expanded && (
+        <div className="border-t border-white/10 px-4 py-4">
+          <p className="mb-2 text-[13px] leading-relaxed text-white/55">
+            {practice.prompt}
+          </p>
+          <TextArea
+            value={text}
+            onChange={(e) =>
+              setOrientationText(today, practice.key, e.target.value)
+            }
+            rows={2}
+            maxLength={280}
+            placeholder={practice.prompt}
+          />
+          <div className="mt-4">
+            <MicroLabel className="mb-2">For whom? — optional</MicroLabel>
+            {people.length === 0 ? (
+              <p className="text-[13px] leading-relaxed text-white/40">
+                No people yet —{" "}
+                <a
+                  href="#/tribe"
+                  className="text-white/70 underline decoration-white/30 underline-offset-4 hover:text-white"
+                >
+                  add someone in Tribe
+                </a>{" "}
+                to tag them here.
+              </p>
+            ) : (
+              <>
+                <select
+                  value={entry?.personId || ""}
+                  onChange={(e) =>
+                    setLovePerson(today, e.target.value || null)
+                  }
+                  className="w-full appearance-none rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white/85 outline-none transition-colors hover:border-white/30"
+                  aria-label="Tag a person for this Give Love entry"
+                >
+                  <option value="">No one tagged</option>
+                  {CIRCLES.map((c) => {
+                    const members = people.filter(
+                      (p) => p.circle === c.key
+                    );
+                    if (members.length === 0) return null;
+                    return (
+                      <optgroup key={c.key} label={c.label}>
+                        {members.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                </select>
+                <p className="mt-2 text-[12px] leading-relaxed text-white/40">
+                  Tag who this is for — their Tribe history keeps the
+                  thread.
+                </p>
+              </>
+            )}
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <button
+              onClick={() => setOrientationDone(today, practice.key, !done)}
+              className="text-[11px] uppercase tracking-[0.2em] text-white/45 transition-colors hover:text-white"
+            >
+              {done ? "Unmark" : "Mark as practiced"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BatteryCheck({ day, today }) {
-  const { setBattery } = useAxzio();
+  const { setBattery, setBatteryPriority } = useAxzio();
   const battery = day.battery || {};
+  const priorities = day.batteryPriority || {};
 
   const entries = BATTERY.map((b) => ({
     ...b,
     value: Number.isFinite(battery[b.key]) ? battery[b.key] : 5,
+    priority: validBatteryPriority(priorities[b.key]),
   }));
 
   return (
@@ -665,6 +1030,7 @@ function BatteryCheck({ day, today }) {
                 {b.value}
               </span>
             </div>
+            <MicroLabel className="mb-1">Where it is</MicroLabel>
             <input
               type="range"
               min={1}
@@ -677,6 +1043,34 @@ function BatteryCheck({ day, today }) {
               className="axzio-range w-full"
               aria-label={`${b.label} battery level`}
             />
+            <div className="mt-3 flex items-center justify-between">
+              <MicroLabel>Where focus goes</MicroLabel>
+              <div
+                className="flex gap-0.5 rounded-full border border-white/10 p-0.5"
+                role="group"
+                aria-label={`${b.label} priority`}
+              >
+                {BATTERY_PRIORITIES.map((p) => {
+                  const isSel = b.priority === p.key;
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => setBatteryPriority(today, b.key, p.key)}
+                      aria-pressed={isSel}
+                      aria-label={`${b.label} priority ${p.label}`}
+                      className={`rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.16em] transition-colors ${
+                        isSel
+                          ? "bg-white/15 text-white"
+                          : "text-white/40 hover:text-white"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <p className="mt-1.5 text-[13px] leading-snug text-white/45">
               {b.desc}
             </p>
@@ -684,8 +1078,8 @@ function BatteryCheck({ day, today }) {
         ))}
       </div>
       <p className="mt-4 text-[13px] leading-relaxed text-white/40">
-        Read the pattern, not only the total. Begin with the dimension asking
-        most clearly for attention.
+        Read the pattern, not only the total. State tells you where the
+        instrument is; priority tells you where to point attention.
       </p>
     </div>
   );
