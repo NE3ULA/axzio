@@ -121,7 +121,7 @@ export function HelpBubble({ title, children, className = "" }) {
           <div
             role="dialog"
             aria-label={title}
-            className="fixed left-1/2 top-1/2 z-50 w-80 max-w-[calc(100vw-2.5rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-white/20 bg-[#0b0b0b] p-5 shadow-[0_8px_48px_rgba(0,0,0,0.85)]"
+            className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-3rem)] w-80 max-w-[calc(100vw-2.5rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-white/20 bg-[#0b0b0b] p-5 shadow-[0_8px_48px_rgba(0,0,0,0.85)]"
           >
             <div className="mb-2 flex items-start justify-between gap-3">
               <MicroLabel>{title}</MicroLabel>

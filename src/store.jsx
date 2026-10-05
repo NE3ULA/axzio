@@ -296,8 +296,10 @@ function defaultState() {
     signals: [], // { id, date, ts, text }
     stars: [], // { id, name, note, created }
     assessments: [], // { id, date, ts, money, engagement, building, being }
-    // Decision Engine — Eisenhower matrix items.
-    // { id, text, quadrant: q1|q2|q3|q4, commitmentId, oneThing, done, created }
+    // Decision Engine — Eisenhower matrix items. Entries are living
+    // objects: editable text, quadrant, commitment link, notes, and
+    // subtasks. { id, text, quadrant: q1|q2|q3|q4, commitmentId,
+    // oneThing, done, notes, subtasks: [{id, text, done}], created }
     focusItems: [],
     // Identity Launch Sequence locator: stage key or null.
     launchStage: null,
@@ -392,8 +394,23 @@ function normalizeResets(raw) {
       act: String(r.act ?? ""),
       lifemod: String(r.lifemod ?? ""),
       integrate: String(r.integrate ?? ""),
+      // Optional thread back to the Focus item that triggered this reset.
+      sourceItemId: typeof r.sourceItemId === "string" ? r.sourceItemId : null,
     }))
     .filter((r) => r.id);
+}
+
+/** Normalize one focus item's subtasks; malformed entries are dropped. */
+function normalizeSubtasks(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((s) => s && typeof s === "object")
+    .map((s) => ({
+      id: String(s.id ?? ""),
+      text: String(s.text ?? ""),
+      done: s.done === true,
+    }))
+    .filter((s) => s.id && s.text.trim());
 }
 
 function loadState() {
@@ -469,6 +486,9 @@ function loadState() {
         commitmentId: f.commitmentId ?? null,
         oneThing: f.oneThing === true,
         done: f.done === true,
+        // Older items predate notes/subtasks — they gain empty defaults.
+        notes: typeof f.notes === "string" ? f.notes : "",
+        subtasks: normalizeSubtasks(f.subtasks),
         created: Number(f.created) || 0,
       })),
       launchStage:
@@ -503,6 +523,11 @@ export function useAxzio() {
 
 export function AxzioProvider({ children }) {
   const [state, setState] = useState(loadState);
+
+  /* Transient (never persisted): prefill for a Guided Reset triggered
+     from a Focus item via "Explore in Guided Reset". Consumed once by
+     the Journeys view, then cleared. */
+  const [resetPrefill, setResetPrefill] = useState(null);
 
   useEffect(() => {
     try {
@@ -665,6 +690,8 @@ export function AxzioProvider({ children }) {
         commitmentId: null,
         oneThing: false,
         done: false,
+        notes: "",
+        subtasks: [],
         created: Date.now(),
       };
       update((d) => {
@@ -700,6 +727,44 @@ export function AxzioProvider({ children }) {
     setOneThing(id) {
       update((d) => {
         for (const f of d.focusItems) f.oneThing = f.id === id;
+      });
+    },
+    /**
+     * Patch a focus item from its expanded editor. Accepted keys: text,
+     * quadrant, commitmentId, notes, subtasks ([{id, text, done}]),
+     * done, oneThing. oneThing:true clears the flag on every other item.
+     */
+    updateFocusItem(id, patch = {}) {
+      update((d) => {
+        const f = d.focusItems.find((x) => x.id === id);
+        if (!f) return;
+        if (typeof patch.text === "string" && patch.text.trim()) {
+          f.text = patch.text.trim().slice(0, 160);
+        }
+        if (["q1", "q2", "q3", "q4"].includes(patch.quadrant)) {
+          f.quadrant = patch.quadrant;
+        }
+        if ("commitmentId" in patch) {
+          f.commitmentId = patch.commitmentId || null;
+        }
+        if (typeof patch.notes === "string") {
+          f.notes = patch.notes.slice(0, 2000);
+        }
+        if (Array.isArray(patch.subtasks)) {
+          f.subtasks = normalizeSubtasks(
+            patch.subtasks.map((s) => ({
+              id: s.id || uid(),
+              text: s.text,
+              done: s.done === true,
+            }))
+          );
+        }
+        if (typeof patch.done === "boolean") f.done = patch.done;
+        if (patch.oneThing === true) {
+          for (const x of d.focusItems) x.oneThing = x.id === id;
+        } else if (patch.oneThing === false && f.oneThing) {
+          f.oneThing = false;
+        }
       });
     },
 
@@ -747,6 +812,12 @@ export function AxzioProvider({ children }) {
         act: String(fields?.act ?? "").trim(),
         lifemod: String(fields?.lifemod ?? "").trim(),
         integrate: String(fields?.integrate ?? "").trim(),
+        // Optional thread back to the Focus item this reset was
+        // triggered from ("Explore in Guided Reset").
+        sourceItemId:
+          typeof fields?.sourceItemId === "string"
+            ? fields.sourceItemId
+            : null,
       };
       update((d) => {
         if (!Array.isArray(d.resets)) d.resets = [];
@@ -758,6 +829,28 @@ export function AxzioProvider({ children }) {
       update((d) => {
         d.resets = d.resets.filter((r) => r.id !== id);
       });
+    },
+
+    /* decision -> journey thread (transient, never persisted) */
+    resetPrefill,
+    /**
+     * Begin a Guided Reset from a Focus item: the reset's Situation is
+     * pre-filled from the item's text (plus its notes), and the saved
+     * reset keeps a sourceItemId thread back to the decision.
+     * Returns false when the item no longer exists.
+     */
+    requestResetFromDecision(id) {
+      const item = state.focusItems.find((x) => x.id === id);
+      if (!item) return false;
+      const notes = (item.notes || "").trim();
+      setResetPrefill({
+        situation: notes ? `${item.text}\n\nNotes:\n${notes}` : item.text,
+        sourceItemId: item.id,
+      });
+      return true;
+    },
+    clearResetPrefill() {
+      setResetPrefill(null);
     },
 
     /* nuclear option */

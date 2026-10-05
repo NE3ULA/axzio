@@ -78,7 +78,7 @@ axzio/
 | (boot)            | Boot          | Cinematic mark + "initializing interface", ~2s               |
 | (first run)       | Onboarding    | 11-step walkthrough: welcome → 6 module tour screens → identity (name + 4 orientation statements) → Human Battery baseline → today's modes → first intention. Every step skippable; progress persisted |
 | `#/deck`          | Command Deck  | Overview dashboard: Who am I / What's important today / What mode am I in / State / Orientation cards (live summaries, expand inline or route to modules) + intention, action log, signals, stars |
-| `#/focus`         | Focus         | Decision Engine home: the two questions, Eisenhower 2×2, One Thing, commitment links |
+| `#/focus`         | Focus         | Decision Engine home: the two questions, Eisenhower 2×2, One Thing, commitment links. Items are living objects: tap to expand an inline editor (text, quadrant, commitment, notes, subtasks, One Thing); "Explore in Guided Reset" threads a decision into a journey |
 | `#/modes`         | Modes         | The three Modes of Energy (Production, Pleasure, People): primary + secondary per Day / Week / Month, with each mode's gift and risk |
 | `#/constellation` | Constellation | 8-stage star map, detail readings, orbiting user stars       |
 | `#/identity`      | Identity      | Identity Core (4 orientation statements, values, commitments), primitives sliders + radar, walkthrough replay, reset |
@@ -128,12 +128,35 @@ kept, tightened. 2-column grid on desktop, stacked on phone.
 ## Help bubbles
 
 `HelpBubble` (`components/ui.jsx`) is a small "?" button opening a centered
-dialog card: title + WHAT / WHY / HOW (`HelpText`). Copy is grounded in the
-e-book and decision-engine docs — concrete, no fluff. Every major section
-carries one: each Deck card, Focus (matrix + One Thing), Constellation,
-Identity (core + primitives), the Journeys header + launch locator + each
-journey runner + past resets, each Modes interval card + the three-mode
-overview, and every Action Card.
+dialog card: title + WHAT / WHY / HOW (`HelpText`). The dialog auto-sizes
+to its content up to `max-h-[calc(100dvh-3rem)]`, then scrolls internally —
+so long copy never clips, including on narrow phone viewports. Copy is
+grounded in the e-book and decision-engine docs — concrete, no fluff.
+Every major section carries one: each Deck card, Focus (matrix + One
+Thing), Constellation, Identity (core + primitives), the Journeys header +
+launch locator + each journey runner + past resets, each Modes interval
+card + the three-mode overview, and every Action Card.
+
+## Focus items as living objects
+
+Matrix items are editable in place: tapping an item expands an inline
+editor (text, quadrant, commitment link, notes textarea, subtasks with
+add/check-off/delete, One Thing toggle). Edits apply on Save, discard on
+Cancel. Collapsed items show a subtle "n subtasks · x/y done" line when
+subtasks exist.
+
+**Decision → journey thread** (the first module interconnection): each
+expanded item offers "Explore in Guided Reset". It saves pending edits,
+sets a transient (never persisted) `resetPrefill` in the store, and routes
+to `#/journeys`, where the Guided Reset opens with its Situation
+pre-filled from the decision's text (+ notes). Completing the reset stores
+`sourceItemId` on it; the Action Card renders a "From decision: <text>"
+line linking back to `#/focus`, and the copied card includes it.
+
+**Planned (not built):** SMART goal structuring on items. The schema is
+kept extensible for it — notes/subtasks are the first layer; future fields
+(e.g. measurable outcomes, deadlines, review dates) can extend the item
+shape with the same migration pattern.
 
 ## Modes
 
@@ -186,7 +209,8 @@ everything else; the help bubble says so.
   signals:     [{ id, date, ts, text }],
   stars:       [{ id, name, note, created }],
   assessments: [{ id, date, ts, money, engagement, building, being }],  // 1–10
-  focusItems:  [{ id, text, quadrant, commitmentId, oneThing, done, created }],
+  focusItems:  [{ id, text, quadrant, commitmentId, oneThing, done,
+                 notes, subtasks: [{ id, text, done }], created }],
   launchStage: string | null,  // Identity Launch Sequence stage key
   // Modes of Energy (production | pleasure | people | null):
   modes: {
@@ -195,7 +219,10 @@ everything else; the help bubble says so.
     month: { primary, secondary },
   },
   // Guided Reset completions (private, local only):
-  resets: [{ id, ts, date, situation, reveal, interpret, align, act, lifemod, integrate }],
+  resets: [{ id, ts, date, situation, reveal, interpret, align, act, lifemod,
+             integrate, sourceItemId }],  // sourceItemId: Focus item id | null
+  // Transient (never persisted): resetPrefill { situation, sourceItemId }
+  // set by "Explore in Guided Reset", consumed once by the Journeys view.
 }
 ```
 
@@ -207,7 +234,8 @@ default 5/5/5/5/5 battery, and `focusItems` / `launchStage` default to
 `identity.onboarded` defaults to the old `setupComplete` value, so
 existing users never see the new walkthrough. `modes` and `resets`
 default to empty selections / `[]`, with unknown mode keys normalized to
-`null` (primary wins a primary/secondary conflict).
+`null` (primary wins a primary/secondary conflict). Older focus items gain
+`notes: ""` and `subtasks: []`; older resets gain `sourceItemId: null`.
 
 - One React context (`AxzioProvider` in `src/store.jsx`) owns all
   mutations; every mutation persists the whole state to localStorage.

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useAxzio,
   MANTRA,
@@ -29,8 +29,30 @@ import {
 /* ------------------------------------------------------------------ */
 
 export default function Journeys() {
+  const axzio = useAxzio();
   const [active, setActive] = useState(null); // journey id
   const [viewingReset, setViewingReset] = useState(null); // reset id -> Action Card
+  const prefill = axzio.resetPrefill;
+
+  // A Focus item's "Explore in Guided Reset" lands here: open the reset
+  // journey with its Situation pre-filled from the decision.
+  useEffect(() => {
+    if (prefill && !active) setActive("reset");
+  }, [prefill, active]);
+
+  // Scratch prefill for a freshly opened reset journey. Computed during
+  // render while the prefill is still set; consumed (cleared) on mount.
+  const resetInitial =
+    active === "reset" && prefill
+      ? {
+          rsituation: prefill.situation,
+          _sourceItemId: prefill.sourceItemId,
+        }
+      : {};
+  useEffect(() => {
+    if (active === "reset" && prefill) axzio.clearResetPrefill();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-5 pb-24 pt-8">
@@ -92,8 +114,10 @@ export default function Journeys() {
         </>
       ) : (
         <JourneyRunner
+          key={active}
           journey={JOURNEYS.find((j) => j.id === active)}
           onExit={() => setActive(null)}
+          initialScratch={resetInitial}
         />
       )}
     </div>
@@ -319,7 +343,7 @@ const JOURNEYS = [
       title: "Guided Reset",
       what: "A seven-field reset practice — Situation, then Reveal → Interpret → Align → Act, a LifeMod, and Integrate — ending in an Action Card.",
       why: "Meet one real situation with the full Alchemist Path instead of letting it stay fog.",
-      how: "Answer each field; on completion you receive an Action Card you can copy. Private by default — stored only in this browser, nothing leaves this device.",
+      how: "Answer each field; on completion you receive an Action Card you can copy. It can also be triggered from any Focus decision via “Explore in Guided Reset”. Private by default — stored only in this browser, nothing leaves this device.",
     },
     steps: RESET_STEPS.map((s) => ({
       id: s.id,
@@ -334,10 +358,12 @@ const JOURNEYS = [
   },
 ];
 
-function JourneyRunner({ journey, onExit }) {
+function JourneyRunner({ journey, onExit, initialScratch }) {
   const [step, setStep] = useState(0);
   const [finished, setFinished] = useState(false);
-  const [scratch, setScratch] = useState({}); // per-journey transient inputs
+  // Per-journey transient inputs; a reset triggered from a Focus decision
+  // arrives with its Situation pre-filled (plus a _sourceItemId thread).
+  const [scratch, setScratch] = useState(initialScratch || {});
   const StepView = journey.steps[step].render;
 
   const go = (dir) => {
@@ -489,7 +515,8 @@ function StepContinue({ stepId, scratch, setScratch, onNext, last }) {
         if (scratch.starAction?.trim()) axzio.addAction(scratch.starAction.trim(), "building");
         break;
       case "rintegrate": {
-        // Completing the Guided Reset: persist all seven fields as one reset.
+        // Completing the Guided Reset: persist all seven fields as one
+        // reset, keeping the thread back to a triggering Focus decision.
         const entry = axzio.saveReset({
           situation: scratch.rsituation,
           reveal: scratch.rreveal,
@@ -498,6 +525,7 @@ function StepContinue({ stepId, scratch, setScratch, onNext, last }) {
           act: scratch.ract,
           lifemod: scratch.rlifemod,
           integrate: scratch.rintegrate,
+          sourceItemId: scratch._sourceItemId || null,
         });
         if (setScratch) {
           setScratch((s) => ({ ...s, savedResetId: entry.id }));
@@ -809,12 +837,15 @@ function ResetFieldStep({ stepId, scratch, setScratch }) {
 }
 
 /** Plain-text rendering of a reset, for the copy-to-clipboard action. */
-function formatResetCard(reset) {
+function formatResetCard(reset, sourceText) {
   const lines = [
     "E3 RESET — ACTION CARD",
     reset.date ? formatLongDate(reset.date) : "",
     "",
   ];
+  if (sourceText) {
+    lines.push(`From decision: ${sourceText}`, "");
+  }
   for (const f of RESET_FIELDS) {
     const text = (reset[f.key] || "").trim();
     if (!text) continue;
@@ -836,6 +867,10 @@ function ResetActionCard({ resetId, onBack, onRestart, allowDelete = false }) {
   const reset = state.resets.find((r) => r.id === resetId);
   const [copied, setCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Thread back to the Focus decision this reset was triggered from.
+  const sourceItem = reset?.sourceItemId
+    ? state.focusItems.find((f) => f.id === reset.sourceItemId)
+    : null;
 
   if (!reset) {
     return (
@@ -851,7 +886,7 @@ function ResetActionCard({ resetId, onBack, onRestart, allowDelete = false }) {
   }
 
   const copyCard = async () => {
-    const text = formatResetCard(reset);
+    const text = formatResetCard(reset, sourceItem?.text);
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -898,6 +933,17 @@ function ResetActionCard({ resetId, onBack, onRestart, allowDelete = false }) {
           {reset.date && (
             <p className="mt-2 text-sm tracking-wide text-white/45">
               {formatLongDate(reset.date)}
+            </p>
+          )}
+          {sourceItem && (
+            <p className="mt-2 text-sm tracking-wide text-white/55">
+              From decision:{" "}
+              <a
+                href="#/focus"
+                className="text-white underline decoration-white/30 underline-offset-4 transition-colors hover:decoration-white/80"
+              >
+                {sourceItem.text}
+              </a>
             </p>
           )}
         </div>
