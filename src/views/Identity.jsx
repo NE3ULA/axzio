@@ -1,0 +1,400 @@
+import { useMemo, useState } from "react";
+import { useAxzio, PRIMITIVES, formatLongDate } from "../store.jsx";
+import {
+  Card,
+  MicroLabel,
+  Btn,
+  Field,
+  TextArea,
+  Pill,
+  SectionHead,
+  Empty,
+} from "../components/ui.jsx";
+
+/* ------------------------------------------------------------------ */
+/* IDENTITY — user state systems: Identity Core + Four Primitives        */
+/* ------------------------------------------------------------------ */
+
+export default function Identity() {
+  const axzio = useAxzio();
+  const { state } = axzio;
+
+  return (
+    <div className="mx-auto w-full max-w-3xl px-5 pb-24 pt-8">
+      <header className="axzio-rise mb-10">
+        <MicroLabel className="mb-2">User State</MicroLabel>
+        <h2 className="text-3xl font-light tracking-wide md:text-4xl">
+          Identity
+        </h2>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/50">
+          Your Identity Core is the stable reference the system reads against —
+          authored, not performed. The Four Primitives show how that structure
+          is grounded in lived conditions.
+        </p>
+      </header>
+
+      <section className="axzio-rise axzio-rise-1 mb-6">
+        <Card className="p-6 md:p-8">
+          <SectionHead label="Identity Core" />
+          <div className="space-y-6">
+            <div>
+              <MicroLabel className="mb-2">Authored identity</MicroLabel>
+              <TextArea
+                value={state.identity.authored}
+                onChange={(e) =>
+                  axzio.updateIdentity({ authored: e.target.value })
+                }
+                placeholder="The identity I am consciously authoring…"
+                rows={3}
+                maxLength={400}
+              />
+            </div>
+            <div>
+              <MicroLabel className="mb-2">Core orientation</MicroLabel>
+              <Field
+                value={state.identity.orientation}
+                onChange={(e) =>
+                  axzio.updateIdentity({ orientation: e.target.value })
+                }
+                placeholder="The single principle you organize around…"
+                maxLength={140}
+              />
+            </div>
+            <ListEditor
+              label="Values"
+              items={state.identity.values}
+              placeholder="Add a value — e.g. “Honesty over comfort”"
+              onAdd={(v) => axzio.addIdentityListItem("values", v)}
+              onRemove={(i) => axzio.removeIdentityListItem("values", i)}
+            />
+            <ListEditor
+              label="Commitments"
+              items={state.identity.commitments}
+              placeholder="Add a commitment — e.g. “Write every morning”"
+              onAdd={(v) => axzio.addIdentityListItem("commitments", v)}
+              onRemove={(i) => axzio.removeIdentityListItem("commitments", i)}
+            />
+          </div>
+        </Card>
+      </section>
+
+      <section className="axzio-rise axzio-rise-2 mb-6">
+        <Card className="p-6 md:p-8">
+          <SectionHead
+            label="Four Primitives — self assessment"
+            right={<Pill>1 – 10</Pill>}
+          />
+          <PrimitivesAssessment />
+        </Card>
+      </section>
+
+      <section className="axzio-rise axzio-rise-3">
+        <Card className="border-white/10 p-6 md:p-8">
+          <SectionHead label="Reset" />
+          <ResetZone />
+        </Card>
+      </section>
+    </div>
+  );
+}
+
+function ListEditor({ label, items, placeholder, onAdd, onRemove }) {
+  const [draft, setDraft] = useState("");
+  const submit = (e) => {
+    e.preventDefault();
+    onAdd(draft);
+    setDraft("");
+  };
+  return (
+    <div>
+      <MicroLabel className="mb-2">{label}</MicroLabel>
+      <ul className="mb-3 space-y-2">
+        {items.map((item, i) => (
+          <li
+            key={i}
+            className="flex items-start justify-between gap-3 rounded-xl border border-white/10 px-4 py-2.5"
+          >
+            <span className="text-[15px]">{item}</span>
+            <button
+              onClick={() => onRemove(i)}
+              aria-label={`Remove ${item}`}
+              className="mt-0.5 shrink-0 text-white/25 transition-colors hover:text-white/80"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="currentColor" strokeWidth="1.3" />
+              </svg>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {items.length === 0 && (
+        <p className="mb-3 text-sm text-white/35">None named yet.</p>
+      )}
+      <form onSubmit={submit} className="flex gap-3">
+        <Field
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={placeholder}
+          maxLength={120}
+          className="flex-1"
+        />
+        <Btn type="submit" variant="ghost" disabled={!draft.trim()}>
+          Add
+        </Btn>
+      </form>
+    </div>
+  );
+}
+
+function PrimitivesAssessment() {
+  const { state, saveAssessment } = useAxzio();
+  const [scores, setScores] = useState({
+    money: 5,
+    engagement: 5,
+    building: 5,
+    being: 5,
+  });
+  const [savedFlash, setSavedFlash] = useState("");
+
+  const guidance = useMemo(() => primitiveGuidance(scores), [scores]);
+  const history = state.assessments.slice().reverse();
+
+  const save = () => {
+    saveAssessment(scores);
+    setSavedFlash("Assessment recorded.");
+    setTimeout(() => setSavedFlash(""), 3500);
+  };
+
+  return (
+    <div>
+      <div className="grid gap-8 md:grid-cols-2">
+        <div className="space-y-7">
+          {PRIMITIVES.map((p) => (
+            <div key={p.key}>
+              <div className="mb-1.5 flex items-baseline justify-between">
+                <span className="text-[15px] font-medium tracking-wide">
+                  {p.label}
+                </span>
+                <span className="text-2xl font-light tabular-nums">
+                  {scores[p.key]}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                step={1}
+                value={scores[p.key]}
+                onChange={(e) =>
+                  setScores((s) => ({ ...s, [p.key]: Number(e.target.value) }))
+                }
+                className="axzio-range w-full"
+                aria-label={`${p.label} score`}
+              />
+              <p className="mt-1.5 text-[13px] leading-snug text-white/45">
+                {p.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-col items-center justify-start">
+          <RadarChart scores={scores} />
+          <div className="mt-5 w-full rounded-xl border border-white/10 bg-white/[0.02] p-4">
+            <MicroLabel className="mb-2">Reading</MicroLabel>
+            <p className="text-sm leading-relaxed text-white/65">{guidance}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 flex items-center gap-4">
+        <Btn onClick={save}>Record assessment</Btn>
+        {savedFlash && (
+          <span className="text-sm tracking-wide text-white/60">{savedFlash}</span>
+        )}
+      </div>
+
+      <div className="mt-8 border-t border-white/10 pt-6">
+        <MicroLabel className="mb-4">History</MicroLabel>
+        {history.length === 0 && <Empty>No assessments recorded yet.</Empty>}
+        <div className="space-y-3">
+          {history.slice(0, 8).map((a) => (
+            <div
+              key={a.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 px-4 py-3"
+            >
+              <span className="text-sm tracking-wide text-white/60">
+                {formatLongDate(a.date)}
+              </span>
+              <div className="flex gap-4">
+                {PRIMITIVES.map((p) => (
+                  <span
+                    key={p.key}
+                    className="text-[12px] tracking-wide text-white/55"
+                    title={p.label}
+                  >
+                    <span className="mr-1 uppercase text-white/35">
+                      {p.label.slice(0, 3)}
+                    </span>
+                    <span className="tabular-nums text-white/85">{a[p.key]}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Guidance per the Four Primitives framing: stabilization first —
+ * low scores in grounding domains should be addressed before
+ * higher-order identity work.
+ */
+function primitiveGuidance(scores) {
+  const entries = Object.entries(scores);
+  const lowest = entries.reduce((a, b) => (a[1] <= b[1] ? a : b));
+  const [lowKey, lowVal] = lowest;
+  const label = PRIMITIVES.find((p) => p.key === lowKey)?.label ?? lowKey;
+
+  if (lowVal <= 3) {
+    return (
+      `Stabilization signal — ${label} is reading at ${lowVal}/10. ` +
+      "The framework suggests steadying this ground before reaching for higher-order work. " +
+      "Small, concrete repairs here unlock everything above them."
+    );
+  }
+  if (lowVal <= 5) {
+    return (
+      `${label} is the soft edge at ${lowVal}/10. Nothing urgent — ` +
+      "but this is where your next increment of stability will come from. " +
+      "One deliberate action this week, logged in the deck."
+    );
+  }
+  const avg = entries.reduce((s, [, v]) => s + v, 0) / entries.length;
+  if (avg >= 8) {
+    return (
+      "The stack reads as coherent — grounded across all four primitives. " +
+      "This is the condition from which higher-order identity work becomes stable rather than performative."
+    );
+  }
+  return (
+    "A stable, workable reading. Keep the anchors held and watch for drift — " +
+    "the primitives move slowly, and that is the point."
+  );
+}
+
+/** SVG radar chart for the four primitives. */
+function RadarChart({ scores }) {
+  const size = 280;
+  const c = size / 2;
+  const R = size / 2 - 52;
+  // order: money (top), engagement (right), building (bottom), being (left)
+  const axes = ["money", "engagement", "building", "being"];
+  const labels = { money: "MONEY", engagement: "ENGAGE", building: "BUILD", being: "BEING" };
+  const angle = (i) => -Math.PI / 2 + (i * Math.PI) / 2;
+  const pt = (i, r) => [c + r * Math.cos(angle(i)), c + r * Math.sin(angle(i))];
+  const labelR = R + 24;
+
+  const gridRings = [0.25, 0.5, 0.75, 1].map((f) =>
+    axes.map((_, i) => pt(i, R * f).join(",")).join(" ")
+  );
+  const dataPts = axes
+    .map((k, i) => pt(i, (R * scores[k]) / 10).join(","))
+    .join(" ");
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      role="img"
+      aria-label="Radar chart of the four primitives"
+    >
+      {gridRings.map((pts, i) => (
+        <polygon
+          key={i}
+          points={pts}
+          fill="none"
+          stroke="rgba(255,255,255,0.14)"
+          strokeWidth="1"
+        />
+      ))}
+      {axes.map((k, i) => {
+        return (
+          <g key={k}>
+            <line
+              x1={c}
+              y1={c}
+              x2={pt(i, R)[0]}
+              y2={pt(i, R)[1]}
+              stroke="rgba(255,255,255,0.14)"
+              strokeWidth="1"
+            />
+            <text
+              x={c + labelR * Math.cos(angle(i))}
+              y={c + labelR * Math.sin(angle(i))}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fill="rgba(255,255,255,0.6)"
+              fontSize="10"
+              letterSpacing="2"
+            >
+              {labels[k]}
+            </text>
+          </g>
+        );
+      })}
+      <polygon
+        points={dataPts}
+        fill="rgba(255,255,255,0.10)"
+        stroke="rgba(255,255,255,0.85)"
+        strokeWidth="1.5"
+      />
+      {axes.map((k, i) => {
+        const [x, y] = pt(i, (R * scores[k]) / 10);
+        return <circle key={k} cx={x} cy={y} r={3.5} fill="#fff" />;
+      })}
+    </svg>
+  );
+}
+
+function ResetZone() {
+  const { resetAll } = useAxzio();
+  const [armed, setArmed] = useState(false);
+
+  return (
+    <div>
+      <p className="mb-4 max-w-lg text-sm leading-relaxed text-white/55">
+        Erase everything stored in this browser — identity, days, actions,
+        signals, stars, and assessments. This cannot be undone.
+      </p>
+      {!armed ? (
+        <Btn
+          variant="ghost"
+          onClick={() => setArmed(true)}
+          className="border-red-400/30 text-red-200/80 hover:border-red-300/60 hover:text-red-100"
+        >
+          Reset all data
+        </Btn>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3">
+          <Btn
+            variant="ghost"
+            onClick={() => {
+              resetAll();
+              setArmed(false);
+            }}
+            className="border-red-400/50 text-red-100 hover:border-red-300"
+          >
+            Yes, erase everything
+          </Btn>
+          <Btn variant="quiet" onClick={() => setArmed(false)}>
+            Cancel
+          </Btn>
+        </div>
+      )}
+    </div>
+  );
+}
