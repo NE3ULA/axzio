@@ -248,6 +248,34 @@ The capture form's commitment select lists existing commitments plus an
 inline "New commitment…" option that reveals a text input; the
 commitment is created on Place and linked by its new id.
 
+### Quests (opt-in, local-only thin slice)
+
+Each focus action has an opt-in **Make Quest** toggle in its editor.
+Posting a quest turns the action into an invitation: a **brief** ("How
+could someone help with this?", up to 600 chars) plus **help kinds** —
+`hands` (do it with me), `eyes` (feedback / a second brain), `funds`
+(money toward it) — as toggle pills. Quested items show a lit "Quest"
+pill on the collapsed row next to the timeframe/mode/pillar pills.
+
+- **Consent by design:** only a quested item can ever be grabbed by the
+  tribe. Everything unquested stays private to the owner — the grab
+  mechanic (later, with accounts) reads `quest.isQuest`, never the raw
+  item list.
+- **Progressive disclosure:** the brief and kind pickers live behind the
+  toggle, so the Focus page and the collapsed rows stay uncluttered.
+- **Solo value:** writing the brief clarifies the task for the owner —
+  naming the help you need often reveals the real next move.
+- Unposting keeps the brief and kinds (only the flag flips); re-posting
+  restores them. Old items migrate to an unposted default.
+
+**Explicitly later (needs accounts):** the grab mechanic (tribe members
+grab quested one-things/subtasks as their Give Love action, refining
+them into concrete helping actions); the anonymous helper count ("N with
+you" — presence without surveillance, no names, to avoid
+resentment/guilt over non-action); financial contributions to quests
+(a quest can need hands, eyes, or funds — touches the Money primitive);
+the offer/accept flow.
+
 **Planned (not built):** SMART goal structuring on items. The schema is
 kept extensible for it — notes/subtasks are the first layer; future fields
 (e.g. measurable outcomes, deadlines, review dates) can extend the item
@@ -344,6 +372,10 @@ everything else; the help bubble says so.
                  mode,                 // production|pleasure|people|null
                  pillar,               // mind|body|heart|spirit|null
                  parentId,             // linked-subtask nesting | null
+                 // quest layer (opt-in; local-only thin slice):
+                 // quest: { isQuest, brief, kinds: ['hands'|'eyes'|'funds'] }
+                 // Only quested items can ever be grabbed by the tribe
+                 // (consent by design). Unposting keeps brief/kinds.
                  created }],
   launchStage: string | null,  // Identity Launch Sequence stage key
   // Tribe v1 — people directory (local-only):
@@ -429,8 +461,9 @@ fields on the identity stack, shareable by circle); profile linking
 (names → real profiles, a relationship tool — not social media);
 neglect/investment nudges from the tagged history (who is being invested
 in vs. neglected — the gap reading, like the battery); the tribe
-"offer/accept" mechanic (grabbing one another's one-things as Give Love
-actions).
+"offer/accept" mechanic (grabbing one another's quested one-things as
+Give Love actions — see "Quests" above; anonymous "N with you" helper
+count; financial contributions).
 
 ## Deliberately left for v2
 

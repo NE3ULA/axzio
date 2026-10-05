@@ -412,6 +412,35 @@ export function priorityLabel(rank) {
   return r.note ? `${r.label} — ${r.note}` : r.label;
 }
 
+/* Quest help kinds — the shapes help can take. A quest is opt-in:
+   only a quested action can ever be picked up by the tribe (consent
+   by design); the brief lives behind "Make Quest" as progressive
+   disclosure. Grabbing/sharing arrive later with accounts. */
+export const QUEST_KINDS = [
+  { key: "hands", label: "Hands", desc: "do it with me" },
+  { key: "eyes", label: "Eyes", desc: "feedback / a second brain" },
+  { key: "funds", label: "Funds", desc: "money toward it" },
+];
+
+const QUEST_KIND_KEYS = new Set(QUEST_KINDS.map((k) => k.key));
+
+export function questKindLabel(key) {
+  const k = QUEST_KINDS.find((k) => k.key === key);
+  return k ? k.label : null;
+}
+
+/** Normalize a focus item's quest data; old items predate quests. */
+export function normalizeQuest(raw) {
+  const r = raw && typeof raw === "object" ? raw : {};
+  return {
+    isQuest: r.isQuest === true,
+    brief: typeof r.brief === "string" ? r.brief : "",
+    kinds: Array.isArray(r.kinds)
+      ? r.kinds.filter((k) => QUEST_KIND_KEYS.has(k))
+      : [],
+  };
+}
+
 /* Week items repeat on selected days (0 = Sunday … 6 = Saturday);
    month items repeat in selected months (0 = January … 11 = December). */
 export const DAYS_OF_WEEK = [
@@ -761,6 +790,8 @@ function normalizeFocusItem(f, validQuadrants) {
     mode: VALID_MODE_KEYS.has(f.mode) ? f.mode : null,
     pillar: VALID_PILLAR_KEYS.has(f.pillar) ? f.pillar : null,
     parentId: typeof f.parentId === "string" && f.parentId ? f.parentId : null,
+    // Quest layer: old items predate quests — they gain an unposted default.
+    quest: normalizeQuest(f.quest),
   };
 }
 
@@ -1360,7 +1391,7 @@ export function AxzioProvider({ children }) {
      * Patch a focus item from its expanded editor. Accepted keys: text,
      * quadrant, commitmentId, notes, subtasks ([{id, text, done}]),
      * timeframe, daysOfWeek, months, mode, pillar, parentId, priority,
-     * done. priority 1|2|3 claims that rank in the item's timeframe
+     * quest ({isQuest, brief, kinds}), done. priority 1|2|3 claims that rank in the item's timeframe
      * (clearing it from the previous holder); null clears the item's
      * rank. parentId is cycle-guarded: self and descendants are refused.
      */
@@ -1424,6 +1455,11 @@ export function AxzioProvider({ children }) {
           // the item where it was — never half-moved.
         }
         if (typeof patch.done === "boolean") f.done = patch.done;
+        /* Quest patch: normalized (bad kinds dropped, shapes repaired).
+           Unposting keeps the brief/kinds — only the flag flips. */
+        if (patch.quest && typeof patch.quest === "object") {
+          f.quest = normalizeQuest(patch.quest);
+        }
         if ("priority" in patch) {
           const p = patch.priority;
           if (p === 1 || p === 2 || p === 3) {

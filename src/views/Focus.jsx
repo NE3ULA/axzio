@@ -15,6 +15,7 @@ import {
   commitmentText,
   sortedCommitments,
   descendantIds,
+  QUEST_KINDS,
 } from "../store.jsx";
 import {
   Card,
@@ -448,6 +449,11 @@ function FocusRow({ item, depth }) {
       notes: item.notes || "",
       subtasks: (item.subtasks || []).map((s) => ({ ...s })),
       priority: item.priority || null,
+      quest: {
+        isQuest: !!(item.quest && item.quest.isQuest),
+        brief: (item.quest && item.quest.brief) || "",
+        kinds: [...((item.quest && item.quest.kinds) || [])],
+      },
     });
     setExpanded(true);
   };
@@ -470,6 +476,7 @@ function FocusRow({ item, depth }) {
           notes: draft.notes,
           subtasks: draft.subtasks,
           priority: draft.priority,
+          quest: draft.quest,
         }
       : {};
   const saveEditor = () => {
@@ -533,6 +540,9 @@ function FocusRow({ item, depth }) {
             <Pill>{timeframeLabel(item.timeframe)}</Pill>
             {item.mode && <Pill>{modeLabel(item.mode)}</Pill>}
             {item.pillar && <Pill>{pillarLabel(item.pillar)}</Pill>}
+            {item.quest && item.quest.isQuest && (
+              <Pill tone="lit">Quest</Pill>
+            )}
             {item.priority && (
               <Pill tone="lit">{priorityLabel(item.priority)}</Pill>
             )}
@@ -963,6 +973,95 @@ function FocusItemEditor({
           Each rank holds one item per timeframe — setting it here moves the
           rank to this item.
         </p>
+      </div>
+
+      <div>
+        <div className="mb-2 flex items-center gap-2">
+          <MicroLabel>Quest</MicroLabel>
+          <HelpBubble title="Quest">
+            <HelpText
+              what="Posting a quest turns this action into an invitation: here's how someone could help. Only quested items can ever be picked up by your tribe — everything else stays yours."
+              why="Writing the brief clarifies the task for you too: naming the help you need often reveals the real next move."
+              how="Flip Make Quest on, write the brief, pick the kinds of help. Unposting keeps your brief saved. Tribe grabbing and sharing arrive later with accounts."
+            />
+          </HelpBubble>
+        </div>
+        <button
+          type="button"
+          onClick={() =>
+            setDraft((d) => ({
+              ...d,
+              quest: { ...d.quest, isQuest: !d.quest.isQuest },
+            }))
+          }
+          aria-pressed={draft.quest.isQuest}
+          className={`rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+            draft.quest.isQuest
+              ? "border-white/70 bg-white/10 text-white"
+              : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
+          }`}
+        >
+          {draft.quest.isQuest ? "Quested" : "Make Quest"}
+        </button>
+        {draft.quest.isQuest && (
+          <div className="mt-3 space-y-4">
+            <TextArea
+              value={draft.quest.brief}
+              onChange={(e) => {
+                const v = e.target.value;
+                setDraft((d) => ({ ...d, quest: { ...d.quest, brief: v } }));
+              }}
+              rows={3}
+              maxLength={600}
+              placeholder="How could someone help with this?"
+              aria-label="Quest brief — how someone could help"
+            />
+            <div>
+              <MicroLabel className="mb-2">What kind of help?</MicroLabel>
+              <div className="flex flex-wrap gap-2">
+                {QUEST_KINDS.map((k) => {
+                  const on = draft.quest.kinds.includes(k.key);
+                  return (
+                    <button
+                      type="button"
+                      key={k.key}
+                      onClick={() =>
+                        setDraft((d) => ({
+                          ...d,
+                          quest: {
+                            ...d.quest,
+                            kinds: d.quest.kinds.includes(k.key)
+                              ? d.quest.kinds.filter((x) => x !== k.key)
+                              : [...d.quest.kinds, k.key],
+                          },
+                        }))
+                      }
+                      aria-pressed={on}
+                      title={k.desc}
+                      className={`rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+                        on
+                          ? "border-white/70 bg-white/10 text-white"
+                          : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
+                      }`}
+                    >
+                      {k.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-[12px] leading-relaxed text-white/35">
+                Hands — do it with me · Eyes — feedback, a second brain ·
+                Funds — money toward it
+              </p>
+            </div>
+          </div>
+        )}
+        {!draft.quest.isQuest &&
+          (draft.quest.brief || draft.quest.kinds.length > 0) && (
+            <p className="mt-2 text-[12px] leading-relaxed text-white/35">
+              Brief saved — flip Make Quest on to post it again.
+            </p>
+          )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
