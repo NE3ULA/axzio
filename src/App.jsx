@@ -8,9 +8,12 @@ import Constellation from "./views/Constellation.jsx";
 import Identity from "./views/Identity.jsx";
 import Journeys from "./views/Journeys.jsx";
 
+import Focus from "./views/Focus.jsx";
+
 /* Hash-based routing — no react-router, works from static files. */
 const ROUTES = [
   { key: "deck", label: "Deck", view: Deck },
+  { key: "focus", label: "Focus", view: Focus },
   { key: "constellation", label: "Constellation", view: Constellation },
   { key: "identity", label: "Identity", view: Identity },
   { key: "journeys", label: "Journeys", view: Journeys },

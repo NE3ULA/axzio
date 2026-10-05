@@ -49,14 +49,15 @@ export default function Setup({ onComplete }) {
           </div>
           <div>
             <MicroLabel className="mb-2">
-              Authored identity <span className="text-white/30">(optional)</span>
+              I am choosing to become someone who…{" "}
+              <span className="text-white/30">(optional)</span>
             </MicroLabel>
             <TextArea
               value={authored}
               onChange={(e) => setAuthored(e.target.value)}
-              placeholder="The person I am consciously becoming is…"
+              placeholder="Name the quality or orientation in active terms…"
               rows={3}
-              maxLength={400}
+              maxLength={280}
             />
           </div>
           {error && (

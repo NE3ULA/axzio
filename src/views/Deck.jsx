@@ -3,6 +3,7 @@ import {
   useAxzio,
   MANTRA,
   TAGS,
+  BATTERY,
   tagLabel,
   localDateKey,
   formatLongDate,
@@ -49,6 +50,10 @@ export default function Deck() {
           <p className="mt-2 text-sm tracking-wide text-white/45">
             {formatLongDate(today)}
           </p>
+          <p className="mt-3 max-w-md text-[11px] uppercase leading-relaxed tracking-[0.2em] text-white/35">
+            Time is your frame. Energy is your fuel. Identity is your
+            direction. Purpose is your destination.
+          </p>
         </div>
         <div className="flex gap-6 text-right">
           <Stat value={streak} label="day streak" />
@@ -79,8 +84,22 @@ export default function Deck() {
         </div>
       </section>
 
-      {/* intention */}
+      {/* state — human battery */}
       <section className="axzio-rise axzio-rise-2 mb-6">
+        <Card className="p-6">
+          <SectionHead label="State — the Human Battery" />
+          <p className="mb-5 max-w-xl text-sm leading-relaxed text-white/55">
+            Hear the instrument before trying to force the performance.{" "}
+            <span className="text-white/80">State is not identity</span> — a
+            depleted reading is a condition to meet, not a verdict on who
+            you are.
+          </p>
+          <BatteryCheck day={day} today={today} />
+        </Card>
+      </section>
+
+      {/* intention */}
+      <section className="axzio-rise axzio-rise-3 mb-6">
         <Card className="p-6">
           <SectionHead label="Intention for the day" />
           <TextArea
@@ -94,7 +113,7 @@ export default function Deck() {
       </section>
 
       {/* action log */}
-      <section className="axzio-rise axzio-rise-3 mb-6">
+      <section className="axzio-rise axzio-rise-4 mb-6">
         <Card className="p-6">
           <SectionHead label="Action log" />
           <ActionForm />
@@ -132,7 +151,7 @@ export default function Deck() {
       </section>
 
       {/* signals */}
-      <section className="axzio-rise axzio-rise-4 mb-6">
+      <section className="axzio-rise axzio-rise-5 mb-6">
         <Card className="p-6">
           <SectionHead label="Signal feed" />
           <SignalForm />
@@ -155,7 +174,7 @@ export default function Deck() {
       </section>
 
       {/* add a star */}
-      <section className="axzio-rise axzio-rise-4">
+      <section className="axzio-rise axzio-rise-5">
         <Card className="p-6">
           <SectionHead label="Ignite a star" />
           <p className="mb-4 text-sm leading-relaxed text-white/55">
@@ -201,6 +220,71 @@ function AnchorToggle({ label, hint, active, onToggle }) {
         {hint}
       </span>
     </button>
+  );
+}
+
+function BatteryCheck({ day, today }) {
+  const { setBattery } = useAxzio();
+  const battery = day.battery || {};
+
+  const entries = BATTERY.map((b) => ({
+    ...b,
+    value: Number.isFinite(battery[b.key]) ? battery[b.key] : 5,
+  }));
+  const depleted = entries.reduce((a, b) => (a.value <= b.value ? a : b));
+  const available = entries.reduce((a, b) => (a.value >= b.value ? a : b));
+
+  return (
+    <div>
+      <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
+        {entries.map((b) => (
+          <div key={b.key}>
+            <div className="mb-1.5 flex items-baseline justify-between">
+              <span className="text-[15px] font-medium tracking-wide">
+                {b.label}
+              </span>
+              <span className="text-2xl font-light tabular-nums">
+                {b.value}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={10}
+              step={1}
+              value={b.value}
+              onChange={(e) =>
+                setBattery(today, b.key, Number(e.target.value))
+              }
+              className="axzio-range w-full"
+              aria-label={`${b.label} battery level`}
+            />
+            <p className="mt-1.5 text-[13px] leading-snug text-white/45">
+              {b.desc}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 flex flex-wrap gap-x-8 gap-y-2 border-t border-white/10 pt-4">
+        <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
+          Most depleted{" "}
+          <span className="ml-1 text-white">
+            {depleted.label} · {depleted.value}/10
+          </span>
+        </p>
+        <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
+          Most available{" "}
+          <span className="ml-1 text-white">
+            {available.label} · {available.value}/10
+          </span>
+        </p>
+      </div>
+      <p className="mt-3 text-[13px] leading-relaxed text-white/40">
+        Read the pattern, not only the total. Begin with the dimension asking
+        most clearly for attention.
+      </p>
+    </div>
   );
 }
 

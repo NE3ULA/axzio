@@ -3,6 +3,7 @@ import {
   useAxzio,
   MANTRA,
   TAGS,
+  LAUNCH_STAGES,
   localDateKey,
   getDayState,
   actionsOn,
@@ -15,6 +16,7 @@ import {
   Field,
   TextArea,
   Pill,
+  SectionHead,
   Empty,
 } from "../components/ui.jsx";
 
@@ -33,30 +35,37 @@ export default function Journeys() {
           Journeys
         </h2>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/50">
-          Guided passages through the interface. Each step writes into your
-          log, your signals, or your constellation.
+          Guided passages through the interface. Each step walks the Alchemist
+          Path — Reveal → Interpret → Align → Act → Integrate — and writes
+          into your log, your signals, or your constellation.
         </p>
       </header>
 
       {!active && (
-        <div className="grid gap-4 md:grid-cols-3">
-          {JOURNEYS.map((j, i) => (
-            <button
-              key={j.id}
-              onClick={() => setActive(j.id)}
-              className={`axzio-rise rounded-2xl border border-white/15 bg-white/[0.02] p-6 text-left transition-all duration-300 hover:border-white/40 hover:bg-white/[0.04] axzio-rise-${i + 1}`}
-            >
-              <MicroLabel className="mb-3">{j.kicker}</MicroLabel>
-              <h3 className="text-xl font-light tracking-wide">{j.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-white/50">
-                {j.blurb}
-              </p>
-              <p className="mt-4 text-[11px] uppercase tracking-[0.22em] text-white/40">
-                {j.steps.length} steps
-              </p>
-            </button>
-          ))}
-        </div>
+        <>
+          <LaunchSequenceLocator />
+          <div className="mb-6 mt-10">
+            <MicroLabel>Guided passages</MicroLabel>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {JOURNEYS.map((j, i) => (
+              <button
+                key={j.id}
+                onClick={() => setActive(j.id)}
+                className={`axzio-rise rounded-2xl border border-white/15 bg-white/[0.02] p-6 text-left transition-all duration-300 hover:border-white/40 hover:bg-white/[0.04] axzio-rise-${i + 1}`}
+              >
+                <MicroLabel className="mb-3">{j.kicker}</MicroLabel>
+                <h3 className="text-xl font-light tracking-wide">{j.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-white/50">
+                  {j.blurb}
+                </p>
+                <p className="mt-4 text-[11px] uppercase tracking-[0.22em] text-white/40">
+                  {j.steps.map((s) => s.phase).join(" → ")}
+                </p>
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
       {active && (
@@ -69,6 +78,78 @@ export default function Journeys() {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Identity Launch Sequence locator                                      */
+/* ------------------------------------------------------------------ */
+
+function LaunchSequenceLocator() {
+  const axzio = useAxzio();
+  const { state } = axzio;
+  const current = LAUNCH_STAGES.find((s) => s.key === state.launchStage) || null;
+
+  return (
+    <section className="axzio-rise mb-2">
+      <Card className="p-6 md:p-8">
+        <SectionHead
+          label="Identity Launch Sequence"
+          right={
+            current ? (
+              <button
+                onClick={() => axzio.setLaunchStage(null)}
+                className="text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white"
+              >
+                Clear
+              </button>
+            ) : undefined
+          }
+        />
+        <p className="mb-5 max-w-xl text-sm leading-relaxed text-white/55">
+          Transformation moves through a recognizable progression. This is a
+          map of movement, not a measure of rank — choose where life is
+          currently inviting your participation.
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          {LAUNCH_STAGES.map((s) => {
+            const isActive = state.launchStage === s.key;
+            return (
+              <button
+                key={s.key}
+                onClick={() =>
+                  axzio.setLaunchStage(isActive ? null : s.key)
+                }
+                aria-pressed={isActive}
+                className={`rounded-full border px-4 py-2 text-[12px] uppercase tracking-[0.16em] transition-all duration-200 ${
+                  isActive
+                    ? "border-white/70 bg-white/10 text-white shadow-[0_0_20px_rgba(255,255,255,0.12)]"
+                    : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
+                }`}
+              >
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {current && (
+          <div className="axzio-rise mt-6 border-t border-white/10 pt-6">
+            <MicroLabel className="mb-2">
+              {current.label} — {current.move}
+            </MicroLabel>
+            <p className="max-w-xl text-[15px] leading-relaxed text-white/75">
+              {current.desc}
+            </p>
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/55">
+              <span className="text-white/80">The movement: </span>
+              {current.suggestion}
+            </p>
+          </div>
+        )}
+      </Card>
+    </section>
+  );
+}
+
 const JOURNEYS = [
   {
     id: "morning",
@@ -76,9 +157,9 @@ const JOURNEYS = [
     title: "Morning Alignment",
     blurb: "Hold the anchors, name the day's intention, take the first action.",
     steps: [
-      { id: "mantra", title: "Anchor the mantra", render: MantraStep },
-      { id: "intention", title: "Set the intention", render: IntentionStep },
-      { id: "action", title: "Take the first action", render: FirstActionStep },
+      { id: "mantra", title: "Anchor the mantra", phase: "Reveal", render: MantraStep },
+      { id: "intention", title: "Set the intention", phase: "Align", render: IntentionStep },
+      { id: "action", title: "Take the first action", phase: "Act", render: FirstActionStep },
     ],
     done: {
       title: "The day is aimed.",
@@ -91,9 +172,9 @@ const JOURNEYS = [
     title: "Evening Review",
     blurb: "Name a gratitude, review the day's actions, transmit a closing signal.",
     steps: [
-      { id: "gratitude", title: "Name one gratitude", render: GratitudeStep },
-      { id: "review", title: "Review today's actions", render: ReviewStep },
-      { id: "signal", title: "Transmit a closing signal", render: ClosingSignalStep },
+      { id: "gratitude", title: "Name one gratitude", phase: "Reveal", render: GratitudeStep },
+      { id: "review", title: "Review today's actions", phase: "Interpret", render: ReviewStep },
+      { id: "signal", title: "Transmit a closing signal", phase: "Integrate", render: ClosingSignalStep },
     ],
     done: {
       title: "The day is sealed.",
@@ -106,9 +187,9 @@ const JOURNEYS = [
     title: "Ignite a Star",
     blurb: "Name an intention, give it meaning, commit the first action toward it.",
     steps: [
-      { id: "name", title: "Name the star", render: StarNameStep },
-      { id: "note", title: "Give it meaning", render: StarNoteStep },
-      { id: "push", title: "First action toward it", render: StarActionStep },
+      { id: "name", title: "Name the star", phase: "Reveal", render: StarNameStep },
+      { id: "note", title: "Give it meaning", phase: "Interpret", render: StarNoteStep },
+      { id: "push", title: "First action toward it", phase: "Act", render: StarActionStep },
     ],
     done: {
       title: "A new star burns.",
@@ -158,12 +239,15 @@ function JourneyRunner({ journey, onExit }) {
         <>
           {/* progress */}
           <div className="mb-8">
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between gap-3">
               <span className="text-[11px] uppercase tracking-[0.22em] text-white/45">
                 Step {step + 1} of {journey.steps.length}
               </span>
-              <span className="text-[11px] uppercase tracking-[0.22em] text-white/45">
-                {journey.steps[step].title}
+              <span className="flex items-center gap-2">
+                <Pill tone="lit">{journey.steps[step].phase}</Pill>
+                <span className="text-[11px] uppercase tracking-[0.22em] text-white/45">
+                  {journey.steps[step].title}
+                </span>
               </span>
             </div>
             <div className="flex gap-2">

@@ -11,6 +11,31 @@ import {
   Empty,
 } from "../components/ui.jsx";
 
+/* The four orientation statements (WE ARE ALCHEMY, ch. AUTHORSHIP):
+   provisional, honest enough to guide an ordinary Tuesday. */
+const ORIENTATION_STATEMENTS = [
+  {
+    key: "becoming",
+    prompt: "I am choosing to become someone who…",
+    placeholder: "Name the quality or orientation in active terms…",
+  },
+  {
+    key: "standFor",
+    prompt: "I stand for…",
+    placeholder: "Name the principles that should remain recognizable across conditions…",
+  },
+  {
+    key: "practice",
+    prompt: "I practice…",
+    placeholder: "Name the behaviors through which the identity becomes visible…",
+  },
+  {
+    key: "returnThrough",
+    prompt: "When I drift, I return through…",
+    placeholder: "Name the ritual, question, boundary, or action that restores contact…",
+  },
+];
+
 /* ------------------------------------------------------------------ */
 /* IDENTITY — user state systems: Identity Core + Four Primitives        */
 /* ------------------------------------------------------------------ */
@@ -36,30 +61,26 @@ export default function Identity() {
       <section className="axzio-rise axzio-rise-1 mb-6">
         <Card className="p-6 md:p-8">
           <SectionHead label="Identity Core" />
+          <p className="mb-6 max-w-xl text-sm leading-relaxed text-white/55">
+            The relatively stable authored center the system reads against —
+            structured but living. Begin with four statements, provisional
+            and honest enough to guide an ordinary Tuesday.
+          </p>
           <div className="space-y-6">
-            <div>
-              <MicroLabel className="mb-2">Authored identity</MicroLabel>
-              <TextArea
-                value={state.identity.authored}
-                onChange={(e) =>
-                  axzio.updateIdentity({ authored: e.target.value })
-                }
-                placeholder="The identity I am consciously authoring…"
-                rows={3}
-                maxLength={400}
-              />
-            </div>
-            <div>
-              <MicroLabel className="mb-2">Core orientation</MicroLabel>
-              <Field
-                value={state.identity.orientation}
-                onChange={(e) =>
-                  axzio.updateIdentity({ orientation: e.target.value })
-                }
-                placeholder="The single principle you organize around…"
-                maxLength={140}
-              />
-            </div>
+            {ORIENTATION_STATEMENTS.map((s) => (
+              <div key={s.key}>
+                <MicroLabel className="mb-2">{s.prompt}</MicroLabel>
+                <TextArea
+                  value={state.identity[s.key] || ""}
+                  onChange={(e) =>
+                    axzio.updateIdentity({ [s.key]: e.target.value })
+                  }
+                  placeholder={s.placeholder}
+                  rows={2}
+                  maxLength={280}
+                />
+              </div>
+            ))}
             <ListEditor
               label="Values"
               items={state.identity.values}
