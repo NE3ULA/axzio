@@ -120,7 +120,7 @@ export default function Focus() {
             <MicroLabel>Priorities — {timeframeLabel(timeframe)}</MicroLabel>
             <HelpBubble title="Priorities">
               <HelpText
-                what="Three ranked priorities per timeframe — 1st is the One Thing. Day, week, month, and year each hold their own independent 1/2/3."
+                what="Three ranked priorities per timeframe — 1st is the one thing to focus on. Day, week, month, and year each hold their own independent 1/2/3."
                 why="Ranking forces the trade: if everything is priority one, nothing is. The rank makes the choice visible."
                 how="Set a rank from any item's editor or its priority control. Each rank holds exactly one item per timeframe — setting it moves the rank here."
               />
@@ -606,7 +606,7 @@ function FocusRow({ item, depth }) {
               )
             }
             aria-label="Priority rank"
-            title="Priority rank — 1st is the One Thing"
+            title="Priority rank — 1st is the one thing to focus on"
             className={`rounded-lg border px-2.5 py-1.5 text-[11px] uppercase tracking-[0.14em] outline-none transition-colors ${
               item.priority
                 ? "border-white/60 bg-white/10 text-white"

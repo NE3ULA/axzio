@@ -351,9 +351,9 @@ const TIMEFRAME_KEYS = new Set(TIMEFRAMES.map((t) => t.key));
 
 /* Priority ranks per timeframe. Each rank (1|2|3) is unique within its
    timeframe — week/month/year each hold their own independent 1/2/3.
-   Rank 1 keeps the book's "One Thing" language. */
+   Rank 1 is the one thing to focus on. */
 export const PRIORITY_RANKS = [
-  { rank: 1, label: "1st", note: "the One Thing" },
+  { rank: 1, label: "1st", note: "the one thing to focus on" },
   { rank: 2, label: "2nd", note: null },
   { rank: 3, label: "3rd", note: null },
 ];
@@ -1125,7 +1125,7 @@ export function AxzioProvider({ children }) {
      * Set a focus item's priority rank (1|2|3) — or null to clear it.
      * Each rank is unique within its timeframe: setting rank N clears
      * rank N from every other item in the same timeframe (day/week/
-     * month/year hold independent 1/2/3 sets). Rank 1 is the One Thing.
+     * month/year hold independent 1/2/3 sets). Rank 1 is the one thing to focus on.
      */
     setPriority(id, rank) {
       const r = rank === 1 || rank === 2 || rank === 3 ? rank : null;

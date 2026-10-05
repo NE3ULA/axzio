@@ -316,7 +316,7 @@ function WhatsImportantCard() {
         help={
           <HelpBubble title="What's important today">
             <HelpText
-              what="Today's three ranked priorities — 1st is the One Thing — plus the open counts in Do and Decide."
+              what="Today's three ranked priorities — 1st is the one thing to focus on — plus the open counts in Do and Decide."
               why="The matrix separates urgency from importance to preserve attention for aligned action; the ranks make the day's trade visible."
               how="Rank items 1st/2nd/3rd in Focus; the lists here update live."
             />

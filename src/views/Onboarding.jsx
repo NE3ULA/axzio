@@ -29,7 +29,7 @@ const MODULES = [
     key: "focus",
     label: "Focus",
     purpose:
-      "The Decision Engine: sort everything that needs deciding, separate urgency from importance, and hold one single One Thing.",
+      "The Decision Engine: sort everything that needs doing, separate the urgent from the important — and find the one thing to focus on.",
   },
   {
     key: "modes",

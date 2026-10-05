@@ -78,7 +78,7 @@ axzio/
 | (boot)            | Boot          | Cinematic mark + "initializing interface", ~2s               |
 | (first run)       | Onboarding    | 11-step walkthrough: welcome → 6 module tour screens → identity (name + 4 orientation statements) → Human Battery baseline → today's modes → first intention. Every step skippable; progress persisted |
 | `#/deck`          | Command Deck  | Overview dashboard: Who am I (top 3 commitments) / What's important today (day 1st/2nd/3rd priorities) / What mode am I in / State / Orientation (4 micro-practices) cards in an OVERVIEW zone; a separate CAPTURE zone below holds intention, action log, signals, stars |
-| `#/focus`         | Focus         | Decision Engine home: doing-first voice, per-timeframe 1st/2nd/3rd priorities (1st = the One Thing), capture with commitment/mode/pillar tagging, Eisenhower 2×2 with Day/Week/Month/Year tabs, Q1 emphasized as where focus goes first. Items are living objects: tap to expand an inline editor (text, quadrant, timeframe + repeats, mode/pillar tags, commitment, attach-to nesting, notes, subtasks, priority); "Explore in Guided Reset" threads an action into a journey |
+| `#/focus`         | Focus         | Decision Engine home: doing-first voice, per-timeframe 1st/2nd/3rd priorities (1st = the one thing to focus on), capture with commitment/mode/pillar tagging, Eisenhower 2×2 with Day/Week/Month/Year tabs, Q1 emphasized as where focus goes first. Items are living objects: tap to expand an inline editor (text, quadrant, timeframe + repeats, mode/pillar tags, commitment, attach-to nesting, notes, subtasks, priority); "Explore in Guided Reset" threads an action into a journey |
 | `#/modes`         | Modes         | The three Modes of Energy (Production, Pleasure, People): primary + secondary per Day / Week / Month, with each mode's gift and risk |
 | `#/constellation` | Constellation | 8-stage star map, detail readings, orbiting user stars       |
 | `#/identity`      | Identity      | Identity Core (4 orientation statements, values, ordered commitments), Four Pillars (Mind, Body, Heart, Spirit), primitives sliders + radar, walkthrough replay, reset |
@@ -206,7 +206,7 @@ line linking back to `#/focus`, and the copied card includes it.
 Each item holds `priority: null | 1 | 2 | 3`, **unique within its
 timeframe** — setting rank N clears rank N from every other item in the
 same timeframe; day/week/month/year each hold independent 1/2/3 sets.
-Rank 1 keeps the book's "One Thing" language ("1st — the One Thing").
+Rank 1 is the one thing to focus on ("1st — the one thing to focus on").
 The top strip shows the three slots for the active timeframe tab with
 per-slot clear; the editor offers a None/1st/2nd/3rd selector and each
 collapsed row a compact rank control. The Deck's "What's important today"
