@@ -1,6 +1,8 @@
 /* Shared UI primitives — the AXZIO visual language:
    pure black, white text, thin 1px borders, wide-tracked micro labels. */
 
+import { useState } from "react";
+
 export function Card({ className = "", children, ...rest }) {
   return (
     <div
@@ -77,11 +79,93 @@ export function Pill({ children, tone = "neutral", className = "" }) {
 }
 
 /** Section header: micro label + thin rule. */
-export function SectionHead({ label, right }) {
+export function SectionHead({ label, right, help }) {
   return (
     <div className="mb-4 flex items-end justify-between gap-4">
-      <MicroLabel>{label}</MicroLabel>
+      <span className="flex items-center gap-2">
+        <MicroLabel>{label}</MicroLabel>
+        {help}
+      </span>
       {right}
+    </div>
+  );
+}
+
+/**
+ * HelpBubble — a small "?" button that opens a popover card:
+ * title + WHAT / WHY / HOW. Used on every major section so the
+ * interface explains itself in place.
+ */
+export function HelpBubble({ title, children, className = "" }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className={`relative inline-flex shrink-0 align-middle ${className}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label={`About: ${title}`}
+        aria-expanded={open}
+        className="flex h-5 w-5 items-center justify-center rounded-full border border-white/25 text-[11px] leading-none text-white/60 transition-colors hover:border-white/60 hover:text-white"
+      >
+        ?
+      </button>
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-hidden="true"
+            tabIndex={-1}
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-40 cursor-default bg-black/50"
+          />
+          <div
+            role="dialog"
+            aria-label={title}
+            className="fixed left-1/2 top-1/2 z-50 w-80 max-w-[calc(100vw-2.5rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-white/20 bg-[#0b0b0b] p-5 shadow-[0_8px_48px_rgba(0,0,0,0.85)]"
+          >
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <MicroLabel>{title}</MicroLabel>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="text-white/40 transition-colors hover:text-white"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="currentColor" strokeWidth="1.3" />
+                </svg>
+              </button>
+            </div>
+            {children}
+          </div>
+        </>
+      )}
+    </span>
+  );
+}
+
+/** WHAT / WHY / HOW body for a HelpBubble. */
+export function HelpText({ what, why, how }) {
+  return (
+    <div className="space-y-2 text-[13px] leading-relaxed text-white/65">
+      {what && (
+        <p>
+          <span className="text-white/90">What — </span>
+          {what}
+        </p>
+      )}
+      {why && (
+        <p>
+          <span className="text-white/90">Why — </span>
+          {why}
+        </p>
+      )}
+      {how && (
+        <p>
+          <span className="text-white/90">How — </span>
+          {how}
+        </p>
+      )}
     </div>
   );
 }

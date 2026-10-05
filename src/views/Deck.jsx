@@ -4,6 +4,7 @@ import {
   MANTRA,
   TAGS,
   BATTERY,
+  modeLabel,
   tagLabel,
   localDateKey,
   formatLongDate,
@@ -22,10 +23,14 @@ import {
   Pill,
   SectionHead,
   Empty,
+  HelpBubble,
+  HelpText,
 } from "../components/ui.jsx";
+import ModePicker from "../components/ModePicker.jsx";
 
 /* ------------------------------------------------------------------ */
-/* COMMAND DECK — the daily home of the interface                        */
+/* COMMAND DECK — overview dashboard: live summaries across modules,   */
+/* each card expandable inline or routing to its module.                */
 /* ------------------------------------------------------------------ */
 
 export default function Deck() {
@@ -39,7 +44,7 @@ export default function Deck() {
   const mantraDone = MANTRA.filter((m) => day.mantra[m.key]).length;
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-5 pb-24 pt-8">
+    <div className="mx-auto w-full max-w-5xl px-5 pb-24 pt-8">
       {/* header */}
       <header className="axzio-rise mb-10 flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -61,47 +66,30 @@ export default function Deck() {
         </div>
       </header>
 
-      {/* today's alignment */}
-      <section className="axzio-rise axzio-rise-1 mb-6">
-        <SectionHead
-          label="Today's alignment"
-          right={
-            <span className="text-[11px] uppercase tracking-[0.2em] text-white/40">
-              {mantraDone} / 4
-            </span>
-          }
-        />
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {MANTRA.map((m) => (
-            <AnchorToggle
-              key={m.key}
-              label={m.label}
-              hint={m.hint}
-              active={day.mantra[m.key]}
-              onToggle={() => axzio.setMantra(today, m.key, !day.mantra[m.key])}
-            />
-          ))}
-        </div>
-      </section>
-
-      {/* state — human battery */}
-      <section className="axzio-rise axzio-rise-2 mb-6">
-        <Card className="p-6">
-          <SectionHead label="State — the Human Battery" />
-          <p className="mb-5 max-w-xl text-sm leading-relaxed text-white/55">
-            Hear the instrument before trying to force the performance.{" "}
-            <span className="text-white/80">State is not identity</span> — a
-            depleted reading is a condition to meet, not a verdict on who
-            you are.
-          </p>
-          <BatteryCheck day={day} today={today} />
-        </Card>
-      </section>
+      {/* overview grid */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <WhoAmICard />
+        <WhatsImportantCard />
+        <ModeCard />
+        <StateCard />
+        <OrientationCard day={day} today={today} mantraDone={mantraDone} />
+      </div>
 
       {/* intention */}
-      <section className="axzio-rise axzio-rise-3 mb-6">
+      <section className="axzio-rise axzio-rise-3 mt-6">
         <Card className="p-6">
-          <SectionHead label="Intention for the day" />
+          <SectionHead
+            label="Intention for the day"
+            help={
+              <HelpBubble title="Intention">
+                <HelpText
+                  what="One line naming what today is for."
+                  why="A named intention gives the day a direction the system can read against."
+                  how="Write or revise it any time; it stays with today's date."
+                />
+              </HelpBubble>
+            }
+          />
           <TextArea
             value={day.intention}
             onChange={(e) => axzio.setIntention(today, e.target.value)}
@@ -113,9 +101,20 @@ export default function Deck() {
       </section>
 
       {/* action log */}
-      <section className="axzio-rise axzio-rise-4 mb-6">
+      <section className="axzio-rise axzio-rise-4 mt-6">
         <Card className="p-6">
-          <SectionHead label="Action log" />
+          <SectionHead
+            label="Action log"
+            help={
+              <HelpBubble title="Action log">
+                <HelpText
+                  what="A running log of embodied action, tagged by mantra anchor or primitive."
+                  why="Action is where identity becomes visible; the log is the evidence. Streaks count consecutive days with at least one action."
+                  how="Log what you did. Delete with the × — the log is yours to keep honest."
+                />
+              </HelpBubble>
+            }
+          />
           <ActionForm />
           <div className="mt-5 space-y-2">
             {todaysActions.length === 0 && (
@@ -151,9 +150,20 @@ export default function Deck() {
       </section>
 
       {/* signals */}
-      <section className="axzio-rise axzio-rise-5 mb-6">
+      <section className="axzio-rise axzio-rise-5 mt-6">
         <Card className="p-6">
-          <SectionHead label="Signal feed" />
+          <SectionHead
+            label="Signal feed"
+            help={
+              <HelpBubble title="Signal feed">
+                <HelpText
+                  what="Transmissions: notes, observations, vows — the unprocessed feed of a life being paid attention to."
+                  why="Signal is what the Alchemist Path begins with: what is revealed before it is interpreted."
+                  how="Transmit anything. Today's signals stay on the deck; the feed is the raw material of future reviews."
+                />
+              </HelpBubble>
+            }
+          />
           <SignalForm />
           <div className="mt-5 space-y-3">
             {todaysSignals.length === 0 && (
@@ -174,13 +184,20 @@ export default function Deck() {
       </section>
 
       {/* add a star */}
-      <section className="axzio-rise axzio-rise-5">
+      <section className="axzio-rise axzio-rise-5 mt-6">
         <Card className="p-6">
-          <SectionHead label="Ignite a star" />
-          <p className="mb-4 text-sm leading-relaxed text-white/55">
-            Name an intention or project. It takes its place in your
-            constellation as an orbiting star.
-          </p>
+          <SectionHead
+            label="Ignite a star"
+            help={
+              <HelpBubble title="Ignite a star">
+                <HelpText
+                  what="Name an intention or project to place it in your constellation as an orbiting star."
+                  why="Named things gain gravity; orbiting stars keep intentions visible across days."
+                  how="Name the star, add an optional note, ignite. Find your stars in the Constellation."
+                />
+              </HelpBubble>
+            }
+          />
           <StarForm />
         </Card>
       </section>
@@ -199,7 +216,265 @@ function Stat({ value, label }) {
   );
 }
 
-function AnchorToggle({ label, hint, active, onToggle }) {
+/** Small "open the module" affordance used on overview cards. */
+function ModuleLink({ href, children }) {
+  return (
+    <a
+      href={href}
+      className="mt-5 inline-block text-[11px] uppercase tracking-[0.22em] text-white/55 transition-colors hover:text-white"
+    >
+      {children} →
+    </a>
+  );
+}
+
+/* ------------------------- overview cards ------------------------- */
+
+function WhoAmICard() {
+  const { state } = useAxzio();
+  const becoming = state.identity.becoming?.trim();
+  const topCommitment = state.identity.commitments?.[0];
+
+  return (
+    <Card className="axzio-rise axzio-rise-1 flex flex-col p-6">
+      <SectionHead
+        label="Who am I"
+        help={
+          <HelpBubble title="Who am I">
+            <HelpText
+              what="A mirror of your Identity Core: the person you are choosing to become, plus your top commitment."
+              why="AXZIO reads every day against your authored identity — not a mood, a role, or a performance."
+              how="Open Identity to author the four orientation statements, values, and commitments."
+            />
+          </HelpBubble>
+        }
+      />
+      <div className="flex-1">
+        {becoming ? (
+          <p className="line-clamp-3 text-[15px] leading-relaxed text-white/85">
+            <span className="text-white/45">Becoming someone who </span>
+            {becoming}
+          </p>
+        ) : (
+          <p className="text-[15px] leading-relaxed text-white/40">
+            No orientation statement yet — open Identity to author yours.
+          </p>
+        )}
+        {topCommitment && (
+          <p className="mt-3">
+            <Pill>{topCommitment}</Pill>
+          </p>
+        )}
+      </div>
+      <ModuleLink href="#/identity">Open Identity</ModuleLink>
+    </Card>
+  );
+}
+
+function WhatsImportantCard() {
+  const { state } = useAxzio();
+  const openItems = state.focusItems.filter((f) => !f.done);
+  const oneThing =
+    state.focusItems.find((f) => f.oneThing && !f.done) || null;
+  const q1 = openItems.filter((f) => f.quadrant === "q1").length;
+  const q2 = openItems.filter((f) => f.quadrant === "q2").length;
+
+  return (
+    <Card className="axzio-rise axzio-rise-2 flex flex-col p-6">
+      <SectionHead
+        label="What's important today"
+        help={
+          <HelpBubble title="What's important today">
+            <HelpText
+              what="Your One Thing and the open priorities the Decision Engine is holding."
+              why="The matrix separates urgency from importance to preserve attention for aligned action."
+              how="Flag one item as the One Thing in Focus; the counts here update live."
+            />
+          </HelpBubble>
+        }
+      />
+      <div className="flex-1">
+        {oneThing ? (
+          <div>
+            <MicroLabel className="mb-1.5">The One Thing</MicroLabel>
+            <p className="line-clamp-2 text-[15px] leading-snug text-white">
+              {oneThing.text}
+            </p>
+          </div>
+        ) : (
+          <p className="text-[15px] leading-relaxed text-white/40">
+            No One Thing flagged — the day has no single point of aim yet.
+          </p>
+        )}
+        <div className="mt-4 flex gap-6">
+          <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
+            Do{" "}
+            <span className="ml-1 text-xl font-light normal-case tracking-normal text-white">
+              {q1}
+            </span>
+          </p>
+          <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
+            Decide{" "}
+            <span className="ml-1 text-xl font-light normal-case tracking-normal text-white">
+              {q2}
+            </span>
+          </p>
+        </div>
+      </div>
+      <ModuleLink href="#/focus">Open Focus</ModuleLink>
+    </Card>
+  );
+}
+
+function ModeCard() {
+  const { state } = useAxzio();
+  const sel = (state.modes && state.modes.day) || {
+    primary: null,
+    secondary: null,
+  };
+
+  return (
+    <Card className="axzio-rise axzio-rise-3 flex flex-col p-6">
+      <SectionHead
+        label="What mode am I in"
+        help={
+          <HelpBubble title="What mode am I in">
+            <HelpText
+              what="The energy mode organizing today: Production, Pleasure, or People — a primary and a secondary."
+              why="No mode is superior; problems arise when one mode claims the whole system."
+              how="Quick-switch today's modes inline, or open Modes to set the day, week, and month."
+            />
+          </HelpBubble>
+        }
+      />
+      <div className="flex-1">
+        {sel.primary || sel.secondary ? (
+          <p className="mb-4 flex flex-wrap gap-2">
+            {sel.primary && (
+              <Pill tone="lit">Primary · {modeLabel(sel.primary)}</Pill>
+            )}
+            {sel.secondary && (
+              <Pill>Secondary · {modeLabel(sel.secondary)}</Pill>
+            )}
+          </p>
+        ) : (
+          <p className="mb-4 text-[15px] leading-relaxed text-white/40">
+            No mode set for today — choose how energy is organizing.
+          </p>
+        )}
+        <ModePicker interval="day" compact />
+      </div>
+      <ModuleLink href="#/modes">Open Modes</ModuleLink>
+    </Card>
+  );
+}
+
+function StateCard() {
+  const { state } = useAxzio();
+  const today = localDateKey();
+  const day = getDayState(state, today);
+  const [expanded, setExpanded] = useState(false);
+
+  const entries = BATTERY.map((b) => ({
+    ...b,
+    value: Number.isFinite(day.battery?.[b.key]) ? day.battery[b.key] : 5,
+  }));
+  const depleted = entries.reduce((a, b) => (a.value <= b.value ? a : b));
+  const available = entries.reduce((a, b) => (a.value >= b.value ? a : b));
+
+  return (
+    <Card className="axzio-rise axzio-rise-4 flex flex-col p-6">
+      <SectionHead
+        label="State"
+        help={
+          <HelpBubble title="State">
+            <HelpText
+              what="Your Human Battery: five dimensions of available capacity — physical, mental, emotional, social, purpose."
+              why="State is not identity. Hear the instrument before trying to force the performance."
+              how="Expand to slide each dimension; begin with the one asking most clearly for attention."
+            />
+          </HelpBubble>
+        }
+        right={
+          <button
+            onClick={() => setExpanded((e) => !e)}
+            aria-expanded={expanded}
+            className="text-[11px] uppercase tracking-[0.2em] text-white/55 transition-colors hover:text-white"
+          >
+            {expanded ? "Collapse" : "Expand"}
+          </button>
+        }
+      />
+      <div className="flex-1">
+        <div className="flex flex-wrap gap-x-8 gap-y-2">
+          <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
+            Most depleted{" "}
+            <span className="ml-1 text-white">
+              {depleted.label} · {depleted.value}/10
+            </span>
+          </p>
+          <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
+            Most available{" "}
+            <span className="ml-1 text-white">
+              {available.label} · {available.value}/10
+            </span>
+          </p>
+        </div>
+        {expanded && (
+          <div className="axzio-rise mt-5 border-t border-white/10 pt-5">
+            <BatteryCheck day={day} today={today} />
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function OrientationCard({ day, today, mantraDone }) {
+  const axzio = useAxzio();
+  return (
+    <Card className="axzio-rise axzio-rise-1 p-6 md:col-span-2">
+      <SectionHead
+        label="Orientation"
+        help={
+          <HelpBubble title="Orientation">
+            <HelpText
+              what="The daily mantra: four anchors for attention — receive what is real, notice what is alive, participate, stay connected to care."
+              why="Orientation is the practice of returning: when you drift, the anchors are what you come back through."
+              how="Hold each anchor as you practice it. Take Action links into Focus — live now; gratitude, beauty, and love practices are coming."
+            />
+          </HelpBubble>
+        }
+        right={
+          <span className="text-[11px] uppercase tracking-[0.2em] text-white/40">
+            {mantraDone} / 4
+          </span>
+        }
+      />
+      <p className="mb-4 text-[11px] uppercase tracking-[0.22em] text-white/35">
+        the daily mantra
+      </p>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {MANTRA.map((m) => (
+          <AnchorToggle
+            key={m.key}
+            label={m.label}
+            hint={m.hint}
+            active={day.mantra[m.key]}
+            onToggle={() => axzio.setMantra(today, m.key, !day.mantra[m.key])}
+            link={
+              m.key === "action"
+                ? { label: "Open in Focus", href: "#/focus" }
+                : null
+            }
+          />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function AnchorToggle({ label, hint, active, onToggle, link }) {
   return (
     <button
       onClick={onToggle}
@@ -219,6 +494,25 @@ function AnchorToggle({ label, hint, active, onToggle }) {
       <span className="mt-1 block text-[11px] leading-snug text-white/40">
         {hint}
       </span>
+      {link && (
+        <span
+          role="link"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            window.location.hash = link.href;
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.stopPropagation();
+              window.location.hash = link.href;
+            }
+          }}
+          className="mt-2 inline-block text-[10px] uppercase tracking-[0.2em] text-white/55 underline decoration-white/30 underline-offset-4 transition-colors hover:text-white"
+        >
+          {link.label} →
+        </span>
+      )}
     </button>
   );
 }
@@ -231,8 +525,6 @@ function BatteryCheck({ day, today }) {
     ...b,
     value: Number.isFinite(battery[b.key]) ? battery[b.key] : 5,
   }));
-  const depleted = entries.reduce((a, b) => (a.value <= b.value ? a : b));
-  const available = entries.reduce((a, b) => (a.value >= b.value ? a : b));
 
   return (
     <div>
@@ -265,22 +557,7 @@ function BatteryCheck({ day, today }) {
           </div>
         ))}
       </div>
-
-      <div className="mt-6 flex flex-wrap gap-x-8 gap-y-2 border-t border-white/10 pt-4">
-        <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
-          Most depleted{" "}
-          <span className="ml-1 text-white">
-            {depleted.label} · {depleted.value}/10
-          </span>
-        </p>
-        <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
-          Most available{" "}
-          <span className="ml-1 text-white">
-            {available.label} · {available.value}/10
-          </span>
-        </p>
-      </div>
-      <p className="mt-3 text-[13px] leading-relaxed text-white/40">
+      <p className="mt-4 text-[13px] leading-relaxed text-white/40">
         Read the pattern, not only the total. Begin with the dimension asking
         most clearly for attention.
       </p>

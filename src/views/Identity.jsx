@@ -9,11 +9,14 @@ import {
   Pill,
   SectionHead,
   Empty,
+  HelpBubble,
+  HelpText,
 } from "../components/ui.jsx";
 
 /* The four orientation statements (WE ARE ALCHEMY, ch. AUTHORSHIP):
-   provisional, honest enough to guide an ordinary Tuesday. */
-const ORIENTATION_STATEMENTS = [
+   provisional, honest enough to guide an ordinary Tuesday.
+   Exported for reuse in the first-use walkthrough. */
+export const ORIENTATION_STATEMENTS = [
   {
     key: "becoming",
     prompt: "I am choosing to become someone who…",
@@ -60,7 +63,18 @@ export default function Identity() {
 
       <section className="axzio-rise axzio-rise-1 mb-6">
         <Card className="p-6 md:p-8">
-          <SectionHead label="Identity Core" />
+          <SectionHead
+            label="Identity Core"
+            help={
+              <HelpBubble title="Identity Core">
+                <HelpText
+                  what="Your authored center: four orientation statements — who you are choosing to become, what you stand for, what you practice, and what returns you when you drift."
+                  why="The system reads every day against this core; a stable reference keeps decisions aligned across changing states."
+                  how="Write statements provisional but honest enough to guide an ordinary Tuesday. Revise them as life tests them."
+                />
+              </HelpBubble>
+            }
+          />
           <p className="mb-6 max-w-xl text-sm leading-relaxed text-white/55">
             The relatively stable authored center the system reads against —
             structured but living. Begin with four statements, provisional
@@ -103,9 +117,42 @@ export default function Identity() {
         <Card className="p-6 md:p-8">
           <SectionHead
             label="Four Primitives — self assessment"
+            help={
+              <HelpBubble title="Four Primitives">
+                <HelpText
+                  what="The four domains where identity meets reality: Money, Engagement, Building, Being — distinct from the Pillars of Mind, Body, Heart, Spirit."
+                  why="Stabilization first: steady the ground before reaching for higher-order work. Small, concrete repairs unlock everything above them."
+                  how="Score each 1–10, record the assessment, and watch the history. The primitives move slowly — that is the point."
+                />
+              </HelpBubble>
+            }
             right={<Pill>1 – 10</Pill>}
           />
           <PrimitivesAssessment />
+        </Card>
+      </section>
+
+      <section className="axzio-rise axzio-rise-3 mb-6">
+        <Card className="p-6 md:p-8">
+          <SectionHead
+            label="Walkthrough"
+            help={
+              <HelpBubble title="Walkthrough">
+                <HelpText
+                  what="The first-use tour: what AXZIO is, what each module does, and the setup sequence."
+                  why="Replaying it re-grounds the interface when the modules have drifted from memory."
+                  how="It re-opens from the beginning; your existing data is kept and every step is skippable."
+                />
+              </HelpBubble>
+            }
+          />
+          <p className="mb-4 max-w-lg text-sm leading-relaxed text-white/55">
+            Revisit the first-use tour — the module walkthrough and the setup
+            sequence. Your data stays intact.
+          </p>
+          <Btn variant="ghost" onClick={() => axzio.replayOnboarding()}>
+            Replay the walkthrough
+          </Btn>
         </Card>
       </section>
 

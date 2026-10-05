@@ -8,6 +8,8 @@ import {
   Pill,
   SectionHead,
   Empty,
+  HelpBubble,
+  HelpText,
 } from "../components/ui.jsx";
 
 /* ------------------------------------------------------------------ */
@@ -65,7 +67,16 @@ export default function Focus() {
           <Card className="border-white/40 bg-white/[0.04] p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
-                <MicroLabel className="mb-2">The One Thing</MicroLabel>
+                <div className="flex items-center gap-3">
+                  <MicroLabel className="mb-2">The One Thing</MicroLabel>
+                  <HelpBubble title="The One Thing" className="mb-2">
+                    <HelpText
+                      what="The single item that, done well, would make everything else easier — flagged from the matrix below."
+                      why="The Decision Engine's focus question: what is the next meaningful action? One thing held at a time keeps attention from fragmenting."
+                      how="Flag exactly one item with the “One Thing” button; it holds this banner until done or cleared."
+                    />
+                  </HelpBubble>
+                </div>
                 <p className="text-xl font-light tracking-wide">
                   {oneThing.text}
                 </p>
@@ -89,7 +100,16 @@ export default function Focus() {
           </Card>
         ) : (
           <Card className="p-6">
-            <MicroLabel className="mb-2">The One Thing</MicroLabel>
+            <div className="flex items-center gap-3">
+              <MicroLabel className="mb-2">The One Thing</MicroLabel>
+              <HelpBubble title="The One Thing" className="mb-2">
+                <HelpText
+                  what="The single item that, done well, would make everything else easier — flagged from the matrix below."
+                  why="The Decision Engine's focus question: what is the next meaningful action? One thing held at a time keeps attention from fragmenting."
+                  how="Flag exactly one item with the “One Thing” button; it holds this banner until done or cleared."
+                />
+              </HelpBubble>
+            </div>
             <p className="text-sm leading-relaxed text-white/55">
               Nothing flagged yet. Choose the single item that, done well,
               would make the rest easier — flag it below and it holds this
@@ -111,6 +131,15 @@ export default function Focus() {
       <section className="axzio-rise axzio-rise-3">
         <SectionHead
           label="The Matrix"
+          help={
+            <HelpBubble title="The Matrix">
+              <HelpText
+                what="The Eisenhower Matrix: a prioritization lens inside the Decision Engine — urgency on one axis, importance on the other."
+                why="Urgency shouts; importance compounds. The matrix protects attention for aligned action instead of reactive motion."
+                how="Capture items, place each in a quadrant, move them as reality changes, link commitments, and flag one One Thing."
+              />
+            </HelpBubble>
+          }
           right={
             <span className="text-[11px] uppercase tracking-[0.2em] text-white/40">
               {openItems.length} open

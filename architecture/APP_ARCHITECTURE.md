@@ -49,16 +49,19 @@ axzio/
 ├── src/
 │   ├── main.jsx          # React root + provider wiring
 │   ├── index.css         # Tailwind import, theme tokens, keyframes
-│   ├── App.jsx           # boot → setup → shell, hash routing, top nav
+│   ├── App.jsx           # boot → onboarding gate → shell, hash routing, top nav
 │   ├── store.jsx         # single state store (context + localStorage)
 │   ├── components/
 │   │   ├── Starfield.jsx # decorative twinkling starfield background
-│   │   └── ui.jsx        # Card, MicroLabel, Btn, Field, TextArea, Pill…
+│   │   ├── ModePicker.jsx# primary/secondary mode picker (shared)
+│   │   └── ui.jsx        # Card, MicroLabel, Btn, Field, TextArea, Pill,
+│   │                     # SectionHead, Empty, HelpBubble, HelpText…
 │   └── views/
 │       ├── Boot.jsx          # cinematic entry sequence
-│       ├── Setup.jsx         # first-run identity authoring
-│       ├── Deck.jsx          # command deck (daily home)
+│       ├── Onboarding.jsx    # first-use walkthrough + setup sequence (11 steps)
+│       ├── Deck.jsx          # command deck: overview dashboard of module cards
 │       ├── Focus.jsx         # decision engine home: Eisenhower matrix + One Thing
+│       ├── Modes.jsx         # the three Modes of Energy, per day/week/month
 │       ├── Constellation.jsx # SVG star map of the 8 stages + user stars
 │       ├── Identity.jsx      # Identity Core editor + primitives assessment
 │       └── Journeys.jsx      # guided step-through flows + launch sequence locator
@@ -73,12 +76,87 @@ axzio/
 | Route             | View          | Purpose                                                      |
 | ----------------- | ------------- | ------------------------------------------------------------ |
 | (boot)            | Boot          | Cinematic mark + "initializing interface", ~2s               |
-| (first run)       | Setup         | Display name + first orientation statement                   |
-| `#/deck`          | Command Deck  | Mantra anchors, Human Battery state check, intention, action log, signals, stats, stars |
+| (first run)       | Onboarding    | 11-step walkthrough: welcome → 6 module tour screens → identity (name + 4 orientation statements) → Human Battery baseline → today's modes → first intention. Every step skippable; progress persisted |
+| `#/deck`          | Command Deck  | Overview dashboard: Who am I / What's important today / What mode am I in / State / Orientation cards (live summaries, expand inline or route to modules) + intention, action log, signals, stars |
 | `#/focus`         | Focus         | Decision Engine home: the two questions, Eisenhower 2×2, One Thing, commitment links |
+| `#/modes`         | Modes         | The three Modes of Energy (Production, Pleasure, People): primary + secondary per Day / Week / Month, with each mode's gift and risk |
 | `#/constellation` | Constellation | 8-stage star map, detail readings, orbiting user stars       |
-| `#/identity`      | Identity      | Identity Core (4 orientation statements, values, commitments), primitives sliders + radar, reset |
-| `#/journeys`      | Journeys      | Morning Alignment, Evening Review, Ignite a Star (phase-labeled) + Identity Launch Sequence locator |
+| `#/identity`      | Identity      | Identity Core (4 orientation statements, values, commitments), primitives sliders + radar, walkthrough replay, reset |
+| `#/journeys`      | Journeys      | Morning Alignment, Evening Review, Ignite a Star, Guided Reset (phase-labeled) + Identity Launch Sequence locator + past reset Action Cards |
+
+## Onboarding flow
+
+`App.jsx` gates on `state.identity.onboarded` (persisted). The old bare
+setup screen is gone; new users walk an 11-step flow in
+`views/Onboarding.jsx`:
+
+1. **Welcome** — what AXZIO is ("the interface layer — where signal becomes
+   structure").
+2. **Module tour** — one screen per module (Deck, Focus, Modes,
+   Constellation, Identity, Journeys) with a single-sentence purpose each.
+3. **Setup sequence** — display name + the 4 orientation statements;
+   Human Battery baseline sliders; today's primary + secondary mode;
+   first intention.
+
+Every step is skippable ("Skip for now"; tour screens also offer "Skip the
+tour"). Inputs write live into the store and the current step is persisted
+(`identity.onboardingStep`), so reloading mid-walkthrough resumes exactly
+where the user left off. Completing sets `onboarded` + `setupComplete`.
+A "Replay the walkthrough" button in Identity re-opens it for existing
+users (their data is kept).
+
+## Command Deck as overview
+
+The Deck is a dashboard, not a scroll of inputs. Each overview card shows a
+live summary of its module and offers an inline expansion or a route to the
+module:
+
+- **WHO AM I** — becoming-statement + top commitment → `#/identity`
+- **WHAT'S IMPORTANT TODAY** — the One Thing + open Q1/Q2 counts → `#/focus`
+- **WHAT MODE AM I IN** — today's primary/secondary mode with inline
+  quick-switch (shared `ModePicker`) → `#/modes`
+- **STATE** — battery most-depleted / most-available; expands inline to the
+  sliders
+- **ORIENTATION** — the daily mantra (4 toggles); "Take Action" carries an
+  "Open in Focus →" link. Future weaving is noted in its help bubble:
+  Grateful → gratitude practice, Beauty → attention practice, Give Love →
+  people practice (coming); Take Action → Focus (live).
+
+Below the grid: intention field, action log, signal feed, ignite-a-star —
+kept, tightened. 2-column grid on desktop, stacked on phone.
+
+## Help bubbles
+
+`HelpBubble` (`components/ui.jsx`) is a small "?" button opening a centered
+dialog card: title + WHAT / WHY / HOW (`HelpText`). Copy is grounded in the
+e-book and decision-engine docs — concrete, no fluff. Every major section
+carries one: each Deck card, Focus (matrix + One Thing), Constellation,
+Identity (core + primitives), the Journeys header + launch locator + each
+journey runner + past resets, each Modes interval card + the three-mode
+overview, and every Action Card.
+
+## Modes
+
+The three Modes of Energy (WE ARE ALCHEMY, ch. TUNING) — Production,
+Pleasure, People — each with what it organizes energy around, its gift,
+and its risk. No mode is superior; problems arise when one claims the
+whole system. For each interval (Day, Week, Month) the user picks a
+PRIMARY and a SECONDARY mode (tapping a selected mode clears it; the newly
+set value wins a primary/secondary conflict). The Deck's mode card reads
+the Day interval. `state.modes = { day: {primary, secondary}, week: {...},
+month: {...} }`; `MODES` / `MODE_INTERVALS` constants live in the store.
+
+## Guided Reset
+
+A fourth journey mirroring the guided practice at
+`ne3ula.com/e3-reset/guided`: seven fields — Situation → Reveal →
+Interpret → Align → Act → LifeMod → Integrate — each answered in turn.
+Completing saves to `state.resets[]` (`{ id, ts, date, situation, reveal,
+interpret, align, act, lifemod, integrate }`) and opens an **Action Card**:
+the responses laid out cleanly with a copy-to-clipboard button. Past
+resets list newest-first under the journey cards; each re-opens its card
+(which also offers delete). Private by default — local only, like
+everything else; the help bubble says so.
 
 ## State model (`axzio-state-v1`)
 
@@ -93,7 +171,9 @@ axzio/
     practice,       // "I practice…"
     returnThrough,  // "When I drift, I return through…"
     values: [], commitments: [],
-    setupComplete: bool
+    setupComplete: bool,
+    onboarded: bool,        // first-use walkthrough completed
+    onboardingStep: number, // walkthrough resume position
   },
   days: {
     "YYYY-MM-DD": {
@@ -108,6 +188,14 @@ axzio/
   assessments: [{ id, date, ts, money, engagement, building, being }],  // 1–10
   focusItems:  [{ id, text, quadrant, commitmentId, oneThing, done, created }],
   launchStage: string | null,  // Identity Launch Sequence stage key
+  // Modes of Energy (production | pleasure | people | null):
+  modes: {
+    day:   { primary, secondary },
+    week:  { primary, secondary },
+    month: { primary, secondary },
+  },
+  // Guided Reset completions (private, local only):
+  resets: [{ id, ts, date, situation, reveal, interpret, align, act, lifemod, integrate }],
 }
 ```
 
@@ -116,6 +204,10 @@ axzio/
 `becoming` / `standFor` statements (old keys removed), days gain a
 default 5/5/5/5/5 battery, and `focusItems` / `launchStage` default to
 `[]` / `null`. Focus items with unknown quadrants fall back to Q2.
+`identity.onboarded` defaults to the old `setupComplete` value, so
+existing users never see the new walkthrough. `modes` and `resets`
+default to empty selections / `[]`, with unknown mode keys normalized to
+`null` (primary wins a primary/secondary conflict).
 
 - One React context (`AxzioProvider` in `src/store.jsx`) owns all
   mutations; every mutation persists the whole state to localStorage.

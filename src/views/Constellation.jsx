@@ -9,7 +9,7 @@ import {
   formatLongDate,
   formatTime,
 } from "../store.jsx";
-import { Card, MicroLabel, Pill, Empty, Btn } from "../components/ui.jsx";
+import { Card, MicroLabel, Pill, Empty, Btn, HelpBubble, HelpText } from "../components/ui.jsx";
 
 /* ------------------------------------------------------------------ */
 /* CONSTELLATION — the 8 stages of the NE3ULA flow as a navigable map    */
@@ -106,7 +106,16 @@ export default function Constellation() {
   return (
     <div className="mx-auto w-full max-w-6xl px-5 pb-24 pt-8">
       <header className="axzio-rise mb-6">
-        <MicroLabel className="mb-2">Constellation</MicroLabel>
+        <div className="flex items-center gap-3">
+          <MicroLabel className="mb-2">Constellation</MicroLabel>
+          <HelpBubble title="Constellation" className="mb-2">
+            <HelpText
+              what="The system's eight stages — Call/Signal through Legend — rendered as a navigable sky, plus your own orbiting stars."
+              why="A map lets you locate where you are in the larger movement instead of mistaking one stage for the whole journey."
+              how="Select a stage to read it and see what of yours lives there. Ignite stars from the Command Deck."
+            />
+          </HelpBubble>
+        </div>
         <h2 className="text-3xl font-light tracking-wide md:text-4xl">
           The Eight Stages
         </h2>

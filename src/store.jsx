@@ -203,6 +203,64 @@ export const LAUNCH_STAGES = [
       "Name what was tested, what you will protect, and what you refuse to repeat. Let the forged story orient the next cycle.",
   },
 ];
+/* The three Modes of Energy (WE ARE ALCHEMY, ch. TUNING): temporary
+   ways attention and effort are being organized. No mode is superior —
+   problems arise when one mode claims the whole system. */
+export const MODES = [
+  {
+    key: "production",
+    label: "Production",
+    organizes:
+      "Decision, action, structure, momentum, output, and impact.",
+    gift: "Turns intention into visible form.",
+    risk:
+      "Can fuse self-worth with output; fear-driven hustle; rigid structure maintained after meaning has left. Production without Pleasure becomes extractive.",
+  },
+  {
+    key: "pleasure",
+    label: "Pleasure",
+    organizes:
+      "Presence, restoration, sensation, joy, and receptive aliveness.",
+    gift: "Returns you to the body; reminds you that rest is part of transformation.",
+    risk:
+      "Can become indulgence, avoidance, or numbing mistaken for nourishment. Pleasure without direction can become escape.",
+  },
+  {
+    key: "people",
+    label: "People",
+    organizes: "Relationship, belonging, feedback, connection, and care.",
+    gift: "Creates intimacy, collaboration, recognition, and growth through contact.",
+    risk:
+      "Can become validation dependence, emotional entanglement, social masking, or self-loss. People without boundaries becomes self-loss.",
+  },
+];
+
+/* The intervals on which a mode can be set: each gets a primary and a
+   secondary mode. */
+export const MODE_INTERVALS = [
+  { key: "day", label: "Day" },
+  { key: "week", label: "Week" },
+  { key: "month", label: "Month" },
+];
+
+export function modeLabel(key) {
+  const m = MODES.find((m) => m.key === key);
+  return m ? m.label : null;
+}
+
+/* The seven fields of a Guided Reset (mirrors the guided practice at
+   ne3ula.com/e3-reset/guided): Situation, then the Alchemist Path —
+   Reveal → Interpret → Align → Act — plus a LifeMod, then Integrate. */
+export const RESET_FIELDS = [
+  { key: "situation", label: "Situation" },
+  { key: "reveal", label: "Reveal" },
+  { key: "interpret", label: "Interpret" },
+  { key: "align", label: "Align" },
+  { key: "act", label: "Act" },
+  { key: "lifemod", label: "LifeMod" },
+  { key: "integrate", label: "Integrate" },
+];
+
 /** All tags usable on actions: mantra anchors + primitives. */
 export const TAGS = [
   ...MANTRA.map((m) => ({ key: m.key, label: m.label, group: "Mantra" })),
@@ -227,6 +285,10 @@ function defaultState() {
       values: [],
       commitments: [],
       setupComplete: false,
+      // First-use walkthrough (replaces the bare setup screen). Existing
+      // users who finished the old setup never see it.
+      onboarded: false,
+      onboardingStep: 0,
     },
     // "YYYY-MM-DD" -> { mantra: {gratitude,beauty,action,love}, intention, battery: {physical,mental,emotional,social,purpose} }
     days: {},
@@ -239,6 +301,16 @@ function defaultState() {
     focusItems: [],
     // Identity Launch Sequence locator: stage key or null.
     launchStage: null,
+    // Modes of Energy: per interval (day/week/month), a primary and a
+    // secondary mode. Mode keys: production | pleasure | people | null.
+    modes: {
+      day: { primary: null, secondary: null },
+      week: { primary: null, secondary: null },
+      month: { primary: null, secondary: null },
+    },
+    // Guided Reset completions (private, local only):
+    // { id, ts, date, situation, reveal, interpret, align, act, lifemod, integrate }
+    resets: [],
   };
 }
 
@@ -284,6 +356,46 @@ function uid() {
   );
 }
 
+/** Normalize saved mode selections; unknown keys fall back to null. */
+function normalizeModes(raw) {
+  const blank = {
+    day: { primary: null, secondary: null },
+    week: { primary: null, secondary: null },
+    month: { primary: null, secondary: null },
+  };
+  if (!raw || typeof raw !== "object") return blank;
+  const valid = new Set(MODES.map((m) => m.key));
+  const out = {};
+  for (const interval of Object.keys(blank)) {
+    const r = raw[interval] && typeof raw[interval] === "object" ? raw[interval] : {};
+    const primary = valid.has(r.primary) ? r.primary : null;
+    let secondary = valid.has(r.secondary) ? r.secondary : null;
+    if (secondary === primary) secondary = null; // primary wins a conflict
+    out[interval] = { primary, secondary };
+  }
+  return out;
+}
+
+/** Normalize saved guided resets; anything malformed is dropped. */
+function normalizeResets(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((r) => r && typeof r === "object")
+    .map((r) => ({
+      id: String(r.id ?? ""),
+      ts: Number(r.ts) || 0,
+      date: typeof r.date === "string" ? r.date : "",
+      situation: String(r.situation ?? ""),
+      reveal: String(r.reveal ?? ""),
+      interpret: String(r.interpret ?? ""),
+      align: String(r.align ?? ""),
+      act: String(r.act ?? ""),
+      lifemod: String(r.lifemod ?? ""),
+      integrate: String(r.integrate ?? ""),
+    }))
+    .filter((r) => r.id);
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -310,6 +422,16 @@ function loadState() {
     }
     delete identity.authored;
     delete identity.orientation;
+
+    /* First-use walkthrough: anyone who finished the old bare setup
+       never sees the new onboarding. Check the saved identity (not the
+       merged one — the base already carries onboarded:false). */
+    if (typeof oldIdentity.onboarded !== "boolean") {
+      identity.onboarded = oldIdentity.setupComplete === true;
+    }
+    if (!Number.isInteger(identity.onboardingStep)) {
+      identity.onboardingStep = 0;
+    }
 
     /* Normalize saved days: older entries predate the battery check. */
     const blank = blankDay();
@@ -354,6 +476,8 @@ function loadState() {
         LAUNCH_STAGES.some((s) => s.key === parsed.launchStage)
           ? parsed.launchStage
           : null,
+      modes: normalizeModes(parsed.modes),
+      resets: normalizeResets(parsed.resets),
     };
   } catch {
     // Corrupted storage: quarantine the raw value, start clean.
@@ -371,7 +495,6 @@ function loadState() {
 }
 
 const AxzioContext = createContext(null);
-
 export function useAxzio() {
   const ctx = useContext(AxzioContext);
   if (!ctx) throw new Error("useAxzio must be used inside AxzioProvider");
@@ -406,12 +529,25 @@ export function AxzioProvider({ children }) {
     state,
 
     /* identity */
-    completeSetup(name, authored) {
+    /** Finish the first-use walkthrough: gates the onboarding flow. */
+    completeOnboarding() {
       update((d) => {
-        d.identity.name = name.trim();
-        // First-run statement feeds the first orientation statement.
-        d.identity.becoming = authored.trim();
+        d.identity.onboarded = true;
         d.identity.setupComplete = true;
+        d.identity.onboardingStep = 0;
+      });
+    },
+    /** Persist the walkthrough's current step so a reload resumes it. */
+    setOnboardingStep(n) {
+      update((d) => {
+        d.identity.onboardingStep = Number.isInteger(n) && n >= 0 ? n : 0;
+      });
+    },
+    /** Re-enter the walkthrough later (replay entry point). */
+    replayOnboarding() {
+      update((d) => {
+        d.identity.onboarded = false;
+        d.identity.onboardingStep = 0;
       });
     },
     updateIdentity(patch) {
@@ -573,6 +709,54 @@ export function AxzioProvider({ children }) {
         d.launchStage = LAUNCH_STAGES.some((s) => s.key === stageKey)
           ? stageKey
           : null;
+      });
+    },
+
+    /* modes of energy */
+    setMode(interval, slot, modeKey) {
+      if (!["day", "week", "month"].includes(interval)) return;
+      if (!["primary", "secondary"].includes(slot)) return;
+      const valid = MODES.some((m) => m.key === modeKey) ? modeKey : null;
+      update((d) => {
+        if (!d.modes || typeof d.modes !== "object") {
+          d.modes = {
+            day: { primary: null, secondary: null },
+            week: { primary: null, secondary: null },
+            month: { primary: null, secondary: null },
+          };
+        }
+        d.modes[interval][slot] = valid;
+        // Primary and secondary must differ; the newly set value wins.
+        const other = slot === "primary" ? "secondary" : "primary";
+        if (valid && d.modes[interval][other] === valid) {
+          d.modes[interval][other] = null;
+        }
+      });
+    },
+
+    /* guided resets */
+    saveReset(fields) {
+      const entry = {
+        id: uid(),
+        ts: Date.now(),
+        date: localDateKey(),
+        situation: String(fields?.situation ?? "").trim(),
+        reveal: String(fields?.reveal ?? "").trim(),
+        interpret: String(fields?.interpret ?? "").trim(),
+        align: String(fields?.align ?? "").trim(),
+        act: String(fields?.act ?? "").trim(),
+        lifemod: String(fields?.lifemod ?? "").trim(),
+        integrate: String(fields?.integrate ?? "").trim(),
+      };
+      update((d) => {
+        if (!Array.isArray(d.resets)) d.resets = [];
+        d.resets.push(entry);
+      });
+      return entry;
+    },
+    deleteReset(id) {
+      update((d) => {
+        d.resets = d.resets.filter((r) => r.id !== id);
       });
     },
 

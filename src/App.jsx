@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useAxzio } from "./store.jsx";
 import Starfield from "./components/Starfield.jsx";
 import Boot from "./views/Boot.jsx";
-import Setup from "./views/Setup.jsx";
+import Onboarding from "./views/Onboarding.jsx";
 import Deck from "./views/Deck.jsx";
 import Constellation from "./views/Constellation.jsx";
 import Identity from "./views/Identity.jsx";
 import Journeys from "./views/Journeys.jsx";
+import Modes from "./views/Modes.jsx";
 
 import Focus from "./views/Focus.jsx";
 
@@ -14,6 +15,7 @@ import Focus from "./views/Focus.jsx";
 const ROUTES = [
   { key: "deck", label: "Deck", view: Deck },
   { key: "focus", label: "Focus", view: Focus },
+  { key: "modes", label: "Modes", view: Modes },
   { key: "constellation", label: "Constellation", view: Constellation },
   { key: "identity", label: "Identity", view: Identity },
   { key: "journeys", label: "Journeys", view: Journeys },
@@ -26,7 +28,7 @@ function routeFromHash() {
 
 export default function App() {
   const { state } = useAxzio();
-  const [phase, setPhase] = useState("boot"); // boot | setup | main
+  const [phase, setPhase] = useState("boot"); // boot | main
   const [route, setRoute] = useState(routeFromHash());
 
   useEffect(() => {
@@ -36,20 +38,12 @@ export default function App() {
   }, []);
 
   const bootDone = useCallback(() => {
-    setPhase("setup");
-  }, []);
-
-  const setupDone = useCallback(() => {
-    window.location.hash = "#/deck";
     setPhase("main");
   }, []);
 
-  // After setup completes, re-enter at the deck.
-  useEffect(() => {
-    if (phase === "setup" && state.identity.setupComplete) {
-      setPhase("main");
-    }
-  }, [phase, state.identity.setupComplete]);
+  const onboardingDone = useCallback(() => {
+    window.location.hash = "#/deck";
+  }, []);
 
   if (phase === "boot") {
     return (
@@ -60,11 +54,14 @@ export default function App() {
     );
   }
 
-  if (phase === "setup" && !state.identity.setupComplete) {
+  // First-use walkthrough: gated on the persisted onboarded flag.
+  // Existing users (old setupComplete) were migrated to onboarded=true.
+  // Replaying the walkthrough from Identity re-opens it.
+  if (!state.identity.onboarded) {
     return (
       <div className="min-h-full bg-black text-white">
         <Starfield />
-        <Setup onComplete={setupDone} />
+        <Onboarding onComplete={onboardingDone} />
       </div>
     );
   }
