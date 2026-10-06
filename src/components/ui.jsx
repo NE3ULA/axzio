@@ -145,7 +145,7 @@ export function HelpBubble({ title, children, className = "" }) {
 }
 
 /** WHAT / WHY / HOW body for a HelpBubble. */
-export function HelpText({ what, why, how }) {
+export function HelpText({ what, why, how, example }) {
   return (
     <div className="space-y-2 text-[13px] leading-relaxed text-white/65">
       {what && (
@@ -164,6 +164,12 @@ export function HelpText({ what, why, how }) {
         <p>
           <span className="text-white/90">How — </span>
           {how}
+        </p>
+      )}
+      {example && (
+        <p>
+          <span className="text-white/90">Example — </span>
+          {example}
         </p>
       )}
     </div>

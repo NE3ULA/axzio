@@ -246,6 +246,13 @@ const RESET_STEPS = [
     prompt:
       "Before forcing the performance, hear the instrument. Which dimension is asking for attention in this situation — and which remains available?",
     placeholder: "The dimension asking for attention is… what's available is…",
+    help: {
+      title: "Hear the instrument",
+      what: "A 30-second read of your batteries before interpreting anything.",
+      why: "Interpretation from an empty battery produces different answers than from a full one — and the reading belongs in the record.",
+      example:
+        "Physical at 3/10 with high priority: this situation may be exhaustion wearing a costume.",
+    },
   },
   {
     id: "rsituation",
@@ -254,6 +261,13 @@ const RESET_STEPS = [
     phase: "Reveal",
     prompt: "What situation are you bringing into this practice?",
     placeholder: "The situation is…",
+    help: {
+      title: "Name the situation",
+      what: "One situation, named plainly.",
+      why: "A reset works on one thing. Fog lifts when the situation has edges.",
+      example:
+        "“I keep postponing the pricing email” — not “work stress”.",
+    },
   },
   {
     id: "rreveal",
@@ -263,6 +277,13 @@ const RESET_STEPS = [
     prompt:
       "What is happening? What pattern, signal, friction, or opportunity is present?",
     placeholder: "What is present…",
+    help: {
+      title: "Reveal",
+      what: "What is actually happening — observation before story.",
+      why: "Reveal separates what you can see from what you're telling yourself about it.",
+      example:
+        "“Third week I've moved the same task; I feel dread opening the laptop.”",
+    },
   },
   {
     id: "rinterpret",
@@ -271,6 +292,13 @@ const RESET_STEPS = [
     phase: "Interpret",
     prompt: "What may this be showing you? What story needs a wider reading?",
     placeholder: "A wider reading…",
+    help: {
+      title: "Interpret",
+      what: "A wider reading of what the situation may be showing — then the friction check below.",
+      why: "The story you tell about friction decides the response you choose.",
+      example:
+        "“Maybe the dread isn't laziness — it's the work asking for a boundary I haven't set.”",
+    },
   },
   {
     id: "ralign",
@@ -279,6 +307,13 @@ const RESET_STEPS = [
     phase: "Align",
     prompt: "Who are you choosing to become in relationship to this?",
     placeholder: "In relationship to this, I am choosing…",
+    help: {
+      title: "Align",
+      what: "Who you are choosing to become, in relationship to this situation.",
+      why: "Alignment is always relative to identity — the same situation asks different things of different people.",
+      example:
+        "“Someone who keeps promises to himself” — so the email goes today.",
+    },
   },
   {
     id: "ract",
@@ -287,22 +322,44 @@ const RESET_STEPS = [
     phase: "Act",
     prompt: "What is the next meaningful action you will take within 24 hours?",
     placeholder: "Within 24 hours I will…",
+    help: {
+      title: "Act",
+      what: "One action: specific enough to perform, doable within 24 hours.",
+      why: "Insight without a next move evaporates. The readiness check below asks whether you actually have what it needs right now.",
+      example: "“Draft the pricing email before 10am tomorrow.”",
+    },
   },
   {
     id: "rlifemod",
     field: "lifemod",
     title: "LifeMod",
     phase: "Act",
-    prompt: "What condition will you change to support the action?",
+    prompt:
+      "What condition will you change so this kind of action gets easier? Not another task — a change to the conditions around you.",
     placeholder: "The condition I will change is…",
+    help: {
+      title: "LifeMod",
+      what: "A condition you change so aligned actions get easier — environment, boundary, scope, rhythm, support, or framing. Not a to-do.",
+      why: "Willpower is finite; conditions compound. Change the setup and the behavior follows.",
+      how: "Pick the kind of change, then name it. If what you wrote is a to-do (“call X”), it belongs in Act, not here.",
+      example:
+        "Action: “Call the accountant tomorrow.” LifeMod (Boundary): “No meetings before 10am, so deep work has a protected window.”",
+    },
   },
   {
     id: "rintegrate",
     field: "integrate",
     title: "Integrate",
     phase: "Integrate",
-    prompt: "When will you revisit this Reset?",
+    prompt: "How does this reset land — and when will you revisit it?",
     placeholder: "I will revisit this…",
+    help: {
+      title: "Integrate",
+      what: "Name how this reset lands, and set the return point.",
+      why: "A reset without a revisit evaporates. Naming the landing — retain, revise, release, repeat — keeps it honest.",
+      example:
+        "“Revise — revisit in a week to see whether the boundary held.”",
+    },
   },
 ];
 
@@ -875,7 +932,17 @@ function ResetFieldStep({ stepId, scratch, setScratch }) {
   return (
     <div>
       <p className="mb-5 max-w-lg text-[15px] leading-relaxed text-white/60">
-        {cfg.prompt}
+        {cfg.prompt}{" "}
+        {cfg.help && (
+          <HelpBubble title={cfg.help.title} className="ml-1">
+            <HelpText
+              what={cfg.help.what}
+              why={cfg.help.why}
+              how={cfg.help.how}
+              example={cfg.help.example}
+            />
+          </HelpBubble>
+        )}
       </p>
       {stepId === "rbattery" && <BatteryScan />}
       <TextArea
@@ -949,9 +1016,17 @@ function BatteryScan() {
 function FrictionPills({ scratch, setScratch }) {
   return (
     <div className="mt-5">
-      <MicroLabel className="mb-2.5">
-        Friction check — misalignment or growth?
-      </MicroLabel>
+      <div className="mb-2.5 flex items-center gap-2">
+        <MicroLabel>Friction check — misalignment or growth?</MicroLabel>
+        <HelpBubble title="Friction check">
+          <HelpText
+            what="Name whether this friction signals misalignment or growth."
+            why="Different friction, different medicine. Misalignment asks for realignment or release; growth asks for resourcing and persistence."
+            how="Misalignment — off-path: wrong commitment, wrong environment, a violated boundary. Growth — the pressure of becoming: hard because it's new, stretching, or unfamiliar. Both — name the mix."
+            example="Dreading the gym because you hate the program (misalignment) vs. because it's week three and your body is adapting (growth)."
+          />
+        </HelpBubble>
+      </div>
       <div className="flex flex-wrap gap-2">
         {FRICTION_READINGS.map((f) => {
           const on = scratch.rfriction === f.key;
@@ -1051,10 +1126,34 @@ function LifeModTypePills({ scratch, setScratch }) {
 /* Integrate — Retain / Revise / Release / Repeat + a scheduled return
    point carried on the Action Card. */
 function IntegrateStep({ scratch, setScratch }) {
+  const cfg = RESET_STEPS.find((s) => s.id === "rintegrate");
+  // Default the revisit to tomorrow; the native date control opens the
+  // system calendar picker (including on iPhone).
+  useEffect(() => {
+    if (scratch.rintegrateDate === undefined) {
+      const t = new Date();
+      t.setDate(t.getDate() + 1);
+      setScratch((s) =>
+        s.rintegrateDate === undefined
+          ? { ...s, rintegrateDate: localDateKey(t) }
+          : s
+      );
+    }
+  }, []);
   return (
     <div>
       <p className="mb-5 max-w-lg text-[15px] leading-relaxed text-white/60">
-        How does this reset land — and when will you revisit it?
+        {cfg.prompt}{" "}
+        {cfg.help && (
+          <HelpBubble title={cfg.help.title} className="ml-1">
+            <HelpText
+              what={cfg.help.what}
+              why={cfg.help.why}
+              how={cfg.help.how}
+              example={cfg.help.example}
+            />
+          </HelpBubble>
+        )}
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
         {INTEGRATE_CHOICES.map((c) => {
@@ -1086,15 +1185,18 @@ function IntegrateStep({ scratch, setScratch }) {
         })}
       </div>
       <div className="mt-5">
-        <MicroLabel className="mb-1.5">Revisit on (optional)</MicroLabel>
+        <MicroLabel className="mb-1.5">Revisit on</MicroLabel>
         <input
           type="date"
           value={scratch.rintegrateDate || ""}
           onChange={(e) =>
             setScratch((s) => ({ ...s, rintegrateDate: e.target.value || null }))
           }
-          className="w-full max-w-xs rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[14px] text-white focus:border-white/50 focus:outline-none"
+          className="w-full max-w-xs rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[14px] text-white focus:border-white/50 focus:outline-none [color-scheme:dark]"
         />
+        <p className="mt-1.5 text-[12px] text-white/40">
+          Defaults to tomorrow — tap to open the calendar.
+        </p>
       </div>
     </div>
   );

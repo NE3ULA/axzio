@@ -330,9 +330,14 @@ export default function Recalibrate({ onClose }) {
         {STEPS[step].id === "modes" && (
           <div className="axzio-rise space-y-7">
             <div>
-              <MicroLabel className="mb-2.5">
-                The mode you're in right now
-              </MicroLabel>
+              <div className="mb-2.5 flex items-center gap-2">
+                <MicroLabel>The mode you've been in lately</MicroLabel>
+              </div>
+              <p className="mb-3 max-w-lg text-[13px] leading-relaxed text-white/45">
+                Not this exact moment — where has your energy actually been
+                going? The calibration itself may shift the answer; answer
+                from the recent pattern.
+              </p>
               <ModePills
                 options={MODES}
                 selected={modeDraft.current}
