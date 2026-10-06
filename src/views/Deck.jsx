@@ -1197,6 +1197,39 @@ function TakeActionRow({ practice, entry, today }) {
                   Open in Focus →
                 </a>
               </div>
+              {candidates.filter((f) => f.id !== displayItem.id).length > 0 && (
+                <div className="mt-4 border-t border-white/10 pt-4">
+                  <MicroLabel className="mb-2">
+                    Choose a different action
+                  </MicroLabel>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value)
+                        setOrientationFocusItem(today, e.target.value);
+                    }}
+                    className="w-full appearance-none rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white/85 outline-none transition-colors hover:border-white/30"
+                    aria-label="Choose a different action from Focus"
+                  >
+                    <option value="" disabled>
+                      Select a focus item…
+                    </option>
+                    {candidates
+                      .filter((f) => f.id !== displayItem.id)
+                      .map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {(f.text.length > 64
+                            ? f.text.slice(0, 64) + "…"
+                            : f.text) +
+                            (f.timeframe !== "day" ? ` · ${f.timeframe}` : "")}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="mt-2 text-[12px] leading-relaxed text-white/40">
+                    Choosing one makes it rank 1 in Focus.
+                  </p>
+                </div>
+              )}
             </>
           ) : (
             <>

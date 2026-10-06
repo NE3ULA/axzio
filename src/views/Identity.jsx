@@ -66,7 +66,19 @@ export default function Identity() {
           <div className="space-y-6">
             {ORIENTATION_STATEMENTS.map((s) => (
               <div key={s.key}>
-                <MicroLabel className="mb-2">{s.prompt}</MicroLabel>
+                <div className="mb-2 flex items-center gap-2">
+                  <MicroLabel>{s.prompt}</MicroLabel>
+                  {s.help && (
+                    <HelpBubble title={s.help.title}>
+                      <HelpText
+                        what={s.help.what}
+                        why={s.help.why}
+                        how={s.help.how}
+                        example={s.help.example}
+                      />
+                    </HelpBubble>
+                  )}
+                </div>
                 <TextArea
                   value={state.identity[s.key] || ""}
                   onChange={(e) =>

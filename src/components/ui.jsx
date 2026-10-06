@@ -2,6 +2,7 @@
    pure black, white text, thin 1px borders, wide-tracked micro labels. */
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { logEvent } from "../events.js";
 
 export function Card({ className = "", children, ...rest }) {
@@ -118,37 +119,39 @@ export function HelpBubble({ title, children, className = "" }) {
       >
         ?
       </button>
-      {open && (
-        <>
-          <button
-            type="button"
-            aria-hidden="true"
-            tabIndex={-1}
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-40 cursor-default bg-black/50"
-          />
-          <div
-            role="dialog"
-            aria-label={title}
-            className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-3rem)] w-80 max-w-[calc(100vw-2.5rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-white/20 bg-[#0b0b0b] p-5 shadow-[0_8px_48px_rgba(0,0,0,0.85)]"
-          >
-            <div className="mb-2 flex items-start justify-between gap-3">
-              <MicroLabel>{title}</MicroLabel>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label="Close"
-                className="text-white/40 transition-colors hover:text-white"
-              >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="currentColor" strokeWidth="1.3" />
-                </svg>
-              </button>
+      {open &&
+        createPortal(
+          <>
+            <button
+              type="button"
+              aria-hidden="true"
+              tabIndex={-1}
+              onClick={() => setOpen(false)}
+              className="fixed inset-0 z-40 cursor-default bg-black/50"
+            />
+            <div
+              role="dialog"
+              aria-label={title}
+              className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-3rem)] w-80 max-w-[calc(100vw-2.5rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-white/20 bg-[#0b0b0b] p-5 shadow-[0_8px_48px_rgba(0,0,0,0.85)]"
+            >
+              <div className="mb-2 flex items-start justify-between gap-3">
+                <MicroLabel>{title}</MicroLabel>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  aria-label="Close"
+                  className="text-white/40 transition-colors hover:text-white"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="currentColor" strokeWidth="1.3" />
+                  </svg>
+                </button>
+              </div>
+              {children}
             </div>
-            {children}
-          </div>
-        </>
-      )}
+          </>,
+          document.body
+        )}
     </span>
   );
 }

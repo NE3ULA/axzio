@@ -52,21 +52,49 @@ export const ORIENTATION_STATEMENTS = [
     key: "becoming",
     prompt: "I am choosing to become someone who…",
     placeholder: "Name the quality or orientation in active terms…",
+    help: {
+      title: "Choosing to become",
+      what: "The direction of your becoming — not who you are today, but who you are practicing being.",
+      why: "Identity is authored, not discovered. Naming the direction gives every decision a reference point.",
+      how: "Write it as an active quality, not a role or achievement. “Someone who…” keeps it about being, not having.",
+      example: "“…keeps promises to himself, especially the small ones.”",
+    },
   },
   {
     key: "standFor",
     prompt: "I stand for…",
     placeholder: "Name the principles that should remain recognizable across conditions…",
+    help: {
+      title: "What you stand for",
+      what: "The principles that stay recognizable in you across conditions — the lines you don't cross and the things you'd defend.",
+      why: "When pressure hits, principles decide faster than deliberation. These are the pre-made decisions.",
+      how: "Name a few, in your own words. Fewer, deeply meant, beats a long list of slogans.",
+      example: "“Honesty over comfort. People over optics.”",
+    },
   },
   {
     key: "practice",
     prompt: "I practice…",
     placeholder: "Name the behaviors through which the identity becomes visible…",
+    help: {
+      title: "What you practice",
+      what: "The recurring behaviors through which the identity becomes visible — what you actually do, regularly.",
+      why: "Identity without practice is a costume. The practices are where becoming becomes real.",
+      how: "Name behaviors, not aspirations. Things you can do on an ordinary Tuesday.",
+      example: "“Morning pages. Walking meetings. One hard conversation a week.”",
+    },
   },
   {
     key: "returnThrough",
     prompt: "When I drift, I return through…",
     placeholder: "Name the ritual, question, boundary, or action that restores contact…",
+    help: {
+      title: "Returning from drift",
+      what: "Your way back — the ritual, question, boundary, or action that restores contact when you've drifted.",
+      why: "Drift is guaranteed; the return path is what makes it a practice instead of a failure. Decide it now, while you're clear.",
+      how: "Name something concrete you can actually do in a low moment — not an ideal, a doorway.",
+      example: "“A ten-minute walk with no phone, then writing the next right action.”",
+    },
   },
 ];
 export const ORIENTATION_PRACTICES = [  {
@@ -82,7 +110,7 @@ export const ORIENTATION_PRACTICES = [  {
   {
     key: "action",
     label: "Take Action",
-    prompt: "The one thing to focus on today — pulled from Focus",
+    prompt: "Today's action — from Focus; change it here or in Focus",
     focusLink: true, // links into #/focus
   },
   {
@@ -1692,7 +1720,9 @@ export function AxzioProvider({ children }) {
         const m = (d.lifemods || []).find((x) => x.id === id);
         if (!m) return;
         if (typeof patch.name === "string" && patch.name.trim()) {
-          m.name = patch.name.trim().slice(0, 120);
+          // Slice but don't trim here: trimming on every keystroke eats
+          // spaces while typing. Whitespace-only input is still rejected.
+          m.name = patch.name.slice(0, 120);
         }
         for (const k of ["friction", "currentState", "desiredState"]) {
           if (typeof patch[k] === "string") m[k] = patch[k].slice(0, 600);
