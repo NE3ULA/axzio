@@ -71,7 +71,11 @@ export default function App() {
     <div className="min-h-full bg-black text-white">
       <Starfield />
       <TopNav route={route} name={state.identity.name} />
-      <main key={route} className="relative z-10">
+      <main
+        key={route}
+        className="relative z-10"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
         <Active />
       </main>
       {showIntro && (
@@ -95,7 +99,10 @@ function TopNav({ route, name }) {
   };
 
   return (
-    <header className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-md">
+    <header
+      className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-md"
+      style={{ paddingTop: "env(safe-area-inset-top)" }}
+    >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3.5">
         <button
           onClick={() => go("deck")}

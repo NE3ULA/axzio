@@ -16,6 +16,7 @@ import {
   sortedCommitments,
   goalById,
   goalsForCommitment,
+  effectiveServes,
   descendantIds,
   QUEST_KINDS,
   formatLongDate,
@@ -713,10 +714,17 @@ function FocusRow({ item, depth }) {
 
   const subCount = (item.subtasks || []).length;
   const subDone = (item.subtasks || []).filter((s) => s.done).length;
-  const servesGoal = item.goalId ? goalById(state, item.goalId) : null;
+  // Inherited serves: a nested item with no explicit link shows what
+  // its parent serves.
+  const effServes = effectiveServes(state, item);
+  const servesGoal = effServes.goalId ? goalById(state, effServes.goalId) : null;
   const servesText = servesGoal
     ? servesGoal.text
-    : commitmentText(state, item.commitmentId);
+    : commitmentText(state, effServes.commitmentId);
+  const servesInherited =
+    effServes.commitmentId != null &&
+    !item.goalId &&
+    !item.commitmentId;
 
   return (
     <div
@@ -776,7 +784,12 @@ function FocusRow({ item, depth }) {
           )}
           {servesText && (
             <p className="mt-1.5">
-              <Pill>Serves: {servesText}</Pill>
+              <Pill>
+                Serves: {servesText}
+                {servesInherited && (
+                  <span className="opacity-60"> · inherited</span>
+                )}
+              </Pill>
             </p>
           )}
         </button>
@@ -911,6 +924,22 @@ function FocusItemEditor({
   const { state } = useAxzio();
   const [newSub, setNewSub] = useState("");
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
+
+  // Inheritance: a nested item with no explicit link serves what its
+  // parent serves. The select's empty value means "inherit" when the
+  // parent serves something, "nothing" otherwise.
+  const parentItem = item.parentId
+    ? state.focusItems.find((f) => f.id === item.parentId)
+    : null;
+  const inheritedServes = parentItem
+    ? effectiveServes(state, parentItem)
+    : { goalId: null, commitmentId: null };
+  const inheritedGoal = inheritedServes.goalId
+    ? goalById(state, inheritedServes.goalId)
+    : null;
+  const inheritedLabel = inheritedGoal
+    ? inheritedGoal.text
+    : commitmentText(state, inheritedServes.commitmentId);
 
   const updateSub = (id, patch) =>
     set({
@@ -1071,7 +1100,7 @@ function FocusItemEditor({
               <HelpText
                 what="Links this action to a goal or a commitment. A goal implies its commitment — the ladder runs task → goal → commitment → identity."
                 why="This is the thread that makes Focus more than a to-do list: every action can be read as serving — or drifting from — who you're choosing to become."
-                how="Pick the goal this action moves forward, or the commitment directly. Goals always live inside a commitment — never floating free."
+                how="Pick the goal this action moves forward, or the commitment directly. A nested item with no link of its own inherits its parent's — choose explicitly to override. Goals always live inside a commitment — never floating free."
               />
             </HelpBubble>
           </div>
@@ -1101,7 +1130,11 @@ function FocusItemEditor({
             aria-label="Link to a goal or commitment"
             className={`${selectClass} w-full`}
           >
-            <option value="">Nothing</option>
+            <option value="">
+              {inheritedLabel
+                ? `Inherit from parent — ${inheritedLabel.length > 30 ? inheritedLabel.slice(0, 30) + "…" : inheritedLabel}`
+                : "Nothing"}
+            </option>
             {commitments.map((c) => {
               const goals = goalsForCommitment(state, c.id).filter(
                 (g) => !g.done

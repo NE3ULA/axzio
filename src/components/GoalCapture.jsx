@@ -12,6 +12,8 @@ export default function GoalCapture({
   initialText = "",
   onCreated = null,
   compact = false,
+  sourceLifeModId = null,
+  sourceStarId = null,
 }) {
   const axzio = useAxzio();
   const { state } = axzio;
@@ -25,7 +27,11 @@ export default function GoalCapture({
   const effectiveCid = locked ? commitmentId : cid;
 
   const submit = () => {
-    const g = axzio.addGoal(text, effectiveCid, { horizon: horizon || null });
+    const g = axzio.addGoal(text, effectiveCid, {
+      horizon: horizon || null,
+      sourceLifeModId,
+      sourceStarId,
+    });
     if (g) {
       setText("");
       setHorizon("");
@@ -126,8 +132,7 @@ export default function GoalCapture({
 }
 
 /* GoalsList — the goals serving one commitment, with done toggles.
-   The commitment's health reads through its goals. */
-export function GoalsList({ commitmentId }) {
+   The commitment's health reads through its goals. */export function GoalsList({ commitmentId }) {
   const axzio = useAxzio();
   const { state } = axzio;
   const goals = (state.goals || [])
@@ -210,6 +215,44 @@ export function GoalsList({ commitmentId }) {
               ×
             </button>
           )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/* GrownGoalsList — goals that grew from one seed or LifeMod, shown at
+   the source. Pass sourceLifeModId or sourceStarId. */
+export function GrownGoalsList({ sourceLifeModId = null, sourceStarId = null }) {
+  const axzio = useAxzio();
+  const { state } = axzio;
+  const goals = (state.goals || []).filter(
+    (g) =>
+      g &&
+      ((sourceLifeModId && g.sourceLifeModId === sourceLifeModId) ||
+        (sourceStarId && g.sourceStarId === sourceStarId))
+  );
+  if (goals.length === 0) return null;
+  return (
+    <ul className="mb-3 space-y-1.5">
+      {goals.map((g) => (
+        <li
+          key={g.id}
+          className="flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2"
+        >
+          <span
+            className={`min-w-0 flex-1 text-[14px] leading-snug ${
+              g.done ? "text-white/40 line-through" : "text-white/85"
+            }`}
+          >
+            {g.text}
+          </span>
+          <a
+            href="#/identity"
+            className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-white/45 transition-colors hover:text-white"
+          >
+            In Identity →
+          </a>
         </li>
       ))}
     </ul>

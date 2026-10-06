@@ -1044,6 +1044,15 @@ function normalizeGoals(raw, validCommitmentIds) {
         typeof g.horizon === "string" && g.horizon ? g.horizon : null,
       done: g.done === true,
       created: Number(g.created) || 0,
+      // Origin threads: what this goal grew from (seed or LifeMod).
+      sourceLifeModId:
+        typeof g.sourceLifeModId === "string" && g.sourceLifeModId
+          ? g.sourceLifeModId
+          : null,
+      sourceStarId:
+        typeof g.sourceStarId === "string" && g.sourceStarId
+          ? g.sourceStarId
+          : null,
     }))
     .filter((g) => g.id && g.text.trim() && g.commitmentId);
 }
@@ -1066,6 +1075,32 @@ export function goalsForCommitment(state, commitmentId) {
       (a, b) =>
         Number(a.done) - Number(b.done) || (a.created || 0) - (b.created || 0)
     );
+}
+
+/**
+ * Resolve what a focus item serves, inheriting up the parent chain.
+ * A nested item with no explicit link inherits its parent's; an
+ * explicit goal or commitment on the item itself always wins.
+ * Returns { goalId, commitmentId } with the commitment denormalized
+ * from the goal when one is set.
+ */
+export function effectiveServes(state, item) {
+  const items = Array.isArray(state?.focusItems) ? state.focusItems : [];
+  const goals = Array.isArray(state?.goals) ? state.goals : [];
+  let cur = item;
+  const seen = new Set();
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    if (cur.goalId) {
+      const g = goals.find((x) => x && x.id === cur.goalId);
+      if (g) return { goalId: g.id, commitmentId: g.commitmentId };
+    }
+    if (cur.commitmentId) {
+      return { goalId: null, commitmentId: cur.commitmentId };
+    }
+    cur = items.find((x) => x && x.id === cur.parentId) || null;
+  }
+  return { goalId: null, commitmentId: null };
 }
 
 /** Commitments sorted by priority (order 0 = highest). */
@@ -1532,6 +1567,12 @@ export function AxzioProvider({ children }) {
               : null,
           done: false,
           created: Date.now(),
+          sourceLifeModId:
+            typeof opts.sourceLifeModId === "string"
+              ? opts.sourceLifeModId
+              : null,
+          sourceStarId:
+            typeof opts.sourceStarId === "string" ? opts.sourceStarId : null,
         };
         if (!Array.isArray(d.goals)) d.goals = [];
         d.goals.push(entry);

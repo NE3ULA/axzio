@@ -21,7 +21,7 @@ import {
   HelpBubble,
   HelpText,
 } from "../components/ui.jsx";
-import GoalCapture from "../components/GoalCapture.jsx";
+import GoalCapture, { GrownGoalsList } from "../components/GoalCapture.jsx";
 
 /* ------------------------------------------------------------------ */
 /* CONSTELLATION — the journey of a seed through the E3 practice loop   */
@@ -573,8 +573,10 @@ function StarDetail({ star, axzio, onClose }) {
             />
           </HelpBubble>
         </div>
+        <GrownGoalsList sourceStarId={star.id} />
         <GoalCapture
           initialText={(star.text || "").slice(0, 140)}
+          sourceStarId={star.id}
           compact
         />
         <p className="mt-2 text-[12px] leading-relaxed text-white/35">
@@ -976,19 +978,23 @@ function LifeModEditor({ lifemod }) {
       {/* crystallize the desired state into a goal */}
       <div className="mt-6">
         <div className="mb-3 flex items-center gap-2">
-          <MicroLabel>Set as goal</MicroLabel>
+          <MicroLabel>Goals grown from this LifeMod</MicroLabel>
           <HelpBubble title="LifeMod becomes a goal">
             <HelpText
               what="Crystallizes this LifeMod's desired state into a goal — a defined outcome with a horizon, serving one of your commitments."
-              why="A LifeMod changes conditions; a goal names the destination those conditions serve. Both stay linked to the commitment they serve."
-              how="The desired state pre-fills the goal text — edit it into an outcome, choose the commitment, set an optional horizon."
+              why="A LifeMod changes conditions; a goal names the destination those conditions serve. They stay linked: the condition and the outcome, each visible from the other."
+              how="The desired state pre-fills the goal text — edit it into an outcome, choose the commitment, set an optional horizon. The LifeMod keeps living here; the goal lives under its commitment on Identity."
             />
           </HelpBubble>
         </div>
-        <GoalCapture
-          initialText={(m.desiredState || m.name || "").slice(0, 140)}
-          compact
-        />
+        <GrownGoalsList sourceLifeModId={m.id} />
+        <div className="mt-3">
+          <GoalCapture
+            initialText={(m.desiredState || m.name || "").slice(0, 140)}
+            sourceLifeModId={m.id}
+            compact
+          />
+        </div>
       </div>
 
       {/* archive / delete */}
