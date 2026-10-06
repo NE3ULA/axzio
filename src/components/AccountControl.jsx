@@ -7,6 +7,7 @@
  */
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useCloud } from "../cloud.jsx";
 import { Btn, Card, Field, MicroLabel } from "./ui.jsx";
 
@@ -71,7 +72,11 @@ function AuthModal({ onClose }) {
     onClose();
   };
 
-  return (
+  /* Portaled to document.body: the header carries a backdrop-blur, which
+   * makes it a containing block for fixed descendants — without the portal
+   * this modal would position itself relative to the header instead of the
+   * viewport ("stuck in the header"). */
+  return createPortal(
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/70 p-5 backdrop-blur-[2px]"
       role="dialog"
@@ -166,7 +171,8 @@ function AuthModal({ onClose }) {
           Your entries sync to your own Supabase project. Nothing is shared.
         </p>
       </Card>
-    </div>
+    </div>,
+    document.body
   );
 }
 
