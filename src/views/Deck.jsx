@@ -16,6 +16,7 @@ import {
   legendFunctionLabel,
   becomingStageLabel,
   integrateChoiceLabel,
+  goalsForCommitment,
   localDateKey,
   formatLongDate,
   formatTime,
@@ -332,16 +333,26 @@ function WhoAmICard() {
         )}
         {topCommitments.length > 0 ? (
           <ul className="mt-4 space-y-2">
-            {topCommitments.map((c, i) => (
-              <li key={c.id} className="flex items-baseline gap-3">
-                <span className="shrink-0 text-[11px] tabular-nums tracking-[0.2em] text-white/40">
-                  {i + 1}
-                </span>
-                <span className="line-clamp-1 text-[14px] leading-snug text-white/85">
-                  {c.text}
-                </span>
-              </li>
-            ))}
+            {topCommitments.map((c, i) => {
+              const openGoals = goalsForCommitment(state, c.id).filter(
+                (g) => !g.done
+              ).length;
+              return (
+                <li key={c.id} className="flex items-baseline gap-3">
+                  <span className="shrink-0 text-[11px] tabular-nums tracking-[0.2em] text-white/40">
+                    {i + 1}
+                  </span>
+                  <span className="min-w-0 flex-1 line-clamp-1 text-[14px] leading-snug text-white/85">
+                    {c.text}
+                  </span>
+                  {openGoals > 0 && (
+                    <span className="shrink-0 text-[11px] tracking-[0.14em] text-white/40">
+                      {openGoals} goal{openGoals === 1 ? "" : "s"}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className="mt-4 text-[13px] leading-relaxed text-white/35">

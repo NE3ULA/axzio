@@ -21,6 +21,7 @@ import {
   HelpBubble,
   HelpText,
 } from "../components/ui.jsx";
+import GoalCapture from "../components/GoalCapture.jsx";
 
 /* ------------------------------------------------------------------ */
 /* CONSTELLATION — the journey of a seed through the E3 practice loop   */
@@ -562,6 +563,27 @@ function StarDetail({ star, axzio, onClose }) {
       </div>
 
       <div className="mt-5">
+        <div className="mb-3 flex items-center gap-2">
+          <MicroLabel>Become a goal</MicroLabel>
+          <HelpBubble title="Seed becomes a goal">
+            <HelpText
+              what="Turns a matured seed into a goal — a defined outcome with a horizon, serving one of your commitments."
+              why="Some seeds aren't ongoing practices or life changes; they're destinations. A goal gives the seed a finish line inside a commitment."
+              how="Name the outcome, choose the commitment it serves, set an optional horizon. The goal then lives under that commitment on the Identity page."
+            />
+          </HelpBubble>
+        </div>
+        <GoalCapture
+          initialText={(star.text || "").slice(0, 140)}
+          compact
+        />
+        <p className="mt-2 text-[12px] leading-relaxed text-white/35">
+          A seed with a destination becomes a goal — placed inside a
+          commitment, never floating free.
+        </p>
+      </div>
+
+      <div className="mt-5">
         <button
           type="button"
           onClick={exploreInReset}
@@ -791,7 +813,16 @@ function LifeModEditor({ lifemod }) {
           />
         </div>
         <div>
-          <MicroLabel className="mb-2">Current state</MicroLabel>
+          <div className="mb-2 flex items-center gap-2">
+            <MicroLabel>Current state</MicroLabel>
+            <HelpBubble title="Current state">
+              <HelpText
+                what="Where this is right now, honestly described — the starting point the LifeMod moves from."
+                why="A LifeMod travels from current to desired. Without an honest starting point there's nothing to measure the change against."
+                example="“I check my phone in bed for 40 minutes most nights.”"
+              />
+            </HelpBubble>
+          </div>
           <TextArea
             value={m.currentState}
             onChange={(e) => set({ currentState: e.target.value })}
@@ -802,7 +833,17 @@ function LifeModEditor({ lifemod }) {
           />
         </div>
         <div>
-          <MicroLabel className="mb-2">Desired state</MicroLabel>
+          <div className="mb-2 flex items-center gap-2">
+            <MicroLabel>Desired state</MicroLabel>
+            <HelpBubble title="Desired state">
+              <HelpText
+                what="Where this wants to be — the condition you're designing toward."
+                why="The desired state is what the Becoming Cycle works toward and what Review measures against."
+                how="Describe the condition, not the action. It's a state of life, not a to-do."
+                example="“Phone charges in the kitchen; the bedroom is for sleep and reading.”"
+              />
+            </HelpBubble>
+          </div>
           <TextArea
             value={m.desiredState}
             onChange={(e) => set({ desiredState: e.target.value })}
@@ -930,6 +971,24 @@ function LifeModEditor({ lifemod }) {
           Placement is yours to declare — the cycle does not advance on its
           own.
         </p>
+      </div>
+
+      {/* crystallize the desired state into a goal */}
+      <div className="mt-6">
+        <div className="mb-3 flex items-center gap-2">
+          <MicroLabel>Set as goal</MicroLabel>
+          <HelpBubble title="LifeMod becomes a goal">
+            <HelpText
+              what="Crystallizes this LifeMod's desired state into a goal — a defined outcome with a horizon, serving one of your commitments."
+              why="A LifeMod changes conditions; a goal names the destination those conditions serve. Both stay linked to the commitment they serve."
+              how="The desired state pre-fills the goal text — edit it into an outcome, choose the commitment, set an optional horizon."
+            />
+          </HelpBubble>
+        </div>
+        <GoalCapture
+          initialText={(m.desiredState || m.name || "").slice(0, 140)}
+          compact
+        />
       </div>
 
       {/* archive / delete */}

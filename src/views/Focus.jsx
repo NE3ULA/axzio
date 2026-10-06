@@ -14,6 +14,8 @@ import {
   MONTHS_OF_YEAR,
   commitmentText,
   sortedCommitments,
+  goalById,
+  goalsForCommitment,
   descendantIds,
   QUEST_KINDS,
   formatLongDate,
@@ -304,19 +306,6 @@ function PrioritySlot({ slot }) {
 const selectClass =
   "rounded-xl border border-white/15 bg-black px-4 py-3 text-[13px] tracking-wide text-white outline-none focus:border-white/50";
 
-function CommitmentOptions({ commitments, allowNew }) {
-  return (
-    <>
-      <option value="">No commitment</option>
-      {commitments.map((c) => (
-        <option key={c.id} value={c.id}>
-          {c.text.length > 40 ? c.text.slice(0, 40) + "…" : c.text}
-        </option>
-      ))}
-      {allowNew && <option value="__new__">New commitment…</option>}
-    </>
-  );
-}
 
 /**
  * Capture in three progressive layers:
@@ -347,9 +336,14 @@ function AddFocusForm({ initialTimeframe, layer, setLayer }) {
   const submit = (e) => {
     e.preventDefault();
     let cid = null;
+    let gid = null;
     if (commitmentId === "__new__") {
       const nc = addCommitment(newCommitment);
       cid = nc ? nc.id : null;
+    } else if (commitmentId.startsWith("g:")) {
+      gid = commitmentId.slice(2);
+    } else if (commitmentId.startsWith("c:")) {
+      cid = commitmentId.slice(2);
     } else if (commitmentId) {
       cid = commitmentId;
     }
@@ -359,6 +353,7 @@ function AddFocusForm({ initialTimeframe, layer, setLayer }) {
         mode: mode || null,
         pillar: pillar || null,
         commitmentId: cid,
+        goalId: gid,
         quest: { isQuest, brief, kinds },
       })
     ) {
@@ -468,10 +463,36 @@ function AddFocusForm({ initialTimeframe, layer, setLayer }) {
             <select
               value={commitmentId}
               onChange={(e) => setCommitmentId(e.target.value)}
-              aria-label="Commitment"
+              aria-label="Serves — goal or commitment"
               className={`${selectClass} max-w-[220px]`}
             >
-              <CommitmentOptions commitments={commitments} allowNew />
+              <option value="">Serves…</option>
+              {commitments.map((c) => {
+                const goals = goalsForCommitment(state, c.id).filter(
+                  (g) => !g.done
+                );
+                return (
+                  <optgroup
+                    key={c.id}
+                    label={
+                      c.text.length > 40 ? c.text.slice(0, 40) + "…" : c.text
+                    }
+                  >
+                    <option value={`c:${c.id}`}>
+                      {c.text.length > 30 ? c.text.slice(0, 30) + "…" : c.text}
+                    </option>
+                    {goals.map((g) => (
+                      <option key={g.id} value={`g:${g.id}`}>
+                        ◦{" "}
+                        {g.text.length > 28
+                          ? g.text.slice(0, 28) + "…"
+                          : g.text}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
+              <option value="__new__">New commitment…</option>
             </select>
           </div>
           {commitmentId === "__new__" && (
@@ -640,6 +661,7 @@ function FocusRow({ item, depth }) {
       mode: item.mode || "",
       pillar: item.pillar || "",
       commitmentId: item.commitmentId,
+      goalId: item.goalId || null,
       parentId: item.parentId || "",
       notes: item.notes || "",
       subtasks: (item.subtasks || []).map((s) => ({ ...s })),
@@ -667,6 +689,7 @@ function FocusRow({ item, depth }) {
           mode: draft.mode || null,
           pillar: draft.pillar || null,
           commitmentId: draft.commitmentId,
+          goalId: draft.goalId || null,
           parentId: draft.parentId || null,
           notes: draft.notes,
           subtasks: draft.subtasks,
@@ -690,7 +713,10 @@ function FocusRow({ item, depth }) {
 
   const subCount = (item.subtasks || []).length;
   const subDone = (item.subtasks || []).filter((s) => s.done).length;
-  const servesText = commitmentText(state, item.commitmentId);
+  const servesGoal = item.goalId ? goalById(state, item.goalId) : null;
+  const servesText = servesGoal
+    ? servesGoal.text
+    : commitmentText(state, item.commitmentId);
 
   return (
     <div
@@ -1040,22 +1066,63 @@ function FocusItemEditor({
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <div className="mb-2 flex items-center gap-2">
-            <MicroLabel>Serves commitment</MicroLabel>
-            <HelpBubble title="Serves commitment">
+            <MicroLabel>Serves</MicroLabel>
+            <HelpBubble title="Serves">
               <HelpText
-                what="Links this action to one of your identity commitments — a standing promise like your health, your marriage, your work. Commitments are bigger and more general than tasks: the thing the tasks are for."
+                what="Links this action to a goal or a commitment. A goal implies its commitment — the ladder runs task → goal → commitment → identity."
                 why="This is the thread that makes Focus more than a to-do list: every action can be read as serving — or drifting from — who you're choosing to become."
-                how="Pick the commitment this action moves forward. The ladder runs: task → goal → commitment → identity. (Goals — concrete outcomes with horizons — get their own structure later; for now a commitment plus a timeframe priority covers that ground.)"
+                how="Pick the goal this action moves forward, or the commitment directly. Goals always live inside a commitment — never floating free."
               />
             </HelpBubble>
           </div>
           <select
-            value={draft.commitmentId || ""}
-            onChange={(e) => set({ commitmentId: e.target.value || null })}
-            aria-label="Link to a commitment"
+            value={
+              draft.goalId
+                ? `g:${draft.goalId}`
+                : draft.commitmentId
+                  ? `c:${draft.commitmentId}`
+                  : ""
+            }
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v.startsWith("g:")) {
+                const gid = v.slice(2);
+                const g = goalById(state, gid);
+                set({
+                  goalId: gid,
+                  commitmentId: g ? g.commitmentId : null,
+                });
+              } else if (v.startsWith("c:")) {
+                set({ goalId: null, commitmentId: v.slice(2) || null });
+              } else {
+                set({ goalId: null, commitmentId: null });
+              }
+            }}
+            aria-label="Link to a goal or commitment"
             className={`${selectClass} w-full`}
           >
-            <CommitmentOptions commitments={commitments} />
+            <option value="">Nothing</option>
+            {commitments.map((c) => {
+              const goals = goalsForCommitment(state, c.id).filter(
+                (g) => !g.done
+              );
+              return (
+                <optgroup
+                  key={c.id}
+                  label={
+                    c.text.length > 40 ? c.text.slice(0, 40) + "…" : c.text
+                  }
+                >
+                  <option value={`c:${c.id}`}>Commitment — {c.text.length > 30 ? c.text.slice(0, 30) + "…" : c.text}</option>
+                  {goals.map((g) => (
+                    <option key={g.id} value={`g:${g.id}`}>
+                      Goal —{" "}
+                      {g.text.length > 34 ? g.text.slice(0, 34) + "…" : g.text}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
           </select>
         </div>
         <div>

@@ -624,6 +624,10 @@ function defaultState() {
     // notes, subtasks: [{id, text, done}], timeframe, daysOfWeek,
     // months, mode, pillar, parentId, created }
     focusItems: [],
+    // Goals — defined outcomes with a horizon, each serving one
+    // commitment (no orphan goals, per the identity-first rule).
+    // { id, text, commitmentId, horizon: date-string|null, done, created }
+    goals: [],
     // Tribe v1 — people directory: [{ id, name, circle, notes, createdAt }].
     // Give Love entries tag a personId; local-only for now.
     people: [],
@@ -1018,6 +1022,52 @@ export function commitmentText(state, id) {
   return c ? c.text : null;
 }
 
+/**
+ * Normalize goals to [{ id, text, commitmentId, horizon, done, created }].
+ * The constitutional rule is enforced here: a goal must serve a
+ * commitment — goals whose commitmentId matches no commitment are
+ * dropped, never orphaned.
+ */
+function normalizeGoals(raw, validCommitmentIds) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((g) => g && typeof g === "object")
+    .map((g) => ({
+      id: String(g.id ?? ""),
+      text: String(g.text ?? ""),
+      commitmentId:
+        typeof g.commitmentId === "string" &&
+        validCommitmentIds.has(g.commitmentId)
+          ? g.commitmentId
+          : null,
+      horizon:
+        typeof g.horizon === "string" && g.horizon ? g.horizon : null,
+      done: g.done === true,
+      created: Number(g.created) || 0,
+    }))
+    .filter((g) => g.id && g.text.trim() && g.commitmentId);
+}
+
+/** Read-only lookup of a goal by id. */
+export function goalById(state, id) {
+  const list = state?.goals;
+  if (!Array.isArray(list) || !id) return null;
+  return list.find((g) => g && g.id === id) || null;
+}
+
+/** Goals serving one commitment, open first then done, oldest first. */
+export function goalsForCommitment(state, commitmentId) {
+  const list = state?.goals;
+  if (!Array.isArray(list) || !commitmentId) return [];
+  return list
+    .filter((g) => g && g.commitmentId === commitmentId)
+    .slice()
+    .sort(
+      (a, b) =>
+        Number(a.done) - Number(b.done) || (a.created || 0) - (b.created || 0)
+    );
+}
+
 /** Commitments sorted by priority (order 0 = highest). */
 export function sortedCommitments(state) {
   const list = state?.identity?.commitments;
@@ -1122,6 +1172,10 @@ function normalizeFocusItem(f, validQuadrants) {
       typeof f.sourceResetId === "string" && f.sourceResetId
         ? f.sourceResetId
         : null,
+    // Goal layer: an item may serve a goal (which implies its
+    // commitment) instead of linking a commitment directly.
+    goalId:
+      typeof f.goalId === "string" && f.goalId ? f.goalId : null,
   };
 }
 
@@ -1194,6 +1248,10 @@ export function normalizeState(parsed) {
     } = normalizeCommitments(oldIdentity.commitments);
     identity.commitments = commitments;
 
+    /* Goals: old states predate them entirely → empty list. Orphans
+       (no matching commitment) are dropped by normalizeGoals. */
+    const goals = normalizeGoals(parsed.goals, commitmentValidIds);
+
     /* Normalize saved days: older entries predate the battery check. */
     const blank = blankDay();
     const rawDays =
@@ -1235,6 +1293,7 @@ export function normalizeState(parsed) {
       people: normalizePeople(parsed.people),
       // LifeMods: old states predate them entirely → empty list.
       lifemods: normalizeLifeMods(parsed.lifemods),
+      goals,
       focusItems: focusItems.map((f) => {
         const n = normalizeFocusItem(f, validQuadrants);
         // Old links hold commitment text; remap to the migrated id.
@@ -1243,6 +1302,9 @@ export function normalizeState(parsed) {
           commitmentTextToId,
           commitmentValidIds
         );
+        // Goal links that resolve to no goal drop to null.
+        const validGoalIds = new Set(goals.map((g) => g.id));
+        if (n.goalId && !validGoalIds.has(n.goalId)) n.goalId = null;
         return n;
       }),
       launchStage:
@@ -1412,9 +1474,17 @@ export function AxzioProvider({ children }) {
           c.order = i;
         });
         d.identity.commitments = list;
+        // Goals serving the deleted commitment go with it (no orphans).
+        const deadGoalIds = new Set(
+          (d.goals || []).filter((g) => g && g.commitmentId === id).map((g) => g.id)
+        );
+        if (deadGoalIds.size > 0) {
+          d.goals = d.goals.filter((g) => g && !deadGoalIds.has(g.id));
+        }
         // Focus items linked to the deleted commitment lose the link.
         for (const f of d.focusItems) {
           if (f.commitmentId === id) f.commitmentId = null;
+          if (f.goalId && deadGoalIds.has(f.goalId)) f.goalId = null;
         }
         // Seeds rooted as this commitment lose the link too.
         for (const s of d.stars || []) {
@@ -1438,6 +1508,73 @@ export function AxzioProvider({ children }) {
           x.order = k;
         });
       });
+    },
+
+    /* goals — defined outcomes with a horizon, each serving exactly one
+       commitment. No orphan goals: creation requires a commitment, and
+       deleting a commitment deletes its goals. */
+    addGoal(text, commitmentId, opts = {}) {
+      const t = String(text ?? "").trim();
+      if (!t) return null;
+      let entry = null;
+      update((d) => {
+        const ok = (d.identity.commitments || []).some(
+          (c) => c && c.id === commitmentId
+        );
+        if (!ok) return;
+        entry = {
+          id: uid(),
+          text: t.slice(0, 140),
+          commitmentId,
+          horizon:
+            typeof opts.horizon === "string" && opts.horizon
+              ? opts.horizon
+              : null,
+          done: false,
+          created: Date.now(),
+        };
+        if (!Array.isArray(d.goals)) d.goals = [];
+        d.goals.push(entry);
+      });
+      if (entry) logEvent("goal.created", { id: entry.id, commitmentId });
+      return entry;
+    },
+    toggleGoalDone(id) {
+      let doneNow = null;
+      update((d) => {
+        const g = (d.goals || []).find((x) => x.id === id);
+        if (!g) return;
+        g.done = !g.done;
+        doneNow = g.done;
+      });
+      if (doneNow === true) logEvent("goal.completed", { id });
+      else if (doneNow === false) logEvent("goal.reopened", { id });
+    },
+    updateGoal(id, patch = {}) {
+      update((d) => {
+        const g = (d.goals || []).find((x) => x.id === id);
+        if (!g) return;
+        if (typeof patch.text === "string" && patch.text.trim()) {
+          g.text = patch.text.trim().slice(0, 140);
+        }
+        if ("horizon" in patch) {
+          g.horizon =
+            typeof patch.horizon === "string" && patch.horizon
+              ? patch.horizon
+              : null;
+        }
+      });
+    },
+    deleteGoal(id) {
+      update((d) => {
+        d.goals = (d.goals || []).filter((g) => g && g.id !== id);
+        // Focus items that served the goal keep their (denormalized)
+        // commitment link; only the goal thread is cleared.
+        for (const f of d.focusItems) {
+          if (f.goalId === id) f.goalId = null;
+        }
+      });
+      logEvent("goal.deleted", { id });
     },
 
     /* daily */
@@ -1826,6 +1963,7 @@ export function AxzioProvider({ children }) {
           text: t,
           quadrant: q,
           commitmentId: opts.commitmentId ?? null,
+          goalId: opts.goalId ?? null,
           priority: null,
           done: false,
           notes: "",
@@ -1843,6 +1981,13 @@ export function AxzioProvider({ children }) {
         new Set(["q1", "q2", "q3", "q4"])
       );
       update((d) => {
+        // A goal implies its commitment: denormalize so every existing
+        // commitment reading keeps working off commitmentId.
+        if (entry.goalId) {
+          const g = (d.goals || []).find((x) => x.id === entry.goalId);
+          if (g) entry.commitmentId = g.commitmentId;
+          else entry.goalId = null;
+        }
         d.focusItems.push(entry);
       });
       logEvent("focus.created", {
@@ -1959,8 +2104,13 @@ export function AxzioProvider({ children }) {
         if (["q1", "q2", "q3", "q4"].includes(patch.quadrant)) {
           f.quadrant = patch.quadrant;
         }
-        if ("commitmentId" in patch) {
-          f.commitmentId = patch.commitmentId || null;
+        if ("goalId" in patch || "commitmentId" in patch) {
+          // A goal implies its commitment: resolve the commitment from
+          // the goal so every commitment reading keeps working.
+          const gid = patch.goalId || null;
+          const g = gid ? (d.goals || []).find((x) => x.id === gid) : null;
+          f.goalId = g ? gid : null;
+          f.commitmentId = g ? g.commitmentId : patch.commitmentId || null;
         }
         if (typeof patch.notes === "string") {
           f.notes = patch.notes.slice(0, 2000);

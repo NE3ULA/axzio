@@ -20,6 +20,7 @@ import {
   HelpText,
 } from "../components/ui.jsx";
 import Recalibrate from "../components/Recalibrate.jsx";
+import GoalCapture, { GoalsList } from "../components/GoalCapture.jsx";
 
 /* ------------------------------------------------------------------ */
 /* IDENTITY — user state systems: Identity Core + Four Primitives        */
@@ -311,43 +312,52 @@ function CommitmentList() {
         {commitments.map((c, i) => (
           <li
             key={c.id}
-            className="flex items-center gap-3 rounded-xl border border-white/10 px-4 py-2.5"
+            className="rounded-xl border border-white/10 px-4 py-2.5"
           >
-            <span className="w-5 shrink-0 text-[11px] tabular-nums tracking-[0.2em] text-white/40">
-              {i + 1}
-            </span>
-            <span className="min-w-0 flex-1 text-[15px]">{c.text}</span>
-            <span className="flex shrink-0 items-center gap-1">
-              <button
-                onClick={() => moveCommitment(c.id, -1)}
-                disabled={i === 0}
-                aria-label={`Move “${c.text}” up in priority`}
-                className="rounded p-1 text-white/40 transition-colors hover:text-white disabled:opacity-20 disabled:hover:text-white/40"
-              >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M2 7.5l4-4 4 4" stroke="currentColor" strokeWidth="1.4" />
-                </svg>
-              </button>
-              <button
-                onClick={() => moveCommitment(c.id, 1)}
-                disabled={i === commitments.length - 1}
-                aria-label={`Move “${c.text}” down in priority`}
-                className="rounded p-1 text-white/40 transition-colors hover:text-white disabled:opacity-20 disabled:hover:text-white/40"
-              >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M2 4.5l4 4 4-4" stroke="currentColor" strokeWidth="1.4" />
-                </svg>
-              </button>
-              <button
-                onClick={() => removeCommitment(c.id)}
-                aria-label={`Remove “${c.text}”`}
-                className="rounded p-1 text-white/25 transition-colors hover:text-white/80"
-              >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="currentColor" strokeWidth="1.3" />
-                </svg>
-              </button>
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="w-5 shrink-0 text-[11px] tabular-nums tracking-[0.2em] text-white/40">
+                {i + 1}
+              </span>
+              <span className="min-w-0 flex-1 text-[15px]">{c.text}</span>
+              <span className="flex shrink-0 items-center gap-1">
+                <button
+                  onClick={() => moveCommitment(c.id, -1)}
+                  disabled={i === 0}
+                  aria-label={`Move “${c.text}” up in priority`}
+                  className="rounded p-1 text-white/40 transition-colors hover:text-white disabled:opacity-20 disabled:hover:text-white/40"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 7.5l4-4 4 4" stroke="currentColor" strokeWidth="1.4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => moveCommitment(c.id, 1)}
+                  disabled={i === commitments.length - 1}
+                  aria-label={`Move “${c.text}” down in priority`}
+                  className="rounded p-1 text-white/40 transition-colors hover:text-white disabled:opacity-20 disabled:hover:text-white/40"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 4.5l4 4 4-4" stroke="currentColor" strokeWidth="1.4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => removeCommitment(c.id)}
+                  aria-label={`Remove “${c.text}”`}
+                  className="rounded p-1 text-white/25 transition-colors hover:text-white/80"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="currentColor" strokeWidth="1.3" />
+                  </svg>
+                </button>
+              </span>
+            </div>
+            {/* the goal stage: goals live inside their commitment */}
+            <div className="mt-1 pl-8">
+              <GoalsList commitmentId={c.id} />
+              <div className="mt-2">
+                <GoalCapture commitmentId={c.id} compact />
+              </div>
+            </div>
           </li>
         ))}
       </ul>
