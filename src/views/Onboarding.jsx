@@ -84,9 +84,25 @@ export default function Onboarding({ onComplete }) {
     onComplete();
   };
 
+  /** Dismiss the popup: marks the intro seen (persisted) so it doesn't
+      reappear; the walkthrough stays re-accessible from Identity. */
+  const dismiss = () => {
+    completeOnboarding();
+  };
+
   return (
     <div className="relative z-10 flex min-h-full items-center justify-center px-5 py-10">
-      <Card className="axzio-rise w-full max-w-xl p-8 md:p-12">
+      <Card className="axzio-rise relative w-full max-w-xl p-8 md:p-12">
+        <button
+          onClick={dismiss}
+          aria-label="Close walkthrough"
+          title="Skip to Deck"
+          className="absolute right-4 top-4 rounded-full border border-white/15 p-2 text-white/50 transition-colors hover:border-white/40 hover:text-white"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="currentColor" strokeWidth="1.3" />
+          </svg>
+        </button>
         {/* progress */}
         <div className="mb-8">
           <div className="mb-3 flex items-center justify-between">
@@ -135,6 +151,12 @@ export default function Onboarding({ onComplete }) {
                 Skip the tour
               </button>
             )}
+            <button
+              onClick={dismiss}
+              className="text-[11px] uppercase tracking-[0.22em] text-white/30 transition-colors hover:text-white/70"
+            >
+              Skip to Deck →
+            </button>
           </div>
           <div className="flex items-center gap-3">
             {!isLast && (

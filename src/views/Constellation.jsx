@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useAxzio, LOOP_STAGES, RELEASED_STAGE } from "../store.jsx";
+import { useAxzio, LOOP_STAGES, RELEASED_STAGE, commitmentText } from "../store.jsx";
 import { Card, MicroLabel, Empty, Btn, HelpBubble, HelpText } from "../components/ui.jsx";
 
 /* ------------------------------------------------------------------ */
@@ -367,11 +367,16 @@ function StarDetail({ star, axzio, onClose }) {
   const [confirm, setConfirm] = useState(false);
   const current =
     ALL_STAGES.find((s) => s.key === star.loopStage) || LOOP_STAGES[0];
+  const rootedText = commitmentText(axzio.state, star.commitmentId);
 
   const exploreInReset = () => {
     if (axzio.requestResetFromStar(star.id)) {
       window.location.hash = "#/journeys";
     }
+  };
+  const promote = () => {
+    const c = axzio.addCommitment(star.name);
+    if (c) axzio.linkStarCommitment(star.id, c.id);
   };
 
   return (
@@ -391,7 +396,8 @@ function StarDetail({ star, axzio, onClose }) {
         </p>
       )}
       <p className="mt-4 text-[11px] uppercase tracking-[0.2em] text-white/35">
-        Ignited {new Date(star.created).toLocaleDateString()} · {current.label}
+        Ignited {new Date(star.created).toLocaleDateString()} ·{" "}
+        {current.label} · Orbit {star.orbits}
       </p>
 
       <div className="mt-6 border-t border-white/10 pt-5">
@@ -424,6 +430,34 @@ function StarDetail({ star, axzio, onClose }) {
           Placement is yours to declare — completing a reset does not move
           the seed on its own.
         </p>
+      </div>
+
+      <div className="mt-5">
+        <MicroLabel className="mb-3">Root into identity</MicroLabel>
+        {rootedText ? (
+          <div className="rounded-xl border border-white/20 bg-white/[0.03] p-4">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+              Rooted as commitment
+            </p>
+            <p className="mt-1.5 text-[15px] leading-relaxed text-white">
+              {rootedText}
+            </p>
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={promote}
+              className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
+            >
+              Make commitment
+            </button>
+            <p className="mt-2 text-[12px] leading-relaxed text-white/35">
+              A seed that has matured becomes a system asset — an identity
+              commitment, added at the lowest priority.
+            </p>
+          </>
+        )}
       </div>
 
       <div className="mt-5">

@@ -492,10 +492,11 @@ function defaultState() {
     // "YYYY-MM-DD" -> { mantra: {gratitude,beauty,action,love},
     //   orientation: { <anchor>: { text, done } }, intention,
     //   battery: {physical,mental,emotional,social,purpose}  // 1–10 state
-    //   batteryPriority: {physical,mental,...}  // 'low'|'med'|'high' focus }    days: {},
+    //   batteryPriority: {physical,mental,...}  // 'low'|'med'|'high' focus
+    days: {},
     actions: [], // { id, date, ts, text, tag }
     signals: [], // { id, date, ts, text }
-    stars: [], // { id, name, note, created }
+    stars: [], // { id, name, note, created, loopStage, orbits, commitmentId }
     assessments: [], // { id, date, ts, money, engagement, building, being }
     // Decision Engine — Eisenhower matrix items. Entries are living
     // objects: editable text, quadrant, commitment link, notes, and
@@ -553,7 +554,7 @@ function blankDay() {
 
 /** Read-only accessor for a day's state (never mutates). */
 export function getDayState(state, key) {
-  return state.days[key] || blankDay();
+  return (state.days || {})[key] || blankDay();
 }
 
 export function actionsOn(state, key) {
@@ -660,7 +661,7 @@ const LOOP_STAGE_KEYS = new Set([
   RELEASED_STAGE.key,
 ]);
 
-/** Normalize one star; old stars predate loop stages → 'reveal'. */
+/** Normalize one star; old stars predate loop stages → 'reveal', orbit 1. */
 function normalizeStar(s) {
   if (!s || typeof s !== "object") return null;
   return {
@@ -669,6 +670,10 @@ function normalizeStar(s) {
     note: String(s.note ?? ""),
     created: Number(s.created) || 0,
     loopStage: LOOP_STAGE_KEYS.has(s.loopStage) ? s.loopStage : "reveal",
+    // The loop is orbits, not a line: each completed circuit adds mass.
+    orbits: Number.isInteger(s.orbits) && s.orbits >= 1 ? s.orbits : 1,
+    // A seed promoted into an identity commitment (matured system asset).
+    commitmentId: typeof s.commitmentId === "string" ? s.commitmentId : null,
   };
 }
 /** Normalize one focus item's subtasks; malformed entries are dropped. */
@@ -1098,6 +1103,10 @@ export function AxzioProvider({ children }) {
         for (const f of d.focusItems) {
           if (f.commitmentId === id) f.commitmentId = null;
         }
+        // Seeds rooted as this commitment lose the link too.
+        for (const s of d.stars || []) {
+          if (s.commitmentId === id) s.commitmentId = null;
+        }
       });
     },
     /** Move a commitment up (dir=-1) or down (dir=+1) in priority. */
@@ -1291,18 +1300,34 @@ export function AxzioProvider({ children }) {
         note: note.trim(),
         created: Date.now(),
         loopStage: "reveal",
+        orbits: 1,
+        commitmentId: null,
       };
       update((d) => {
         d.stars.push(star);
       });
       return star;
     },
-    /** Move a seed along the practice loop (or release it). Manual in v1. */
+    /** Move a seed along the practice loop (or release it). Manual in v1.
+     *  Integrate → Reveal completes an orbit: the seed re-enters further
+     *  developed, so the orbit count increments. */
     setStarLoopStage(starId, stage) {
       if (!LOOP_STAGE_KEYS.has(stage)) return;
       update((d) => {
         const s = d.stars.find((x) => x.id === starId);
-        if (s) s.loopStage = stage;
+        if (!s) return;
+        if (s.loopStage === "integrate" && stage === "reveal") {
+          s.orbits =
+            Number.isInteger(s.orbits) && s.orbits >= 1 ? s.orbits + 1 : 2;
+        }
+        s.loopStage = stage;
+      });
+    },
+    /** Link a seed to the identity commitment it matured into. */
+    linkStarCommitment(starId, commitmentId) {
+      update((d) => {
+        const s = d.stars.find((x) => x.id === starId);
+        if (s) s.commitmentId = commitmentId || null;
       });
     },
     deleteStar(id) {

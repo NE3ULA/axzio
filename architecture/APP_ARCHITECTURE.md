@@ -361,8 +361,20 @@ seed's journey toward identity/legend or release.
   (instead of the `#/focus` decision link), and the copied card carries
   it. Completing a reset does NOT auto-move the star — manual placement
   stays manual (noted in the UI as a future revision).
+- **Orbits**: the loop is orbits, not a line. Stars carry `orbits`
+  (default 1; old stars migrate to 1); `setStarLoopStage` increments it
+  when a seed moves Integrate → Reveal — re-entering further developed.
+  The count is the seed's mass/momentum record, shown as "Orbit N" on
+  the seed's card.
+- **Seed → commitment promotion**: "Make commitment" on the seed's
+  detail creates an identity commitment from the star's text (appended at
+  lowest priority via `addCommitment`) and stores `star.commitmentId`;
+  the seed shows "Rooted as commitment". Deleting the commitment clears
+  the link gracefully (`removeCommitment`). This is the "seeds mature
+  into system assets" path.
 - **Future (deliberately not v1)**: derived/auto stage placement,
-  star↔focus-item linking, quest threads on the map.
+  star↔focus-item linking, quest threads on the map, orbit-based
+  AI.D reads.
 
 ## Guided Reset
 

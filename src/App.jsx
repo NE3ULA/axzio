@@ -29,7 +29,8 @@ function routeFromHash() {
 }
 
 export default function App() {
-  const { state } = useAxzio();
+  const axzio = useAxzio();
+  const { state } = axzio;
   const [phase, setPhase] = useState("boot"); // boot | main
   const [route, setRoute] = useState(routeFromHash());
 
@@ -56,17 +57,11 @@ export default function App() {
     );
   }
 
-  // First-use walkthrough: gated on the persisted onboarded flag.
-  // Existing users (old setupComplete) were migrated to onboarded=true.
-  // Replaying the walkthrough from Identity re-opens it.
-  if (!state.identity.onboarded) {
-    return (
-      <div className="min-h-full bg-black text-white">
-        <Starfield />
-        <Onboarding onComplete={onboardingDone} />
-      </div>
-    );
-  }
+  // First-use walkthrough: rendered as a dismissible popup over the Deck
+  // (not a page takeover) once the boot splash clears. Existing users
+  // (old setupComplete) were migrated to onboarded=true. Replaying the
+  // walkthrough from Identity re-opens the popup.
+  const showIntro = !state.identity.onboarded;
 
   const Active = ROUTES.find((r) => r.key === route)?.view ?? Deck;
 
@@ -77,6 +72,16 @@ export default function App() {
       <main key={route} className="relative z-10">
         <Active />
       </main>
+      {showIntro && (
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-label="First-use walkthrough"
+        >
+          <Onboarding onComplete={onboardingDone} />
+        </div>
+      )}
     </div>
   );
 }
