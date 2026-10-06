@@ -609,8 +609,8 @@ function OrientationCard({ day, today }) {
           <HelpBubble title="Orientation">
             <HelpText
               what="The daily mantra as four micro-practices: a gratitude entry, a beauty noticed, one action for today, one thing for someone else."
-              why="Named practices make the anchors concrete — each asks for something specific rather than a vague “done”."
-              how="Expand a practice and write the entry; it saves for today and marks the practice complete. Unmark by hand any time. Take Action pulls from Focus — it shows your day's rank-1 item automatically, or lets you pick one to promote to rank 1. No duplicate entry needed. Give Love can tag someone from your Tribe."
+              why="The checkmark means practiced — the thing was done, not just named. For gratitude and beauty, writing the entry is the practice. For Take Action and Give Love, the doing happens in the world."
+              how="Take Action pulls from Focus: it shows your day's rank-1 item, or lets you pick one to promote to rank 1 — choosing aims it, completing the item in Focus (or marking by hand) practices it. Give Love can tag someone from your Tribe; mark it when you've done the thing."
             />
           </HelpBubble>
         }
@@ -1186,6 +1186,10 @@ function TakeActionRow({ practice, entry, today }) {
               <p className="text-[15px] leading-relaxed text-white">
                 {displayItem.text}
               </p>
+              <p className="mt-2 text-[12px] leading-relaxed text-white/40">
+                Choosing aimed it — the practice completes when the action
+                is taken. Completing it in Focus marks this automatically.
+              </p>
               <div className="mt-3 flex items-center justify-between gap-3">
                 <button
                   onClick={() => setOrientationDone(today, practice.key, !done)}
@@ -1226,7 +1230,7 @@ function TakeActionRow({ practice, entry, today }) {
                       ))}
                   </select>
                   <p className="mt-2 text-[12px] leading-relaxed text-white/40">
-                    Choosing one makes it rank 1 in Focus.
+                    Choosing one makes it rank 1 in Focus. The check marks when it's taken — completing the item in Focus marks it automatically.
                   </p>
                 </div>
               )}
@@ -1268,7 +1272,7 @@ function TakeActionRow({ practice, entry, today }) {
                     ))}
                   </select>
                   <p className="mt-2 text-[12px] leading-relaxed text-white/40">
-                    Choosing one makes it rank 1 in Focus.
+                    Choosing one makes it rank 1 in Focus. The check marks when it's taken — completing the item in Focus marks it automatically.
                   </p>
                 </>
               ) : (

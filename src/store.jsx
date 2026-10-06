@@ -110,13 +110,13 @@ export const ORIENTATION_PRACTICES = [  {
   {
     key: "action",
     label: "Take Action",
-    prompt: "Today's action — from Focus; change it here or in Focus",
+    prompt: "Today's action — from Focus. Choosing aims it; doing it practices it.",
     focusLink: true, // links into #/focus
   },
   {
     key: "love",
     label: "Give Love",
-    prompt: "One thing you will do today for someone else",
+    prompt: "One thing you will do today for someone else — mark it when you've done it, not when you've named it",
   },
 ];
 
@@ -1483,7 +1483,10 @@ export function AxzioProvider({ children }) {
     /**
      * Take Action — link a focus item as today's one thing instead of
      * free text. Claims rank 1 in the item's own timeframe (uniqueness
-     * rule), mirrors its text, and marks the practice complete.
+     * rule) and mirrors its text. Choosing is aiming, not practicing:
+     * the practice marks done only when the action is taken (completing
+     * the item in Focus marks it automatically) — so a new choice resets
+     * the check.
      */
     setOrientationFocusItem(key, itemId) {
       update((d) => {
@@ -1501,8 +1504,8 @@ export function AxzioProvider({ children }) {
         if (!p) return;
         p.focusItemId = itemId;
         p.text = f.text;
-        p.done = true;
-        day.mantra.action = true;
+        p.done = false;
+        day.mantra.action = false;
       });
     },
     /**
@@ -1873,6 +1876,14 @@ export function AxzioProvider({ children }) {
             text: `Completed: ${f.text}`,
             tag: "focus",
           });
+        }
+        // The Take Action orientation practice is *taken*, not just named:
+        // completing today's linked action practices it; reopening unmarks it.
+        const day = ensureDay(d, localDateKey());
+        const a = day.orientation?.action;
+        if (a && a.focusItemId === id) {
+          a.done = f.done;
+          day.mantra.action = f.done;
         }
       });
       if (doneNow === true) logEvent("focus.completed", { id });
