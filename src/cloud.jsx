@@ -56,6 +56,11 @@ export function CloudProvider({ children }) {
   const stateRef = useRef(state);
   const lastSyncedRef = useRef(null); // updatedAt already reflected in cloud
   const mergeRanRef = useRef(false);
+  // A boot/sign-in merge must finish before any push is allowed. Without
+  // this gate, a slow merge on a flaky connection lets the debounced push
+  // below upload stale local state over newer cloud data.
+  const mergeCompletedRef = useRef(false);
+  const pendingPushRef = useRef(false);
 
   // Whether a local envelope existed BEFORE this boot (captured at first
   // render — before the store's persist effect can write one).
@@ -129,6 +134,18 @@ export function CloudProvider({ children }) {
       } else {
         lastSyncedRef.current = local.updatedAt || 0;
       }
+      // The merge finished with a signed-in user: pushes are now safe.
+      // Flush anything that queued while the merge was in flight.
+      mergeCompletedRef.current = true;
+      if (pendingPushRef.current) {
+        pendingPushRef.current = false;
+        const cur = stateRef.current;
+        if ((cur.updatedAt || 0) !== lastSyncedRef.current) {
+          const err = await pushState(client, u.id, cur);
+          if (err) throw err;
+          lastSyncedRef.current = cur.updatedAt || 0;
+        }
+      }
       setSyncStatus("synced");
     } catch {
       // Fail soft: local remains the source of truth.
@@ -165,11 +182,27 @@ export function CloudProvider({ children }) {
     };
   }, [configured]);
 
-  /* Debounced upsert after every local mutation (signed in only). */
+  /* Debounced upsert after every local mutation (signed in only).
+     Never pushes before the boot/sign-in merge completes: on a flaky
+     connection an early push would overwrite newer cloud data with
+     whatever this device had locally. While the merge is pending,
+     changes are held and the merge is retried. */
   useEffect(() => {
     if (!configured || !user) return;
     const cur = stateRef.current;
     if ((cur.updatedAt || 0) === lastSyncedRef.current) return;
+    if (!mergeCompletedRef.current) {
+      pendingPushRef.current = true;
+      setSyncStatus((s) => (s === "synced" || s === "idle" ? "syncing" : s));
+      const rt = setTimeout(() => {
+        try {
+          mergeRef.current?.();
+        } catch {
+          /* the merge fails soft on its own */
+        }
+      }, 8000);
+      return () => clearTimeout(rt);
+    }
     setSyncStatus((s) => (s === "synced" || s === "idle" ? "syncing" : s));
     const t = setTimeout(async () => {
       const client = getSupabaseClient();
@@ -238,6 +271,8 @@ export function CloudProvider({ children }) {
       const ok = saveSupabaseConfig(url, anonKey);
       if (!ok) return { error: "The configuration couldn't be saved in this browser. Please try again." };
       mergeRanRef.current = false;
+      mergeCompletedRef.current = false;
+      pendingPushRef.current = false;
       setConfigured(true);
       setShowSetup(false);
       // The configured-effect picks up from here and runs the merge.
@@ -252,6 +287,9 @@ export function CloudProvider({ children }) {
     setUser(null);
     setSyncStatus("idle");
     setShowSetup(true);
+    mergeRanRef.current = false;
+    mergeCompletedRef.current = false;
+    pendingPushRef.current = false;
   }, []);
 
   const skipSetup = useCallback(() => {
@@ -343,6 +381,8 @@ export function CloudProvider({ children }) {
     // Stop syncing; local data stays intact.
     setUser(null);
     setSyncStatus("idle");
+    mergeCompletedRef.current = false;
+    pendingPushRef.current = false;
   }, []);
 
   const value = {
