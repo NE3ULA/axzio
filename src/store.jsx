@@ -492,6 +492,15 @@ function defaultState() {
       onboarded: false,
       onboardingStep: 0,
     },
+    // App settings (not identity data). aiEnabled is the AI.d seam: the
+    // app is fully functional without it; the toggle lets users opt in,
+    // and the intelligence layer itself ships later as a paid tier.
+    // Default off. Surfaces check this flag before rendering anything
+    // AI-related — honest "coming later" placeholders only, never
+    // simulated intelligence.
+    settings: {
+      aiEnabled: false,
+    },
     // "YYYY-MM-DD" -> { mantra: {gratitude,beauty,action,love},
     //   orientation: { <anchor>: { text, done } }, intention,
     //   battery: {physical,mental,emotional,social,purpose}  // 1–10 state
@@ -1109,6 +1118,10 @@ export function normalizeState(parsed) {
           : null,
       modes: normalizeModes(parsed.modes),
       resets: normalizeResets(parsed.resets),
+      // Settings: merge so future keys default cleanly on old states.
+      settings: {
+        aiEnabled: !!(parsed.settings && parsed.settings.aiEnabled),
+      },
       // Cloud sync: local mutation clock. Old envelopes predate it → 0.
       updatedAt:
         Number.isFinite(parsed.updatedAt) && parsed.updatedAt > 0
@@ -1216,6 +1229,14 @@ export function AxzioProvider({ children }) {
     updateIdentity(patch) {
       update((d) => {
         Object.assign(d.identity, patch);
+      });
+    },
+    /* settings */
+    /** AI.d opt-in toggle. The app is fully functional without it. */
+    setAiEnabled(v) {
+      update((d) => {
+        if (!d.settings || typeof d.settings !== "object") d.settings = {};
+        d.settings.aiEnabled = v === true;
       });
     },
     addIdentityListItem(list, value) {

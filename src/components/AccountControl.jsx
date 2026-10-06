@@ -6,9 +6,10 @@
  *  - signed in → email + sync dot + "Sign out"
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useCloud } from "../cloud.jsx";
+import { useAxzio } from "../store.jsx";
 import { Btn, Card, Field, MicroLabel } from "./ui.jsx";
 
 function SyncDot({ status }) {
@@ -176,47 +177,176 @@ function AuthModal({ onClose }) {
   );
 }
 
+function GearIcon() {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+function AiToggle() {
+  const { state, setAiEnabled } = useAxzio();
+  const aiEnabled = !!(state.settings && state.settings.aiEnabled);
+  return (
+    <div className="px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[12px] font-medium tracking-wide text-white/80">
+          AI.d reflections
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={aiEnabled}
+          aria-label="AI.d reflections"
+          onClick={() => setAiEnabled(!aiEnabled)}
+          className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+            aiEnabled ? "bg-white/70" : "bg-white/15"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${
+              aiEnabled ? "left-[18px]" : "left-0.5"
+            }`}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
+      <p className="mt-1.5 text-[11px] leading-relaxed text-white/40">
+        {aiEnabled
+          ? "On — you'll be first in line when the intelligence layer launches."
+          : "Off. AXZIO is fully usable without it."}{" "}
+        AI.d is coming in a future update as an optional paid tier.
+      </p>
+    </div>
+  );
+}
+
 export default function AccountControl() {
   const { configured, reopenSetup, user, signOut, syncStatus } = useCloud();
+  const [menuOpen, setMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const wrapRef = useRef(null);
 
-  if (!configured) {
-    return (
-      <button
-        onClick={reopenSetup}
-        className="whitespace-nowrap rounded-lg px-3 py-2 text-[11px] font-medium uppercase tracking-[0.2em] text-white/45 transition-colors hover:text-white"
-      >
-        Connect
-      </button>
-    );
-  }
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
-  if (!user) {
-    return (
-      <>
-        <button
-          onClick={() => setAuthOpen(true)}
-          className="whitespace-nowrap rounded-lg px-3 py-2 text-[11px] font-medium uppercase tracking-[0.2em] text-white/45 transition-colors hover:text-white"
-        >
-          Sign in
-        </button>
-        {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
-      </>
-    );
-  }
+  const openAuth = () => {
+    setMenuOpen(false);
+    setAuthOpen(true);
+  };
 
   return (
-    <span className="flex items-center gap-3">
-      <SyncDot status={syncStatus} />
-      <span className="hidden max-w-[140px] truncate text-[11px] uppercase tracking-[0.18em] text-white/55 md:block">
-        {user.email}
-      </span>
+    <div ref={wrapRef} className="relative shrink-0">
       <button
-        onClick={signOut}
-        className="whitespace-nowrap rounded-lg px-2 py-2 text-[11px] font-medium uppercase tracking-[0.2em] text-white/45 transition-colors hover:text-white"
+        type="button"
+        onClick={() => setMenuOpen((v) => !v)}
+        aria-expanded={menuOpen}
+        aria-label="Account and settings"
+        className={`rounded-lg p-2 transition-colors ${
+          menuOpen ? "text-white" : "text-white/45 hover:text-white"
+        }`}
       >
-        Sign out
+        <GearIcon />
       </button>
-    </span>
+
+      {menuOpen && (
+        <div
+          className="absolute right-0 top-full z-40 mt-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-[#0a0a0a]/95 shadow-2xl shadow-black/60 backdrop-blur-md"
+          role="menu"
+          aria-label="Account and settings"
+        >
+          <div className="px-3 pb-1 pt-3">
+            <MicroLabel>Account</MicroLabel>
+          </div>
+
+          {!configured && (
+            <div className="px-3 py-2">
+              <p className="mb-2.5 text-[12px] leading-relaxed text-white/50">
+                Connect your own Supabase project to sync entries across
+                devices.
+              </p>
+              <Btn
+                className="w-full"
+                onClick={() => {
+                  setMenuOpen(false);
+                  reopenSetup();
+                }}
+              >
+                Connect Supabase
+              </Btn>
+            </div>
+          )}
+
+          {configured && !user && (
+            <div className="px-3 py-2">
+              <Btn className="w-full" onClick={openAuth}>
+                Sign in
+              </Btn>
+              <p className="mt-2 text-[11px] leading-relaxed text-white/40">
+                No account yet? Sign in opens the create-account tab.
+              </p>
+            </div>
+          )}
+
+          {configured && user && (
+            <div className="px-3 py-2">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="min-w-0 flex-1 truncate text-[12px] text-white/70">
+                  {user.email}
+                </span>
+                <SyncDot status={syncStatus} />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  signOut();
+                }}
+                className="w-full rounded-lg px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[0.18em] text-white/45 transition-colors hover:bg-white/5 hover:text-white"
+              >
+                Sign out
+              </button>
+            </div>
+          )}
+
+          <div className="mx-3 my-1 border-t border-white/10" />
+
+          <div className="px-3 pb-1 pt-2">
+            <MicroLabel>Intelligence</MicroLabel>
+          </div>
+          <AiToggle />
+          <div className="h-2" />
+        </div>
+      )}
+
+      {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
+    </div>
   );
 }

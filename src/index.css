@@ -15,6 +15,20 @@ body,
   height: 100%;
 }
 
+/* iOS Safari: never inflate text sizes (a common cause of the page
+   rendering oversized on iPhone), and clip any horizontal overflow
+   page-wide. `clip` (not `hidden`) preserves position: sticky. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
 body {
   background: #000;
   color: #fff;
