@@ -376,6 +376,61 @@ seed's journey toward identity/legend or release.
   star↔focus-item linking, quest threads on the map, orbit-based
   AI.D reads.
 
+## LifeMods — designed life changes
+
+A LifeMod (WE ARE ALCHEMY, ch. BECOMING) is a designed life change.
+Conceptually it is a matured seed — but it has **two entry doors**:
+
+- **Door A — grown from a seed**: a star that matured through E3 orbits.
+  The star detail's "Make LifeMod" creates it with `origin: 'seed'`,
+  `sourceStarId` set, the name pre-filled from the star text, and
+  `becomingStage: 'capture'`. The star shows "Growing as LifeMod: \<name\>"
+  (`linkStarLifeMod`); deleting the LifeMod clears the link gracefully
+  (mirrors the star↔commitment unlink pattern).
+- **Door B — named from a friction**: a preexisting circumstance causing
+  drag, named directly. The LifeMods section's "Name a friction" capture
+  ("What repeatedly creates drag?") creates it with `origin: 'friction'`
+  and the friction text as the name (editable after). Friction-born
+  LifeMods remove drag; seed-born ones build lift.
+
+- **Schema**: `lifemods: [{ id, name, friction, currentState,
+  desiredState, legendFunction, impact, effort, nextAction,
+  origin: 'seed'|'friction', sourceStarId, becomingStage, active,
+  createdAt }]`. Old states predate LifeMods → `lifemods: []`
+  (`normalizeLifeMods`; never crashes).
+- **The book's five elements** (per LifeMod editor): Friction,
+  Current state, Desired state, Legend Function, Impact (Low/Med/High),
+  Effort (Low/Med/High), Next Action ("the smallest concrete action that
+  begins the modification").
+- **8 Legend Functions** (exact book one-liners in the selector):
+  Unlock — "Removes a barrier that prevents movement."; Accelerate —
+  "Increases the speed or momentum of something already working.";
+  Stabilize — "Creates consistency where the system is unreliable.";
+  Protect — "Preserves energy, attention, relationships, resources, or
+  progress."; Simplify — "Reduces unnecessary complexity or decision
+  load."; Repair — "Restores something damaged, neglected, or
+  dysfunctional."; Remove — "Eliminates a source of recurring drag that
+  no longer deserves accommodation."; Expand — "Increases capacity,
+  possibility, connection, or expression."
+- **Becoming Cycle stepper**: Detect → Capture → Evaluate → Execute →
+  Review → Evolve; tap to set (manual — declare, don't guess).
+- **Archive, don't delete by default**: `setLifeModActive(id, false)`
+  hides it behind a "Show archived" toggle; `deleteLifeMod` removes it
+  and clears linked stars' `lifemodId`.
+- **Placement**: no separate module — LifeMods live in the
+  Constellation (the larger framework), each row showing name,
+  legend-function pill, becoming-stage pill, and origin tag ("Grown
+  from a seed" / "Named from friction"). The Deck's sixth overview card
+  ("LifeMods") shows the active count + each active LifeMod's name,
+  stage, and function pill, linking to `#/constellation`.
+- **Help bubble** carries the book's line: "A LifeMod does not ask 'How
+  do I force myself to comply?' It asks 'What could I change so the
+  next aligned action becomes clearer?'"
+- **Provenance** is a first-class field (`origin`): a friction-born
+  LifeMod ("fix my sleep") reads differently from a seed-born one
+  ("write the book") — Repair/Remove vs Unlock/Expand — and future
+  AI.D reads can weight them accordingly.
+
 ## Guided Reset
 
 A fourth journey mirroring the guided practice at
@@ -429,7 +484,9 @@ everything else; the help bubble says so.
   },
   actions:     [{ id, date, ts, text, tag }],       // tag: mantra anchor or primitive
   signals:     [{ id, date, ts, text }],
-  stars:       [{ id, name, note, created }],
+  stars:       [{ id, name, note, created, loopStage, orbits,
+                 commitmentId, lifemodId }],  // seed journey: E3 loop stage,
+                 // orbit count, rooted-commitment link, grown-LifeMod link
   assessments: [{ id, date, ts, money, engagement, building, being }],  // 1–10
   focusItems:  [{ id, text, quadrant, commitmentId, priority, done,
                  notes, subtasks: [{ id, text, done }],
@@ -457,8 +514,17 @@ everything else; the help bubble says so.
   },
   // Guided Reset completions (private, local only):
   resets: [{ id, ts, date, situation, reveal, interpret, align, act, lifemod,
-             integrate, sourceItemId }],  // sourceItemId: Focus item id | null
-  // Transient (never persisted): resetPrefill { situation, sourceItemId }
+             integrate, sourceItemId, sourceStarId }],  // sourceItemId: Focus item id | null; sourceStarId: star id | null
+  // LifeMods — designed life changes (WE ARE ALCHEMY, ch. BECOMING):
+  lifemods: [{ id, name, friction, currentState, desiredState,
+               legendFunction,  // unlock|accelerate|stabilize|protect|
+                                // simplify|repair|remove|expand | null
+               impact, effort,   // 'low'|'med'|'high' | null
+               nextAction, origin,       // 'seed'|'friction'
+               sourceStarId,             // star id | null (door A)
+               becomingStage,    // detect|capture|evaluate|execute|review|evolve
+               active, createdAt }],
+  // Transient (never persisted): resetPrefill { situation, sourceItemId, sourceStarId }
   // set by "Explore in Guided Reset", consumed once by the Journeys view.
 }
 ```
@@ -482,7 +548,9 @@ stays in sync afterwards); focus items gain `timeframe: 'day'`,
 items, which become `priority: 1` in their timeframe; plain-string
 commitments migrate to `{ id, text, order }` objects (position preserved
 as priority), and focus-item `commitmentId` links holding old text remap
-to the new ids (unmatched links drop to null).
+to the new ids (unmatched links drop to null). Stars gain `lifemodId:
+null` (grown-LifeMod link) and old states gain `lifemods: []` — nothing
+earlier is disturbed.
 
 - One React context (`AxzioProvider` in `src/store.jsx`) owns all
   mutations; every mutation persists the whole state to localStorage.

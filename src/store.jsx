@@ -511,6 +511,11 @@ function defaultState() {
     // Tribe v1 — people directory: [{ id, name, circle, notes, createdAt }].
     // Give Love entries tag a personId; local-only for now.
     people: [],
+    // LifeMods — designed life changes (WE ARE ALCHEMY, ch. BECOMING).
+    // { id, name, friction, currentState, desiredState, legendFunction,
+    // impact, effort, nextAction, origin: 'seed'|'friction',
+    // sourceStarId, becomingStage, active, createdAt }
+    lifemods: [],
     // Identity Launch Sequence locator: stage key or null.
     launchStage: null,
     // Modes of Energy: `current` is the mode I'm IN right now
@@ -661,6 +666,136 @@ const LOOP_STAGE_KEYS = new Set([
   RELEASED_STAGE.key,
 ]);
 
+/* LifeMods (WE ARE ALCHEMY, ch. BECOMING): designed life changes. Two
+   entry doors: a seed that matured through E3 orbits (origin 'seed',
+   sourceStarId set) or a directly-named friction — a preexisting
+   circumstance causing drag (origin 'friction'). Conceptually both are
+   matured seeds; the door is the entry point, not the kind. Every
+   LifeMod names one of the 8 Legend Functions and moves through the
+   6-stage Becoming Cycle. No separate module: LifeMods live inside the
+   Constellation (the larger framework), with a compact summary on the
+   Deck. */
+export const LEGEND_FUNCTIONS = [
+  {
+    key: "unlock",
+    label: "Unlock",
+    desc: "Removes a barrier that prevents movement.",
+  },
+  {
+    key: "accelerate",
+    label: "Accelerate",
+    desc: "Increases the speed or momentum of something already working.",
+  },
+  {
+    key: "stabilize",
+    label: "Stabilize",
+    desc: "Creates consistency where the system is unreliable.",
+  },
+  {
+    key: "protect",
+    label: "Protect",
+    desc: "Preserves energy, attention, relationships, resources, or progress.",
+  },
+  {
+    key: "simplify",
+    label: "Simplify",
+    desc: "Reduces unnecessary complexity or decision load.",
+  },
+  {
+    key: "repair",
+    label: "Repair",
+    desc: "Restores something damaged, neglected, or dysfunctional.",
+  },
+  {
+    key: "remove",
+    label: "Remove",
+    desc: "Eliminates a source of recurring drag that no longer deserves accommodation.",
+  },
+  {
+    key: "expand",
+    label: "Expand",
+    desc: "Increases capacity, possibility, connection, or expression.",
+  },
+];
+
+export function legendFunctionLabel(key) {
+  const f = LEGEND_FUNCTIONS.find((f) => f.key === key);
+  return f ? f.label : null;
+}
+
+export function legendFunctionDesc(key) {
+  const f = LEGEND_FUNCTIONS.find((f) => f.key === key);
+  return f ? f.desc : null;
+}
+
+/* The Becoming Cycle: the lifecycle of an installed LifeMod, from
+   detection to evolution. Placement is manual: declare, don't guess. */
+export const BECOMING_STAGES = [
+  { key: "detect", label: "Detect" },
+  { key: "capture", label: "Capture" },
+  { key: "evaluate", label: "Evaluate" },
+  { key: "execute", label: "Execute" },
+  { key: "review", label: "Review" },
+  { key: "evolve", label: "Evolve" },
+];
+
+export function becomingStageLabel(key) {
+  const s = BECOMING_STAGES.find((s) => s.key === key);
+  return s ? s.label : null;
+}
+
+const LEGEND_FUNCTION_KEYS = new Set(LEGEND_FUNCTIONS.map((f) => f.key));
+const BECOMING_STAGE_KEYS = new Set(BECOMING_STAGES.map((s) => s.key));
+const IMPACT_EFFORT_KEYS = new Set(["low", "med", "high"]);
+
+function impactEffortLabel(key) {
+  return key === "low" ? "Low" : key === "high" ? "High" : key === "med" ? "Med" : null;
+}
+
+/** Normalize one LifeMod; old states predate them entirely. */
+function normalizeLifeMod(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const id = String(raw.id ?? "");
+  if (!id) return null;
+  const str = (v, max) =>
+    typeof v === "string" ? v.slice(0, max) : "";
+  return {
+    id,
+    name: str(raw.name, 120),
+    friction: str(raw.friction, 600),
+    currentState: str(raw.currentState, 600),
+    desiredState: str(raw.desiredState, 600),
+    legendFunction: LEGEND_FUNCTION_KEYS.has(raw.legendFunction)
+      ? raw.legendFunction
+      : null,
+    impact: IMPACT_EFFORT_KEYS.has(raw.impact) ? raw.impact : null,
+    effort: IMPACT_EFFORT_KEYS.has(raw.effort) ? raw.effort : null,
+    nextAction: str(raw.nextAction, 280),
+    origin: raw.origin === "seed" ? "seed" : "friction",
+    sourceStarId:
+      typeof raw.sourceStarId === "string" && raw.sourceStarId
+        ? raw.sourceStarId
+        : null,
+    becomingStage: BECOMING_STAGE_KEYS.has(raw.becomingStage)
+      ? raw.becomingStage
+      : "capture",
+    active: raw.active !== false,
+    createdAt: Number(raw.createdAt) || 0,
+  };
+}
+
+function normalizeLifeMods(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(normalizeLifeMod).filter(Boolean);
+}
+
+/** Read-only lookup of a LifeMod by id. */
+export function lifeModById(state, id) {
+  const list = state?.lifemods;
+  if (!Array.isArray(list) || !id) return null;
+  return list.find((m) => m && m.id === id) || null;
+}
+
 /** Normalize one star; old stars predate loop stages → 'reveal', orbit 1. */
 function normalizeStar(s) {
   if (!s || typeof s !== "object") return null;
@@ -674,6 +809,8 @@ function normalizeStar(s) {
     orbits: Number.isInteger(s.orbits) && s.orbits >= 1 ? s.orbits : 1,
     // A seed promoted into an identity commitment (matured system asset).
     commitmentId: typeof s.commitmentId === "string" ? s.commitmentId : null,
+    // A seed grown into a LifeMod (designed life change).
+    lifemodId: typeof s.lifemodId === "string" ? s.lifemodId : null,
   };
 }
 /** Normalize one focus item's subtasks; malformed entries are dropped. */
@@ -949,6 +1086,8 @@ function loadState() {
       assessments: Array.isArray(parsed.assessments) ? parsed.assessments : [],
       // Tribe v1: old states predate the people directory.
       people: normalizePeople(parsed.people),
+      // LifeMods: old states predate them entirely → empty list.
+      lifemods: normalizeLifeMods(parsed.lifemods),
       focusItems: focusItems.map((f) => {
         const n = normalizeFocusItem(f, validQuadrants);
         // Old links hold commitment text; remap to the migrated id.
@@ -1330,9 +1469,112 @@ export function AxzioProvider({ children }) {
         if (s) s.commitmentId = commitmentId || null;
       });
     },
+    /** Link a seed to the LifeMod it grew into. */
+    linkStarLifeMod(starId, lifemodId) {
+      update((d) => {
+        const s = d.stars.find((x) => x.id === starId);
+        if (s) s.lifemodId = lifemodId || null;
+      });
+    },
     deleteStar(id) {
       update((d) => {
         d.stars = d.stars.filter((s) => s.id !== id);
+      });
+    },
+
+    /* lifemods — designed life changes (WE ARE ALCHEMY, ch. BECOMING).
+       Two entry doors: origin 'seed' (a matured E3 seed, sourceStarId
+       set) or 'friction' (a directly-named preexisting circumstance).
+       Conceptually both are matured seeds; the door is the entry
+       point, not the kind. */
+    /**
+     * Create a LifeMod. opts: origin ('seed'|'friction'),
+     * sourceStarId, becomingStage. Name is required; friction text
+     * doubles as the name for friction-born entries.
+     */
+    addLifeMod(name, opts = {}) {
+      const n = typeof name === "string" ? name.trim().slice(0, 120) : "";
+      if (!n) return null;
+      const origin = opts.origin === "seed" ? "seed" : "friction";
+      const entry = normalizeLifeMod({
+        id: uid(),
+        name: n,
+        friction: origin === "friction" ? n : "",
+        currentState: "",
+        desiredState: "",
+        legendFunction: null,
+        impact: null,
+        effort: null,
+        nextAction: "",
+        origin,
+        sourceStarId:
+          origin === "seed" && typeof opts.sourceStarId === "string"
+            ? opts.sourceStarId
+            : null,
+        becomingStage:
+          typeof opts.becomingStage === "string" ? opts.becomingStage : "capture",
+        active: true,
+        createdAt: Date.now(),
+      });
+      update((d) => {
+        if (!Array.isArray(d.lifemods)) d.lifemods = [];
+        d.lifemods.push(entry);
+        // Door A: link the seed to the LifeMod it grew into.
+        if (origin === "seed" && entry.sourceStarId) {
+          const s = d.stars.find((x) => x.id === entry.sourceStarId);
+          if (s) s.lifemodId = entry.id;
+        }
+      });
+      return entry;
+    },
+    /**
+     * Patch a LifeMod from its editor. Accepted keys: name, friction,
+     * currentState, desiredState, legendFunction, impact, effort,
+     * nextAction, becomingStage. Unknown enum values are refused.
+     */
+    updateLifeMod(id, patch = {}) {
+      update((d) => {
+        const m = (d.lifemods || []).find((x) => x.id === id);
+        if (!m) return;
+        if (typeof patch.name === "string" && patch.name.trim()) {
+          m.name = patch.name.trim().slice(0, 120);
+        }
+        for (const k of ["friction", "currentState", "desiredState"]) {
+          if (typeof patch[k] === "string") m[k] = patch[k].slice(0, 600);
+        }
+        if (typeof patch.nextAction === "string") {
+          m.nextAction = patch.nextAction.slice(0, 280);
+        }
+        if ("legendFunction" in patch) {
+          m.legendFunction = LEGEND_FUNCTION_KEYS.has(patch.legendFunction)
+            ? patch.legendFunction
+            : null;
+        }
+        if ("impact" in patch) {
+          m.impact = IMPACT_EFFORT_KEYS.has(patch.impact) ? patch.impact : null;
+        }
+        if ("effort" in patch) {
+          m.effort = IMPACT_EFFORT_KEYS.has(patch.effort) ? patch.effort : null;
+        }
+        if (BECOMING_STAGE_KEYS.has(patch.becomingStage)) {
+          m.becomingStage = patch.becomingStage;
+        }
+      });
+    },
+    /** Archive (active=false) or restore a LifeMod. Never deletes. */
+    setLifeModActive(id, active) {
+      update((d) => {
+        const m = (d.lifemods || []).find((x) => x.id === id);
+        if (m) m.active = active !== false;
+      });
+    },
+    /** Delete a LifeMod; seeds grown from it lose the link gracefully. */
+    deleteLifeMod(id) {
+      update((d) => {
+        d.lifemods = (d.lifemods || []).filter((m) => m && m.id !== id);
+        for (const s of d.stars || []) {
+          if (s.lifemodId === id) s.lifemodId = null;
+        }
       });
     },
 

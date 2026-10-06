@@ -13,6 +13,8 @@ import {
   modeLabel,
   tagLabel,
   sortedCommitments,
+  legendFunctionLabel,
+  becomingStageLabel,
   localDateKey,
   formatLongDate,
   formatTime,
@@ -83,6 +85,7 @@ export default function Deck() {
         <ModeCard />
         <StateCard />
         <OrientationCard day={day} today={today} />
+        <LifeModsCard />
       </div>
 
       {/* zone: capture */}
@@ -597,8 +600,61 @@ function OrientationCard({ day, today }) {
   );
 }
 
-function PracticeRow({ practice, entry, today }) {
-  const { setOrientationText, setOrientationDone } = useAxzio();
+/* Compact summary of active LifeMods (they live in the Constellation).
+   Full-width strip so the two-column grid stays balanced. */
+function LifeModsCard() {
+  const { state } = useAxzio();
+  const lifemods = Array.isArray(state.lifemods) ? state.lifemods : [];
+  const active = lifemods.filter((m) => m && m.active !== false);
+
+  return (
+    <Card className="axzio-rise axzio-rise-5 p-6 md:col-span-2">
+      <SectionHead
+        label="LifeMods"
+        help={
+          <HelpBubble title="LifeMods">
+            <HelpText
+              what="Designed life changes — seeds that matured, or frictions named directly — tracked through the Becoming Cycle."
+              why="A LifeMod does not ask 'How do I force myself to comply?' It asks 'What could I change so the next aligned action becomes clearer?'"
+              how="Open the Constellation to grow one from a seed or name a friction; each names a legend function and moves through Detect → Capture → Evaluate → Execute → Review → Evolve."
+            />
+          </HelpBubble>
+        }
+        right={
+          <span className="text-[11px] uppercase tracking-[0.2em] text-white/40">
+            {active.length} active
+          </span>
+        }
+      />
+      {active.length === 0 ? (
+        <p className="text-[15px] leading-relaxed text-white/40">
+          No active LifeMods — grow one from a seed or name a friction.
+        </p>
+      ) : (
+        <ul className="flex flex-wrap gap-x-8 gap-y-3">
+          {active.map((m) => (
+            <li key={m.id} className="flex min-w-0 items-center gap-3">
+              <span className="max-w-[220px] truncate text-[15px] text-white/85">
+                {m.name || "Unnamed LifeMod"}
+              </span>
+              {legendFunctionLabel(m.legendFunction) && (
+                <Pill>{legendFunctionLabel(m.legendFunction)}</Pill>
+              )}
+              {becomingStageLabel(m.becomingStage) && (
+                <span className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                  {becomingStageLabel(m.becomingStage)}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <ModuleLink href="#/constellation">Open Constellation</ModuleLink>
+    </Card>
+  );
+}
+
+function PracticeRow({ practice, entry, today }) {  const { setOrientationText, setOrientationDone } = useAxzio();
   const [expanded, setExpanded] = useState(false);
   const text = entry?.text || "";
   const done = entry?.done === true;

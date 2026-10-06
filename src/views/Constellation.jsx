@@ -1,6 +1,26 @@
 import { useMemo, useState } from "react";
-import { useAxzio, LOOP_STAGES, RELEASED_STAGE, commitmentText } from "../store.jsx";
-import { Card, MicroLabel, Empty, Btn, HelpBubble, HelpText } from "../components/ui.jsx";
+import {
+  useAxzio,
+  LOOP_STAGES,
+  RELEASED_STAGE,
+  commitmentText,
+  LEGEND_FUNCTIONS,
+  BECOMING_STAGES,
+  legendFunctionLabel,
+  becomingStageLabel,
+  lifeModById,
+} from "../store.jsx";
+import {
+  Card,
+  MicroLabel,
+  Empty,
+  Btn,
+  Field,
+  TextArea,
+  Pill,
+  HelpBubble,
+  HelpText,
+} from "../components/ui.jsx";
 
 /* ------------------------------------------------------------------ */
 /* CONSTELLATION — the journey of a seed through the E3 practice loop   */
@@ -291,6 +311,22 @@ export default function Constellation() {
           </Card>
         </div>
       </div>
+
+      {/* lifemods — designed life changes */}
+      <section className="mt-12">
+        <div className="mb-5 flex items-center gap-4">
+          <MicroLabel>LifeMods</MicroLabel>
+          <HelpBubble title="LifeMods">
+            <HelpText
+              what="A LifeMod is a designed life change — a seed that matured, or a friction named directly."
+              why="A LifeMod does not ask 'How do I force myself to comply?' It asks 'What could I change so the next aligned action becomes clearer?'"
+              how="Grow one from a seed (its detail card), or name a friction below. Give it a legend function, work its Becoming Cycle, archive it when it is installed — or delete it when it no longer serves."
+            />
+          </HelpBubble>
+          <div className="h-px flex-1 bg-white/10" />
+        </div>
+        <LifeModsSection />
+      </section>
     </div>
   );
 }
@@ -368,6 +404,7 @@ function StarDetail({ star, axzio, onClose }) {
   const current =
     ALL_STAGES.find((s) => s.key === star.loopStage) || LOOP_STAGES[0];
   const rootedText = commitmentText(axzio.state, star.commitmentId);
+  const grownLifeMod = lifeModById(axzio.state, star.lifemodId);
 
   const exploreInReset = () => {
     if (axzio.requestResetFromStar(star.id)) {
@@ -377,6 +414,15 @@ function StarDetail({ star, axzio, onClose }) {
   const promote = () => {
     const c = axzio.addCommitment(star.name);
     if (c) axzio.linkStarCommitment(star.id, c.id);
+  };
+  const growLifeMod = () => {
+    // Door A: the seed matures into a LifeMod. addLifeMod links the
+    // star back via sourceStarId when origin is 'seed'.
+    axzio.addLifeMod(star.name, {
+      origin: "seed",
+      sourceStarId: star.id,
+      becomingStage: "capture",
+    });
   };
 
   return (
@@ -461,6 +507,34 @@ function StarDetail({ star, axzio, onClose }) {
       </div>
 
       <div className="mt-5">
+        <MicroLabel className="mb-3">Grow into a LifeMod</MicroLabel>
+        {grownLifeMod ? (
+          <div className="rounded-xl border border-white/20 bg-white/[0.03] p-4">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+              Growing as LifeMod
+            </p>
+            <p className="mt-1.5 text-[15px] leading-relaxed text-white">
+              {grownLifeMod.name}
+            </p>
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={growLifeMod}
+              className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
+            >
+              Make LifeMod
+            </button>
+            <p className="mt-2 text-[12px] leading-relaxed text-white/35">
+              A seed that has matured becomes a designed life change —
+              tracked through the Becoming Cycle.
+            </p>
+          </>
+        )}
+      </div>
+
+      <div className="mt-5">
         <button
           type="button"
           onClick={exploreInReset}
@@ -504,5 +578,357 @@ function CloseBtn({ onClose }) {
         <path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="currentColor" strokeWidth="1.3" />
       </svg>
     </button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* LifeMods — designed life changes. Two entry doors: grown from a     */
+/* seed (star detail's "Make LifeMod") or named directly from a        */
+/* friction (the capture below). No separate module: they live here,  */
+/* in the Constellation, summarized on the Deck.                       */
+/* ------------------------------------------------------------------ */
+
+function LifeModsSection() {
+  const axzio = useAxzio();
+  const { state } = axzio;
+  const [frictionText, setFrictionText] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
+
+  const lifemods = Array.isArray(state.lifemods) ? state.lifemods : [];
+  const active = lifemods.filter((m) => m.active !== false);
+  const archived = lifemods.filter((m) => m.active === false);
+
+  const create = (e) => {
+    e.preventDefault();
+    const t = frictionText.trim();
+    if (!t) return;
+    // Door B: name the friction directly — conceptually still a matured
+    // seed, just one that never went through the ignite loop.
+    const m = axzio.addLifeMod(t, { origin: "friction" });
+    if (m) {
+      setFrictionText("");
+      setExpandedId(m.id);
+    }
+  };
+
+  return (
+    <Card className="axzio-rise axzio-rise-3 p-6">
+      {/* door B: name a friction */}
+      <form onSubmit={create} className="mb-6">
+        <MicroLabel className="mb-3">Name a friction</MicroLabel>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Field
+            value={frictionText}
+            onChange={(e) => setFrictionText(e.target.value)}
+            placeholder="What repeatedly creates drag?"
+            maxLength={120}
+            aria-label="Name a friction"
+            className="flex-1"
+          />
+          <Btn type="submit" disabled={!frictionText.trim()}>
+            Create LifeMod
+          </Btn>
+        </div>
+        <p className="mt-2 text-[12px] leading-relaxed text-white/35">
+          Preexisting circumstances count too — a LifeMod can start from a
+          friction, not only from a seed.
+        </p>
+      </form>
+
+      {/* active lifemods */}
+      <div className="border-t border-white/10 pt-5">
+        <MicroLabel className="mb-3">
+          Active · {active.length}
+        </MicroLabel>
+        {active.length === 0 ? (
+          <Empty>
+            No active LifeMods — grow one from a seed, or name a friction
+            above.
+          </Empty>
+        ) : (
+          <div className="space-y-2">
+            {active.map((m) => (
+              <LifeModRow
+                key={m.id}
+                lifemod={m}
+                expanded={expandedId === m.id}
+                onToggle={() =>
+                  setExpandedId(expandedId === m.id ? null : m.id)
+                }
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* archived */}
+      {archived.length > 0 && (
+        <div className="mt-6 border-t border-white/10 pt-5">
+          <button
+            type="button"
+            onClick={() => setShowArchived((s) => !s)}
+            aria-expanded={showArchived}
+            className="text-[11px] uppercase tracking-[0.2em] text-white/45 transition-colors hover:text-white"
+          >
+            {showArchived ? "Hide archived" : `Show archived · ${archived.length}`}
+          </button>
+          {showArchived && (
+            <div className="mt-3 space-y-2">
+              {archived.map((m) => (
+                <LifeModRow
+                  key={m.id}
+                  lifemod={m}
+                  expanded={expandedId === m.id}
+                  onToggle={() =>
+                    setExpandedId(expandedId === m.id ? null : m.id)
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function LifeModRow({ lifemod, expanded, onToggle }) {
+  const fnLabel = legendFunctionLabel(lifemod.legendFunction);
+  const stageLabel = becomingStageLabel(lifemod.becomingStage);
+  return (
+    <div
+      className={`rounded-xl border transition-colors ${
+        expanded ? "border-white/30 bg-white/[0.02]" : "border-white/10"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-left"
+      >
+        <span className="min-w-0 flex-1 truncate text-[15px] text-white/90">
+          {lifemod.name || "Unnamed LifeMod"}
+        </span>
+        {fnLabel && <Pill>{fnLabel}</Pill>}
+        {stageLabel && <Pill tone="lit">{stageLabel}</Pill>}
+        <span className="text-[10px] uppercase tracking-[0.18em] text-white/35">
+          {lifemod.origin === "seed" ? "Grown from a seed" : "Named from friction"}
+        </span>
+      </button>
+      {expanded && <LifeModEditor lifemod={lifemod} />}
+    </div>
+  );
+}
+
+function LifeModEditor({ lifemod }) {
+  const axzio = useAxzio();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const m = lifemod;
+  const set = (patch) => axzio.updateLifeMod(m.id, patch);
+
+  return (
+    <div className="border-t border-white/10 px-4 py-5 md:px-6">
+      {/* name */}
+      <div className="mb-5">
+        <MicroLabel className="mb-2">Name</MicroLabel>
+        <Field
+          value={m.name}
+          onChange={(e) => set({ name: e.target.value })}
+          maxLength={120}
+          aria-label="LifeMod name"
+        />
+      </div>
+
+      {/* the book's five elements */}
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <MicroLabel className="mb-2">Friction</MicroLabel>
+          <TextArea
+            value={m.friction}
+            onChange={(e) => set({ friction: e.target.value })}
+            placeholder="What is creating drag?"
+            rows={2}
+            maxLength={600}
+            aria-label="Friction"
+          />
+        </div>
+        <div>
+          <MicroLabel className="mb-2">Current state</MicroLabel>
+          <TextArea
+            value={m.currentState}
+            onChange={(e) => set({ currentState: e.target.value })}
+            placeholder="Where it is now."
+            rows={2}
+            maxLength={600}
+            aria-label="Current state"
+          />
+        </div>
+        <div>
+          <MicroLabel className="mb-2">Desired state</MicroLabel>
+          <TextArea
+            value={m.desiredState}
+            onChange={(e) => set({ desiredState: e.target.value })}
+            placeholder="Where it wants to be."
+            rows={2}
+            maxLength={600}
+            aria-label="Desired state"
+          />
+        </div>
+        <div>
+          <MicroLabel className="mb-2">Next action</MicroLabel>
+          <Field
+            value={m.nextAction}
+            onChange={(e) => set({ nextAction: e.target.value })}
+            placeholder="The smallest concrete action that begins the modification."
+            maxLength={280}
+            aria-label="Next action"
+          />
+          <div className="mt-5 grid grid-cols-2 gap-5">
+            <TriState
+              label="Impact"
+              value={m.impact}
+              onChange={(v) => set({ impact: v })}
+            />
+            <TriState
+              label="Effort"
+              value={m.effort}
+              onChange={(v) => set({ effort: v })}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* legend function */}
+      <div className="mt-6">
+        <MicroLabel className="mb-3">Legend function</MicroLabel>
+        <div className="grid gap-2 md:grid-cols-2">
+          {LEGEND_FUNCTIONS.map((f) => {
+            const sel = m.legendFunction === f.key;
+            return (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => set({ legendFunction: sel ? null : f.key })}
+                aria-pressed={sel}
+                className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                  sel
+                    ? "border-white/60 bg-white/10"
+                    : "border-white/10 hover:border-white/35"
+                }`}
+              >
+                <p
+                  className={`text-[12px] uppercase tracking-[0.16em] ${
+                    sel ? "text-white" : "text-white/70"
+                  }`}
+                >
+                  {f.label}
+                </p>
+                <p className="mt-1 text-[13px] leading-snug text-white/45">
+                  {f.desc}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* becoming cycle stepper */}
+      <div className="mt-6">
+        <MicroLabel className="mb-3">Becoming Cycle</MicroLabel>
+        <div className="flex flex-wrap gap-2">
+          {BECOMING_STAGES.map((s, i) => {
+            const sel = m.becomingStage === s.key;
+            return (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => set({ becomingStage: s.key })}
+                aria-pressed={sel}
+                title={sel ? "Current stage" : `Move to ${s.label}`}
+                className={`rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+                  sel
+                    ? "border-white/70 bg-white/10 text-white"
+                    : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
+                }`}
+              >
+                <span className="mr-1.5 text-white/30">{i + 1}</span>
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-[12px] leading-relaxed text-white/35">
+          Placement is yours to declare — the cycle does not advance on its
+          own.
+        </p>
+      </div>
+
+      {/* archive / delete */}
+      <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-white/10 pt-5">
+        <Btn
+          variant="ghost"
+          onClick={() => axzio.setLifeModActive(m.id, !m.active)}
+        >
+          {m.active ? "Archive" : "Restore"}
+        </Btn>
+        {!confirmDelete ? (
+          <Btn variant="quiet" onClick={() => setConfirmDelete(true)} className="px-0">
+            Delete
+          </Btn>
+        ) : (
+          <span className="flex items-center gap-3">
+            <Btn variant="ghost" onClick={() => axzio.deleteLifeMod(m.id)}>
+              Confirm delete
+            </Btn>
+            <Btn variant="quiet" onClick={() => setConfirmDelete(false)}>
+              Keep it
+            </Btn>
+          </span>
+        )}
+        <span className="text-[12px] text-white/35">
+          {m.active
+            ? "Archiving keeps the record; deleting removes it."
+            : "Archived — restore to work it again."}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** Quiet Low / Med / High segmented control; tapping the selected clears it. */
+function TriState({ label, value, onChange }) {
+  const opts = [
+    { key: "low", label: "Low" },
+    { key: "med", label: "Med" },
+    { key: "high", label: "High" },
+  ];
+  return (
+    <div>
+      <p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-white/45">
+        {label}
+      </p>
+      <div className="flex gap-2">
+        {opts.map((o) => {
+          const sel = value === o.key;
+          return (
+            <button
+              key={o.key}
+              type="button"
+              onClick={() => onChange(sel ? null : o.key)}
+              aria-pressed={sel}
+              className={`rounded-lg border px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+                sel
+                  ? "border-white/60 bg-white/10 text-white"
+                  : "border-white/15 text-white/45 hover:border-white/40 hover:text-white"
+              }`}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
