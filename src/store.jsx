@@ -471,6 +471,9 @@ export const MONTHS_OF_YEAR = [
 function defaultState() {
   return {
     version: 1,
+    // Local mutation clock (ms epoch). Bumped on every store mutation;
+    // drives cloud last-write-wins. Old envelopes migrate to 0.
+    updatedAt: 0,
     identity: {
       name: "",
       // The four orientation statements (WE ARE ALCHEMY, ch. AUTHORSHIP).
@@ -1000,15 +1003,16 @@ function wouldCreateCycle(items, itemId, newParentId) {
   return descendantIds(items, itemId).includes(newParentId);
 }
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState();
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("unexpected shape");
-    }
-    const base = defaultState();
+/**
+ * Normalize a raw persisted envelope (from localStorage or the cloud)
+ * into a valid state object. Never throws on bad input — repairs or
+ * falls back to defaults. Exported so cloud pulls can reuse it.
+ */
+export function normalizeState(parsed) {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return defaultState();
+  }
+  const base = defaultState();
 
     /* Migrate the pre-e-book identity shape: the old "authored identity"
        field becomes the first orientation statement, the old "core
@@ -1105,7 +1109,19 @@ function loadState() {
           : null,
       modes: normalizeModes(parsed.modes),
       resets: normalizeResets(parsed.resets),
+      // Cloud sync: local mutation clock. Old envelopes predate it → 0.
+      updatedAt:
+        Number.isFinite(parsed.updatedAt) && parsed.updatedAt > 0
+          ? Math.floor(parsed.updatedAt)
+          : 0,
     };
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultState();
+    return normalizeState(JSON.parse(raw));
   } catch {
     // Corrupted storage: quarantine the raw value, start clean.
     try {
@@ -1145,10 +1161,12 @@ export function AxzioProvider({ children }) {
   }, [state]);
 
   // Deep-clone, mutate the draft, replace. State is JSON-safe.
+  // Every mutation bumps the local mutation clock (cloud sync).
   const update = (fn) =>
     setState((prev) => {
       const next = JSON.parse(JSON.stringify(prev));
       fn(next);
+      next.updatedAt = Date.now();
       return next;
     });
 
@@ -1954,6 +1972,14 @@ export function AxzioProvider({ children }) {
     },
 
     /* nuclear option */
+    /**
+     * Replace the entire state envelope (used by cloud sync pulls).
+     * Normalizes defensively; never throws on bad input. The caller is
+     * responsible for suppressing the echo upsert.
+     */
+    replaceState(next) {
+      setState(normalizeState(next));
+    },
     resetAll() {
       const fresh = defaultState();
       setState(fresh);
@@ -1965,9 +1991,22 @@ export function AxzioProvider({ children }) {
     },
   };
 
+  /* Test hook for the headless verification harness (file:// only):
+     lets the harness drive store mutations. Absent on real deployments. */
+  if (typeof window !== "undefined" && window.location.protocol === "file:") {
+    window.__axzioTestHooks = window.__axzioTestHooks || {};
+    window.__axzioTestHooks.api = api;
+  }
+
   return (
     <AxzioContext.Provider value={api}>{children}</AxzioContext.Provider>
   );
+}
+
+/* Test hook: the headless verification harness (file:// only) drives store
+   mutations through this. Never present on real deployments. */
+if (typeof window !== "undefined" && window.location.protocol === "file:") {
+  window.__axzioTestHooks = window.__axzioTestHooks || {};
 }
 
 function clamp(v) {

@@ -3,6 +3,8 @@ import { useAxzio } from "./store.jsx";
 import Starfield from "./components/Starfield.jsx";
 import Boot from "./views/Boot.jsx";
 import Onboarding from "./views/Onboarding.jsx";
+import SupabaseSetup from "./components/SupabaseSetup.jsx";
+import AccountControl from "./components/AccountControl.jsx";
 import Deck from "./views/Deck.jsx";
 import Constellation from "./views/Constellation.jsx";
 import Identity from "./views/Identity.jsx";
@@ -82,6 +84,7 @@ export default function App() {
           <Onboarding onComplete={onboardingDone} />
         </div>
       )}
+      <SupabaseSetup />
     </div>
   );
 }
@@ -129,6 +132,7 @@ function TopNav({ route, name }) {
         <span className="hidden max-w-[160px] truncate text-[11px] uppercase tracking-[0.22em] text-white/40 sm:block">
           {name || "Traveler"}
         </span>
+        <AccountControl />
       </div>
     </header>
   );

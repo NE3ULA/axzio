@@ -568,6 +568,72 @@ npm run build    # production build → dist/
 npm run preview  # serve the production build locally
 ```
 
+## Supabase — auth + cloud sync
+
+User login with real persistence. The repo holds **zero secrets**: the
+Supabase Project URL + anon key are entered once by the user in the
+in-app setup screen and stored in localStorage (`axzio-supabase-config`).
+The anon key is public-safe by design; row-level security protects data.
+
+### One-time project setup (done by the user in the Supabase dashboard)
+
+1. Create a project (or reuse an existing one).
+2. SQL Editor → run:
+
+```sql
+create table public.axzio_state (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  state jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.axzio_state enable row level security;
+create policy "own row" on public.axzio_state
+  for all using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+```
+
+3. Project Settings → API → copy the Project URL and anon key into the
+   app's "Connect Supabase" card.
+4. Optional: Authentication → Providers → Email → disable "Confirm email"
+   for frictionless testing (otherwise sign-up requires email confirmation
+   before the first session).
+
+### App-side design (`src/supabase.js`, `src/cloud.jsx`)
+
+- **Config**: lazy client singleton built from the localStorage config;
+  no network calls at import time. `isSupabaseConfigured()`,
+  `getClient()`, `clearConfig()`.
+- **Setup screen**: when unconfigured and not skipped, a modal on boot
+  ("Connect Supabase") with URL + key inputs, validation, and a "Use
+  offline for now" skip. Skipping stores `axzio-supabase-skipped`; the nav
+  keeps a quiet "Connect" entry to reopen setup. The app never blocks.
+- **Auth**: email + password only (no magic link — avoids redirect-URL
+  configuration across surfaces). `signUp` / `signIn` / `signOut` via
+  `supabase.auth`; sessions persist via the client's built-in storage.
+- **Sync engine** (`CloudProvider`, inside `AxzioProvider`):
+  - Every store mutation bumps a top-level `updatedAt` (ms epoch) on the
+    state envelope; old envelopes migrate to `0`.
+  - Boot with an active session: fetch the cloud row. No row → push
+    local. Fresh local (no envelope at boot) → pull cloud. Both →
+    **last-write-wins**: newer of `updated_at` / `updatedAt` wins.
+  - After every mutation: debounced ~1.5s upsert of
+    `{ user_id, state, updated_at: now() }`. Pulls suppress the echo
+    upsert via a last-synced `updatedAt` watermark (no timing hacks).
+  - Sign-out stops syncing; local data stays intact. Sign-in re-runs the
+    boot merge.
+  - Failures (offline, RLS, network) fail soft: localStorage remains the
+    source of truth, sync retries on the next mutation/boot. A quiet
+    sync dot near the account control shows synced / syncing / offline.
+- **Conflict rule**: last-write-wins. Two devices editing simultaneously
+  resolve to whichever wrote last; no merge, no prompts. Documented
+  limitation, acceptable for a single-user phase.
+
+### Account UI
+
+Top nav: "Connect" (unconfigured) → "Sign in" (configured, signed out;
+email/password modal with Sign in / Create account tabs) → email +
+sync dot + "Sign out" (signed in). On-brand, quiet.
+
 ## Tribe v1 (thin local foundation)
 
 A people directory seeded by the Give Love practice — the core-group
@@ -602,8 +668,7 @@ count; financial contributions).
 
 ## Deliberately left for v2
 
-- **Backend sync** — state is local-only; a sync layer (account,
-  multi-device) is stubbed out, not designed.
+- **Multi-device merge** — sync is last-write-wins; no field-level merge.
 - **ne3ulaverse quest integration** — journey completions are natural
   hooks for quest/progression systems; no game logic lives here per
   repo boundaries.
