@@ -1043,9 +1043,9 @@ function FocusItemEditor({
             <MicroLabel>Serves commitment</MicroLabel>
             <HelpBubble title="Serves commitment">
               <HelpText
-                what="Links this action to one of your identity commitments."
+                what="Links this action to one of your identity commitments — a standing promise like your health, your marriage, your work. Commitments are bigger and more general than tasks: the thing the tasks are for."
                 why="This is the thread that makes Focus more than a to-do list: every action can be read as serving — or drifting from — who you're choosing to become."
-                how="Pick the commitment this action moves forward. The Deck's readings use these links."
+                how="Pick the commitment this action moves forward. The ladder runs: task → goal → commitment → identity. (Goals — concrete outcomes with horizons — get their own structure later; for now a commitment plus a timeframe priority covers that ground.)"
               />
             </HelpBubble>
           </div>

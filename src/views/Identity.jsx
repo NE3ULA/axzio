@@ -290,12 +290,20 @@ function CommitmentList() {
 
   return (
     <div>
-      <MicroLabel className="mb-2">
-        Commitments{" "}
-        <span className="text-white/30">
-          — ordered, 1 is highest priority
-        </span>
-      </MicroLabel>
+      <div className="mb-2 flex items-center gap-2">
+        <MicroLabel>
+          Commitments{" "}
+          <span className="text-white/30">— ordered, 1 is highest priority</span>
+        </MicroLabel>
+        <HelpBubble title="Commitments">
+          <HelpText
+            what="Standing promises, not finish lines: ongoing allegiances like your marriage, your work, your health. You never complete a commitment — you serve it or neglect it."
+            why="Tasks tell you what's next; commitments tell you what it's all for. Linking actions to commitments keeps the doing aligned with the being."
+            how="Name a few in your own words — areas of life, key relationships, major projects. Order them with 1 as the highest allegiance. Focus items can then “serve” a commitment."
+            example="“My marriage. Building AXZIO. My physical health. Being a present father.” Not “File taxes” — that's a task. A commitment is bigger and more general: the thing the tasks are for."
+          />
+        </HelpBubble>
+      </div>
       {commitments.length === 0 && (
         <p className="mb-3 text-sm text-white/35">None named yet.</p>
       )}
