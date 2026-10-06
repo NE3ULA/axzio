@@ -31,7 +31,8 @@ export default function SupabaseSetup() {
     }
     setSaving(true);
     try {
-      await saveSetup(u, k);
+      const res = await saveSetup(u, k);
+      if (res?.error) setError(res.error);
     } finally {
       setSaving(false);
     }

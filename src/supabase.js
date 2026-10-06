@@ -39,8 +39,15 @@ function removeRaw(key) {
   }
 }
 
+/** In-memory fallback: some sandboxes silently drop localStorage writes.
+ *  The config always lives here for the session; localStorage is a
+ *  best-effort persistence layer on top. */
+let memoryConfig = null;
+
 /** { url, anonKey } or null when never saved. */
 export function getSupabaseConfig() {
+  if (memoryConfig && memoryConfig.url && memoryConfig.anonKey)
+    return memoryConfig;
   const raw = readRaw(SUPABASE_CONFIG_KEY);
   if (!raw) return null;
   try {
@@ -48,9 +55,12 @@ export function getSupabaseConfig() {
     if (
       parsed &&
       typeof parsed.url === "string" &&
-      typeof parsed.anonKey === "string"
+      typeof parsed.anonKey === "string" &&
+      parsed.url.trim() &&
+      parsed.anonKey.trim()
     ) {
-      return { url: parsed.url.trim(), anonKey: parsed.anonKey.trim() };
+      memoryConfig = { url: parsed.url.trim(), anonKey: parsed.anonKey.trim() };
+      return memoryConfig;
     }
   } catch {
     /* malformed — treat as absent */
@@ -64,15 +74,17 @@ export function looksLikeSupabaseUrl(url) {
 }
 
 export function saveSupabaseConfig(url, anonKey) {
-  writeRaw(
-    SUPABASE_CONFIG_KEY,
-    JSON.stringify({ url: url.trim(), anonKey: anonKey.trim() })
-  );
+  const cfg = { url: url.trim(), anonKey: anonKey.trim() };
+  memoryConfig = cfg; // session truth — always works
+  writeRaw(SUPABASE_CONFIG_KEY, JSON.stringify(cfg)); // best-effort persist
   removeRaw(SUPABASE_SKIPPED_KEY);
   dropClient();
+  // Verify the save actually stuck; callers can surface this.
+  return getSupabaseConfig() != null;
 }
 
 export function clearSupabaseConfig() {
+  memoryConfig = null;
   removeRaw(SUPABASE_CONFIG_KEY);
   dropClient();
 }
@@ -96,6 +108,7 @@ export function isSupabaseConfigured() {
 }
 
 let client = null;
+let clientError = null;
 
 /** Lazily built singleton; null when unconfigured. No network at import. */
 export function getSupabaseClient() {
@@ -106,14 +119,22 @@ export function getSupabaseClient() {
     client = createClient(cfg.url, cfg.anonKey, {
       auth: { persistSession: true, autoRefreshToken: true },
     });
-  } catch {
+    clientError = null;
+  } catch (e) {
     client = null;
+    clientError = e?.message || String(e);
   }
   return client;
 }
 
+/** Why the client failed to initialize, if it did. */
+export function getClientError() {
+  return clientError;
+}
+
 function dropClient() {
   client = null;
+  clientError = null;
 }
 
 /**

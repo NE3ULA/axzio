@@ -22,6 +22,8 @@ import {
   CLOUD_TABLE,
   decideSyncDirection,
   getSupabaseClient,
+  getClientError,
+  getSupabaseConfig,
   isSupabaseConfigured,
   saveSupabaseConfig,
   clearSupabaseConfig,
@@ -191,11 +193,13 @@ export function CloudProvider({ children }) {
 
   const saveSetup = useCallback(
     async (url, anonKey) => {
-      saveSupabaseConfig(url, anonKey);
+      const ok = saveSupabaseConfig(url, anonKey);
+      if (!ok) return { error: "The configuration couldn't be saved in this browser. Please try again." };
       mergeRanRef.current = false;
       setConfigured(true);
       setShowSetup(false);
       // The configured-effect picks up from here and runs the merge.
+      return { ok: true };
     },
     []
   );
@@ -228,7 +232,19 @@ export function CloudProvider({ children }) {
 
   const signUp = useCallback(async (email, password) => {
     const client = getSupabaseClient();
-    if (!client) return { error: "Supabase is not connected." };
+    if (!client) {
+      if (!getSupabaseConfig())
+        return {
+          error:
+            "The Supabase configuration wasn't saved. Please re-enter your Project URL and anon key.",
+        };
+      return {
+        error:
+          "Couldn't start the Supabase client. " +
+          (getClientError() ||
+            "Check that the Project URL looks like https://xyz.supabase.co and the anon key is correct."),
+      };
+    }
     setAuthBusy(true);
     try {
       const { data, error } = await client.auth.signUp({ email, password });
@@ -247,7 +263,19 @@ export function CloudProvider({ children }) {
 
   const signIn = useCallback(async (email, password) => {
     const client = getSupabaseClient();
-    if (!client) return { error: "Supabase is not connected." };
+    if (!client) {
+      if (!getSupabaseConfig())
+        return {
+          error:
+            "The Supabase configuration wasn't saved. Please re-enter your Project URL and anon key.",
+        };
+      return {
+        error:
+          "Couldn't start the Supabase client. " +
+          (getClientError() ||
+            "Check that the Project URL looks like https://xyz.supabase.co and the anon key is correct."),
+      };
+    }
     setAuthBusy(true);
     try {
       const { data, error } = await client.auth.signInWithPassword({
