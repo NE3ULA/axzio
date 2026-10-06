@@ -18,6 +18,7 @@ import {
   useState,
 } from "react";
 import { useAxzio, STORAGE_KEY } from "./store.jsx";
+import { peekOutbox, dropEvents } from "./events.js";
 import {
   CLOUD_TABLE,
   decideSyncDirection,
@@ -188,6 +189,47 @@ export function CloudProvider({ children }) {
     }, 1500);
     return () => clearTimeout(t);
   }, [state, configured, user, pushState]);
+
+  /* Event journal drain: append-only history for readings + future AI.d.
+     Signed-in only; missing table / offline → events stay queued. */
+  const drainEvents = useCallback(async () => {
+    const client = getSupabaseClient();
+    if (!client) return;
+    let sessionUser = null;
+    try {
+      const {
+        data: { session },
+      } = await client.auth.getSession();
+      sessionUser = session?.user ?? null;
+    } catch {
+      return;
+    }
+    if (!sessionUser) return;
+    const queued = peekOutbox();
+    if (!queued.length) return;
+    const batch = queued.slice(0, 100);
+    try {
+      const { error } = await client.from("axzio_events").insert(
+        batch.map((e) => ({
+          user_id: sessionUser.id,
+          ts: new Date(e.ts).toISOString(),
+          type: e.type,
+          payload: e.payload,
+        }))
+      );
+      if (!error) dropEvents(batch.map((e) => e.id));
+      // On error (e.g. table not created yet): keep queued, retry later.
+    } catch {
+      /* soft-fail */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!configured || !user) return;
+    drainEvents();
+    const t = setInterval(drainEvents, 45000);
+    return () => clearInterval(t);
+  }, [configured, user, drainEvents]);
 
   /* ---------- setup ---------- */
 

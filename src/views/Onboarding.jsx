@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import {
   useAxzio,
   BATTERY,
+  ORIENTATION_STATEMENTS,
   localDateKey,
   getDayState,
 } from "../store.jsx";
 import { Card, MicroLabel, Btn, Field, TextArea } from "../components/ui.jsx";
 import ModePicker from "../components/ModePicker.jsx";
-import { ORIENTATION_STATEMENTS } from "./Identity.jsx";
 
 /* ------------------------------------------------------------------ */
 /* ONBOARDING — first-use walkthrough + setup sequence.                 */

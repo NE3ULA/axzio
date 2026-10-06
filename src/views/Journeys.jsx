@@ -5,6 +5,14 @@ import {
   TAGS,
   LAUNCH_STAGES,
   RESET_FIELDS,
+  BATTERY,
+  FRICTION_READINGS,
+  frictionReadingLabel,
+  READINESS_DIMS,
+  LIFEMOD_PLAIN_TYPES,
+  lifemodPlainTypeLabel,
+  INTEGRATE_CHOICES,
+  integrateChoiceLabel,
   localDateKey,
   formatLongDate,
   getDayState,
@@ -231,6 +239,15 @@ function LaunchSequenceLocator() {
    a Situation, then the Alchemist Path with a LifeMod before Integrate. */
 const RESET_STEPS = [
   {
+    id: "rbattery",
+    field: "batteryNote",
+    title: "Hear the instrument",
+    phase: "Reveal",
+    prompt:
+      "Before forcing the performance, hear the instrument. Which dimension is asking for attention in this situation — and which remains available?",
+    placeholder: "The dimension asking for attention is… what's available is…",
+  },
+  {
     id: "rsituation",
     field: "situation",
     title: "Name the situation",
@@ -358,20 +375,20 @@ const JOURNEYS = [
     kicker: "Reset passage",
     title: "Guided Reset",
     blurb:
-      "Meet one real situation with seven movements and leave with an Action Card.",
+      "Meet one real situation with eight movements and leave with an Action Card.",
     phaseLine:
-      "Situation → Reveal → Interpret → Align → Act → LifeMod → Integrate",
+      "Battery → Situation → Reveal → Interpret → Align → Act → LifeMod → Integrate",
     help: {
       title: "Guided Reset",
-      what: "A seven-field reset practice — Situation, then Reveal → Interpret → Align → Act, a LifeMod, and Integrate — ending in an Action Card.",
+      what: "An eight-movement reset practice — battery scan, Situation, then Reveal → Interpret → Align → Act, a LifeMod, and Integrate — ending in an Action Card.",
       why: "Meet one real situation with the full Alchemist Path instead of letting it stay fog.",
-      how: "Answer each field; on completion you receive an Action Card you can copy. It can also be triggered from any Focus decision via “Explore in Guided Reset”. Private by default — stored only in this browser, nothing leaves this device.",
+      how: "Answer each movement; on completion you receive an Action Card you can copy. It can also be triggered from any Focus decision via “Explore in Guided Reset”. Private by default — stored only in this browser, nothing leaves this device.",
     },
     steps: RESET_STEPS.map((s) => ({
       id: s.id,
       title: s.title,
       phase: s.phase,
-      render: ResetFieldStep,
+      render: s.id === "rintegrate" ? IntegrateStep : ResetFieldStep,
     })),
     done: {
       title: "The reset is sealed.",
@@ -537,16 +554,24 @@ function StepContinue({ stepId, scratch, setScratch, onNext, last }) {
         if (scratch.starAction?.trim()) axzio.addAction(scratch.starAction.trim(), "building");
         break;
       case "rintegrate": {
-        // Completing the Guided Reset: persist all seven fields as one
-        // reset, keeping the thread back to a triggering Focus decision.
+        // Completing the Guided Reset: persist all fields as one
+        // reset, keeping the thread back to a triggering Focus decision
+        // or Constellation seed. Integrate lands as a choice + review
+        // date rather than free text.
         const entry = axzio.saveReset({
           situation: scratch.rsituation,
+          batteryNote: scratch.rbattery,
           reveal: scratch.rreveal,
           interpret: scratch.rinterpret,
           align: scratch.ralign,
           act: scratch.ract,
           lifemod: scratch.rlifemod,
-          integrate: scratch.rintegrate,
+          integrate: "",
+          frictionReading: scratch.rfriction || null,
+          readiness: scratch.rreadiness || null,
+          lifemodType: scratch.rlifemodType || null,
+          integrateChoice: scratch.rintegrateChoice || null,
+          reviewDate: scratch.rintegrateDate || null,
           sourceItemId: scratch._sourceItemId || null,
           sourceStarId: scratch._sourceStarId || null,
         });
@@ -583,7 +608,14 @@ function StepContinue({ stepId, scratch, setScratch, onNext, last }) {
       default:
         break;
     }
-    // Guided Reset steps: each field is required to continue.
+    // Guided Reset steps: battery + text fields are required; interpret
+    // also requires the friction reading; integrate requires the choice.
+    if (stepId === "rinterpret") {
+      return !!scratch.rinterpret?.trim() && !!scratch.rfriction;
+    }
+    if (stepId === "rintegrate") {
+      return !!scratch.rintegrateChoice;
+    }
     if (RESET_STEPS.some((s) => s.id === stepId)) {
       return !!scratch[stepId]?.trim();
     }
@@ -845,6 +877,7 @@ function ResetFieldStep({ stepId, scratch, setScratch }) {
       <p className="mb-5 max-w-lg text-[15px] leading-relaxed text-white/60">
         {cfg.prompt}
       </p>
+      {stepId === "rbattery" && <BatteryScan />}
       <TextArea
         value={scratch[stepId] || ""}
         onChange={(e) =>
@@ -855,6 +888,214 @@ function ResetFieldStep({ stepId, scratch, setScratch }) {
         maxLength={600}
         autoFocus
       />
+      {stepId === "rinterpret" && (
+        <FrictionPills scratch={scratch} setScratch={setScratch} />
+      )}
+      {stepId === "ract" && (
+        <ReadinessChips scratch={scratch} setScratch={setScratch} />
+      )}
+      {stepId === "rlifemod" && (
+        <LifeModTypePills scratch={scratch} setScratch={setScratch} />
+      )}
+    </div>
+  );
+}
+
+/* Battery scan — "hear the instrument before forcing the performance."
+   Shows today's readings; the note names what's asking and what's
+   available in the context of this situation. */
+function BatteryScan() {
+  const { state } = useAxzio();
+  const day = getDayState(state, localDateKey());
+  const anySet = BATTERY.some((b) => Number.isFinite(day.battery?.[b.key]));
+  return (
+    <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+      <MicroLabel className="mb-3">Today's instrument</MicroLabel>
+      {!anySet ? (
+        <p className="text-[13px] leading-relaxed text-white/45">
+          No battery reading today yet — answer from feel; the Deck's State
+          card holds the daily check.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {BATTERY.map((b) => {
+            const v = day.battery?.[b.key];
+            const p = day.batteryPriority?.[b.key];
+            return (
+              <li
+                key={b.key}
+                className="flex items-center justify-between gap-3 text-[13px]"
+              >
+                <span className="text-white/60">{b.label}</span>
+                <span className="text-white/85">
+                  {Number.isFinite(v) ? `${v}/10` : "—"}
+                  {p === "high" && (
+                    <span className="ml-2 text-[10px] uppercase tracking-[0.18em] text-white/40">
+                      priority
+                    </span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* Friction reading — the required Eisenhower companion: is this friction
+   evidence of misalignment, or the pressure of growth? */
+function FrictionPills({ scratch, setScratch }) {
+  return (
+    <div className="mt-5">
+      <MicroLabel className="mb-2.5">
+        Friction check — misalignment or growth?
+      </MicroLabel>
+      <div className="flex flex-wrap gap-2">
+        {FRICTION_READINGS.map((f) => {
+          const on = scratch.rfriction === f.key;
+          return (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() =>
+                setScratch((s) => ({ ...s, rfriction: on ? null : f.key }))
+              }
+              className={`rounded-lg px-4 py-2 text-[11px] font-medium uppercase tracking-[0.18em] transition-colors ${
+                on
+                  ? "bg-white/10 text-white"
+                  : "text-white/45 hover:text-white"
+              }`}
+            >
+              {f.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* Readiness check — confidence as an activatable state, at action time. */
+function ReadinessChips({ scratch, setScratch }) {
+  const cur = scratch.rreadiness || {};
+  const toggle = (key) =>
+    setScratch((s) => ({
+      ...s,
+      rreadiness: { ...(s.rreadiness || {}), [key]: !s.rreadiness?.[key] },
+    }));
+  return (
+    <div className="mt-5">
+      <MicroLabel className="mb-2.5">
+        Readiness — do you have what this action needs right now?
+      </MicroLabel>
+      <div className="flex flex-wrap gap-2">
+        {READINESS_DIMS.map((d) => {
+          const on = cur[d.key] === true;
+          return (
+            <button
+              key={d.key}
+              type="button"
+              onClick={() => toggle(d.key)}
+              aria-pressed={on}
+              className={`rounded-lg px-4 py-2 text-[11px] font-medium uppercase tracking-[0.18em] transition-colors ${
+                on
+                  ? "bg-white/10 text-white"
+                  : "text-white/45 hover:text-white"
+              }`}
+            >
+              {d.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* LifeMod plain types — the capture surface; the 8 legend functions stay
+   the deeper classification inside the LifeMod editor. */
+function LifeModTypePills({ scratch, setScratch }) {
+  return (
+    <div className="mt-5">
+      <MicroLabel className="mb-2.5">What kind of change is it?</MicroLabel>
+      <div className="flex flex-wrap gap-2">
+        {LIFEMOD_PLAIN_TYPES.map((t) => {
+          const on = scratch.rlifemodType === t.key;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() =>
+                setScratch((s) => ({
+                  ...s,
+                  rlifemodType: on ? null : t.key,
+                }))
+              }
+              className={`rounded-lg px-4 py-2 text-[11px] font-medium uppercase tracking-[0.18em] transition-colors ${
+                on
+                  ? "bg-white/10 text-white"
+                  : "text-white/45 hover:text-white"
+              }`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* Integrate — Retain / Revise / Release / Repeat + a scheduled return
+   point carried on the Action Card. */
+function IntegrateStep({ scratch, setScratch }) {
+  return (
+    <div>
+      <p className="mb-5 max-w-lg text-[15px] leading-relaxed text-white/60">
+        How does this reset land — and when will you revisit it?
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {INTEGRATE_CHOICES.map((c) => {
+          const on = scratch.rintegrateChoice === c.key;
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() =>
+                setScratch((s) => ({
+                  ...s,
+                  rintegrateChoice: on ? null : c.key,
+                }))
+              }
+              className={`rounded-xl border p-4 text-left transition-colors ${
+                on
+                  ? "border-white/40 bg-white/[0.06]"
+                  : "border-white/10 hover:border-white/25"
+              }`}
+            >
+              <div className="text-[13px] font-medium uppercase tracking-[0.18em] text-white/90">
+                {c.label}
+              </div>
+              <div className="mt-1 text-[12px] leading-relaxed text-white/45">
+                {c.desc}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-5">
+        <MicroLabel className="mb-1.5">Revisit on (optional)</MicroLabel>
+        <input
+          type="date"
+          value={scratch.rintegrateDate || ""}
+          onChange={(e) =>
+            setScratch((s) => ({ ...s, rintegrateDate: e.target.value || null }))
+          }
+          className="w-full max-w-xs rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[14px] text-white focus:border-white/50 focus:outline-none"
+        />
+      </div>
     </div>
   );
 }
@@ -874,6 +1115,32 @@ function formatResetCard(reset, sourceLine) {
     if (!text) continue;
     lines.push(f.label.toUpperCase());
     lines.push(text);
+    lines.push("");
+  }
+  // Structured reading block.
+  const reading = [];
+  if (reset.frictionReading) {
+    reading.push(`Friction: ${frictionReadingLabel(reset.frictionReading)}`);
+  }
+  if (reset.readiness) {
+    const dims = READINESS_DIMS.filter((d) => reset.readiness[d.key]).map(
+      (d) => d.label
+    );
+    if (dims.length) reading.push(`Readiness: ${dims.join(", ")}`);
+  }
+  if (reset.lifemodType) {
+    reading.push(`LifeMod type: ${lifemodPlainTypeLabel(reset.lifemodType)}`);
+  }
+  if (reset.integrateChoice) {
+    reading.push(
+      `Integrate: ${integrateChoiceLabel(reset.integrateChoice)}${
+        reset.reviewDate ? ` — revisit ${reset.reviewDate}` : ""
+      }`
+    );
+  }
+  if (reading.length) {
+    lines.push("READING");
+    lines.push(...reading);
     lines.push("");
   }
   return lines.join("\n").trim();
@@ -1013,6 +1280,82 @@ function ResetActionCard({ resetId, onBack, onRestart, allowDelete = false }) {
             </div>
           );
         })}
+
+        {/* Canonical reading block: friction, readiness, LifeMod type,
+            and how the reset lands + its review date. */}
+        {(reset.frictionReading ||
+          reset.readiness ||
+          reset.lifemodType ||
+          reset.integrateChoice) && (
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+            <MicroLabel className="mb-3">Reading</MicroLabel>
+            <ul className="space-y-1.5 text-[14px] leading-relaxed text-white/75">
+              {reset.frictionReading && (
+                <li>
+                  Friction reads as{" "}
+                  <span className="text-white">
+                    {frictionReadingLabel(reset.frictionReading)}
+                  </span>
+                  .
+                </li>
+              )}
+              {reset.readiness &&
+                READINESS_DIMS.some((d) => reset.readiness[d.key]) && (
+                  <li>
+                    Readiness:{" "}
+                    <span className="text-white">
+                      {READINESS_DIMS.filter((d) => reset.readiness[d.key])
+                        .map((d) => d.label.toLowerCase())
+                        .join(", ")}
+                    </span>
+                    .
+                  </li>
+                )}
+              {reset.lifemodType && (
+                <li>
+                  LifeMod type:{" "}
+                  <span className="text-white">
+                    {lifemodPlainTypeLabel(reset.lifemodType)}
+                  </span>
+                  .
+                </li>
+              )}
+              {reset.integrateChoice && (
+                <li>
+                  {integrateChoiceLabel(reset.integrateChoice)}
+                  {reset.reviewDate
+                    ? ` — revisit ${formatLongDate(reset.reviewDate)}`
+                    : ""}
+                  .
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
+
+        {/* Grow the LifeMod step into a real LifeMod. */}
+        {reset.lifemod?.trim() && !reset.lifemodId && (
+          <div>
+            <Btn
+              variant="quiet"
+              onClick={() => {
+                const lm = axzio.addLifeMod(reset.lifemod.trim().slice(0, 120), {
+                  origin: "friction",
+                  friction: reset.lifemod.trim(),
+                  legendFunction: null,
+                });
+                if (lm) axzio.linkResetLifeMod(reset.id, lm.id);
+              }}
+            >
+              Grow into a LifeMod
+            </Btn>
+          </div>
+        )}
+        {reset.lifemodId && (
+          <p className="text-[12px] uppercase tracking-[0.18em] text-white/40">
+            Grown into a LifeMod — find it in the Constellation.
+          </p>
+        )}
       </div>
 
       <p className="mt-8 border-t border-white/10 pt-4 text-[12px] leading-relaxed tracking-wide text-white/40">

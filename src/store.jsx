@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { logEvent } from "./events.js";
 
 /* ------------------------------------------------------------------ */
 /* AXZIO state store — single source of truth, persisted to localStorage */
@@ -43,8 +44,32 @@ export const MANTRA = [
    named and asks for something specific, saved per day under
    days[date].orientation. A practice counts as complete when it has text;
    the done flag can also be set/cleared by hand. */
-export const ORIENTATION_PRACTICES = [
+/* The four orientation statements (WE ARE ALCHEMY, ch. AUTHORSHIP):
+   provisional, honest enough to guide an ordinary Tuesday.
+   Shared by Identity, the walkthrough, and Recalibrate. */
+export const ORIENTATION_STATEMENTS = [
   {
+    key: "becoming",
+    prompt: "I am choosing to become someone who…",
+    placeholder: "Name the quality or orientation in active terms…",
+  },
+  {
+    key: "standFor",
+    prompt: "I stand for…",
+    placeholder: "Name the principles that should remain recognizable across conditions…",
+  },
+  {
+    key: "practice",
+    prompt: "I practice…",
+    placeholder: "Name the behaviors through which the identity becomes visible…",
+  },
+  {
+    key: "returnThrough",
+    prompt: "When I drift, I return through…",
+    placeholder: "Name the ritual, question, boundary, or action that restores contact…",
+  },
+];
+export const ORIENTATION_PRACTICES = [  {
     key: "gratitude",
     label: "Be Grateful",
     prompt: "What are you grateful for right now?",
@@ -329,12 +354,63 @@ function normalizePeople(raw) {
    Reveal → Interpret → Align → Act — plus a LifeMod, then Integrate. */
 export const RESET_FIELDS = [
   { key: "situation", label: "Situation" },
+  { key: "batteryNote", label: "Battery" },
   { key: "reveal", label: "Reveal" },
   { key: "interpret", label: "Interpret" },
   { key: "align", label: "Align" },
   { key: "act", label: "Act" },
   { key: "lifemod", label: "LifeMod" },
   { key: "integrate", label: "Integrate" },
+];
+
+/* Plain LifeMod intervention types (canonical 10-minute practice) — the
+   capture surface on the Reset's LifeMod step. The 8 legend functions
+   remain the deeper classification inside the LifeMod editor. */
+export const LIFEMOD_PLAIN_TYPES = [
+  { key: "environment", label: "Environment" },
+  { key: "boundary", label: "Boundary" },
+  { key: "scope", label: "Scope" },
+  { key: "rhythm", label: "Rhythm" },
+  { key: "support", label: "Support" },
+  { key: "framing", label: "Framing" },
+];
+
+export function lifemodPlainTypeLabel(key) {
+  const t = LIFEMOD_PLAIN_TYPES.find((t) => t.key === key);
+  return t ? t.label : null;
+}
+
+/* Integrate choices — how the reset lands (canonical practice). */
+export const INTEGRATE_CHOICES = [
+  { key: "retain", label: "Retain", desc: "Keep what worked; let it hold." },
+  { key: "revise", label: "Revise", desc: "Adjust the approach and try again." },
+  { key: "release", label: "Release", desc: "Let it go; the loop is complete." },
+  { key: "repeat", label: "Repeat", desc: "Run it again as a practice loop." },
+];
+
+export function integrateChoiceLabel(key) {
+  const c = INTEGRATE_CHOICES.find((c) => c.key === key);
+  return c ? c.label : null;
+}
+
+/* Friction reading — the required Eisenhower companion question. */
+export const FRICTION_READINGS = [
+  { key: "misalignment", label: "Misalignment" },
+  { key: "growth", label: "Growth" },
+  { key: "both", label: "Both" },
+];
+
+export function frictionReadingLabel(key) {
+  const f = FRICTION_READINGS.find((f) => f.key === key);
+  return f ? f.label : null;
+}
+
+/* Readiness check — confidence as an activatable state, at action time. */
+export const READINESS_DIMS = [
+  { key: "curiosity", label: "Curious" },
+  { key: "competence", label: "Competent" },
+  { key: "congruence", label: "Congruent" },
+  { key: "connection", label: "Connected" },
 ];
 
 /** All tags usable on actions: mantra anchors + primitives. */
@@ -635,12 +711,34 @@ function normalizeResets(raw) {
       ts: Number(r.ts) || 0,
       date: typeof r.date === "string" ? r.date : "",
       situation: String(r.situation ?? ""),
+      batteryNote: String(r.batteryNote ?? ""),
       reveal: String(r.reveal ?? ""),
       interpret: String(r.interpret ?? ""),
       align: String(r.align ?? ""),
       act: String(r.act ?? ""),
       lifemod: String(r.lifemod ?? ""),
       integrate: String(r.integrate ?? ""),
+      // Canonical practice fields (newer resets).
+      frictionReading: FRICTION_READINGS.some((f) => f.key === r.frictionReading)
+        ? r.frictionReading
+        : null,
+      readiness:
+        r.readiness && typeof r.readiness === "object"
+          ? {
+              curiosity: r.readiness.curiosity === true,
+              competence: r.readiness.competence === true,
+              congruence: r.readiness.congruence === true,
+              connection: r.readiness.connection === true,
+            }
+          : null,
+      lifemodType: LIFEMOD_PLAIN_TYPES.some((t) => t.key === r.lifemodType)
+        ? r.lifemodType
+        : null,
+      lifemodId: typeof r.lifemodId === "string" ? r.lifemodId : null,
+      integrateChoice: INTEGRATE_CHOICES.some((c) => c.key === r.integrateChoice)
+        ? r.integrateChoice
+        : null,
+      reviewDate: typeof r.reviewDate === "string" ? r.reviewDate : null,
       // Optional thread back to the Focus item that triggered this reset.
       sourceItemId: typeof r.sourceItemId === "string" ? r.sourceItemId : null,
       // Optional thread back to the star (seed) that triggered this reset.
@@ -1266,6 +1364,7 @@ export function AxzioProvider({ children }) {
         entry.order = d.identity.commitments.length;
         d.identity.commitments.push({ ...entry });
       });
+      logEvent("commitment.created", { id: entry.id });
       return entry;
     },
     removeCommitment(id) {
@@ -1315,6 +1414,7 @@ export function AxzioProvider({ children }) {
           day.orientation[anchor].done = val;
         }
       });
+      if (val) logEvent("orientation.checkin", { anchor });
     },
     /**
      * Orientation micro-practices (one text entry per mantra anchor,
@@ -1484,6 +1584,7 @@ export function AxzioProvider({ children }) {
       update((d) => {
         d.stars.push(star);
       });
+      logEvent("seed.created", { id: star.id, name: star.name });
       return star;
     },
     /** Move a seed along the practice loop (or release it). Manual in v1.
@@ -1500,6 +1601,7 @@ export function AxzioProvider({ children }) {
         }
         s.loopStage = stage;
       });
+      logEvent("seed.transition", { id: starId, stage });
     },
     /** Link a seed to the identity commitment it matured into. */
     linkStarCommitment(starId, commitmentId) {
@@ -1519,6 +1621,7 @@ export function AxzioProvider({ children }) {
       update((d) => {
         d.stars = d.stars.filter((s) => s.id !== id);
       });
+      logEvent("seed.released", { id });
     },
 
     /* lifemods — designed life changes (WE ARE ALCHEMY, ch. BECOMING).
@@ -1564,6 +1667,11 @@ export function AxzioProvider({ children }) {
           if (s) s.lifemodId = entry.id;
         }
       });
+      logEvent("lifemod.created", {
+        id: entry.id,
+        origin,
+        legendFunction: entry.legendFunction,
+      });
       return entry;
     },
     /**
@@ -1599,6 +1707,7 @@ export function AxzioProvider({ children }) {
           m.becomingStage = patch.becomingStage;
         }
       });
+      logEvent("lifemod.updated", { id, keys: Object.keys(patch || {}) });
     },
     /** Archive (active=false) or restore a LifeMod. Never deletes. */
     setLifeModActive(id, active) {
@@ -1631,6 +1740,12 @@ export function AxzioProvider({ children }) {
       update((d) => {
         d.assessments.push(entry);
       });
+      logEvent("assessment.created", {
+        money: entry.money,
+        engagement: entry.engagement,
+        building: entry.building,
+        being: entry.being,
+      });
       return entry;
     },
 
@@ -1640,6 +1755,7 @@ export function AxzioProvider({ children }) {
       update((d) => {
         ensureDay(d, key).battery[dim] = clamp(val);
       });
+      logEvent("battery.reading", { dim, value: clamp(val) });
     },
 
     /* human battery priority — where focus goes (low|med|high).
@@ -1650,6 +1766,7 @@ export function AxzioProvider({ children }) {
       update((d) => {
         ensureDay(d, key).batteryPriority[dim] = v;
       });
+      logEvent("battery.priority", { dim, level: v });
     },
 
     /* decision engine — Eisenhower matrix items */
@@ -1686,6 +1803,11 @@ export function AxzioProvider({ children }) {
       update((d) => {
         d.focusItems.push(entry);
       });
+      logEvent("focus.created", {
+        id: entry.id,
+        quadrant: entry.quadrant,
+        timeframe: entry.timeframe,
+      });
       return entry;
     },
     moveFocusItem(id, quadrant) {
@@ -1696,10 +1818,12 @@ export function AxzioProvider({ children }) {
       });
     },
     toggleFocusDone(id) {
+      let doneNow = null;
       update((d) => {
         const f = d.focusItems.find((x) => x.id === id);
         if (!f) return;
         f.done = !f.done;
+        doneNow = f.done;
         // Completing an action writes it into the action log as history.
         // Reopening never removes the entry — the log is a record, not a mirror.
         if (f.done) {
@@ -1712,6 +1836,8 @@ export function AxzioProvider({ children }) {
           });
         }
       });
+      if (doneNow === true) logEvent("focus.completed", { id });
+      else if (doneNow === false) logEvent("focus.reopened", { id });
     },
     deleteFocusItem(id) {
       update((d) => {
@@ -1721,6 +1847,7 @@ export function AxzioProvider({ children }) {
           if (f.parentId === id) f.parentId = null;
         }
       });
+      logEvent("focus.deleted", { id });
     },
     linkFocusCommitment(id, commitmentId) {
       update((d) => {
@@ -1896,6 +2023,7 @@ export function AxzioProvider({ children }) {
           d.modes[interval][other] = null;
         }
       });
+      logEvent("modes.selection", { interval, slot, mode: valid });
     },
 
     /* The mode I'm IN right now (descriptive) — distinct from the
@@ -1914,6 +2042,7 @@ export function AxzioProvider({ children }) {
         }
         d.modes.current = valid;
       });
+      logEvent("modes.current", { mode: valid });
     },
 
     /* guided resets */
@@ -1923,12 +2052,43 @@ export function AxzioProvider({ children }) {
         ts: Date.now(),
         date: localDateKey(),
         situation: String(fields?.situation ?? "").trim(),
+        batteryNote: String(fields?.batteryNote ?? "").trim(),
         reveal: String(fields?.reveal ?? "").trim(),
         interpret: String(fields?.interpret ?? "").trim(),
         align: String(fields?.align ?? "").trim(),
         act: String(fields?.act ?? "").trim(),
         lifemod: String(fields?.lifemod ?? "").trim(),
         integrate: String(fields?.integrate ?? "").trim(),
+        // Canonical practice fields.
+        frictionReading: FRICTION_READINGS.some(
+          (f) => f.key === fields?.frictionReading
+        )
+          ? fields.frictionReading
+          : null,
+        readiness:
+          fields?.readiness && typeof fields.readiness === "object"
+            ? {
+                curiosity: fields.readiness.curiosity === true,
+                competence: fields.readiness.competence === true,
+                congruence: fields.readiness.congruence === true,
+                connection: fields.readiness.connection === true,
+              }
+            : null,
+        lifemodType: LIFEMOD_PLAIN_TYPES.some(
+          (t) => t.key === fields?.lifemodType
+        )
+          ? fields.lifemodType
+          : null,
+        lifemodId: null, // set later via linkResetLifeMod
+        integrateChoice: INTEGRATE_CHOICES.some(
+          (c) => c.key === fields?.integrateChoice
+        )
+          ? fields.integrateChoice
+          : null,
+        reviewDate:
+          typeof fields?.reviewDate === "string" && fields.reviewDate
+            ? fields.reviewDate
+            : null,
         // Optional thread back to the Focus item this reset was
         // triggered from ("Explore in Guided Reset").
         sourceItemId:
@@ -1946,11 +2106,23 @@ export function AxzioProvider({ children }) {
         if (!Array.isArray(d.resets)) d.resets = [];
         d.resets.push(entry);
       });
+      logEvent("reset.session", {
+        id: entry.id,
+        sourceItemId: entry.sourceItemId || null,
+        sourceStarId: entry.sourceStarId || null,
+      });
       return entry;
     },
     deleteReset(id) {
       update((d) => {
         d.resets = d.resets.filter((r) => r.id !== id);
+      });
+    },
+    /** Link a reset to the LifeMod grown from its LifeMod step. */
+    linkResetLifeMod(resetId, lifemodId) {
+      update((d) => {
+        const r = (d.resets || []).find((x) => x.id === resetId);
+        if (r) r.lifemodId = lifemodId || null;
       });
     },
 

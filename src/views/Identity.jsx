@@ -3,6 +3,7 @@ import {
   useAxzio,
   PRIMITIVES,
   PILLARS,
+  ORIENTATION_STATEMENTS,
   sortedCommitments,
   formatLongDate,
 } from "../store.jsx";
@@ -18,32 +19,7 @@ import {
   HelpBubble,
   HelpText,
 } from "../components/ui.jsx";
-
-/* The four orientation statements (WE ARE ALCHEMY, ch. AUTHORSHIP):
-   provisional, honest enough to guide an ordinary Tuesday.
-   Exported for reuse in the first-use walkthrough. */
-export const ORIENTATION_STATEMENTS = [
-  {
-    key: "becoming",
-    prompt: "I am choosing to become someone who…",
-    placeholder: "Name the quality or orientation in active terms…",
-  },
-  {
-    key: "standFor",
-    prompt: "I stand for…",
-    placeholder: "Name the principles that should remain recognizable across conditions…",
-  },
-  {
-    key: "practice",
-    prompt: "I practice…",
-    placeholder: "Name the behaviors through which the identity becomes visible…",
-  },
-  {
-    key: "returnThrough",
-    prompt: "When I drift, I return through…",
-    placeholder: "Name the ritual, question, boundary, or action that restores contact…",
-  },
-];
+import Recalibrate from "../components/Recalibrate.jsx";
 
 /* ------------------------------------------------------------------ */
 /* IDENTITY — user state systems: Identity Core + Four Primitives        */
@@ -52,6 +28,7 @@ export const ORIENTATION_STATEMENTS = [
 export default function Identity() {
   const axzio = useAxzio();
   const { state } = axzio;
+  const [recalibrating, setRecalibrating] = useState(false);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-5 pb-24 pt-8">
@@ -197,6 +174,34 @@ export default function Identity() {
           </Btn>
         </Card>
       </section>
+
+      <section className="axzio-rise axzio-rise-3 mb-6">
+        <Card className="p-6 md:p-8">
+          <SectionHead
+            label="Recalibrate"
+            help={
+              <HelpBubble title="Recalibrate">
+                <HelpText
+                  what="A full-system sweep: revisit your statements, commitments, primitives, and modes when the map no longer matches the territory."
+                  why="Earlier inputs may have been uninformed or partial, or life may have shifted. Recalibrate revises the core against who you've become — informed by your history, not starting blind."
+                  how="Six short movements. Nothing is erased; everything is revised. Run it whenever drift feels structural rather than situational."
+                />
+              </HelpBubble>
+            }
+          />
+          <p className="mb-4 max-w-lg text-sm leading-relaxed text-white/55">
+            When drift feels structural — the statements ring hollow, the
+            commitments belong to an older you — walk the whole stack again.
+          </p>
+          <Btn variant="ghost" onClick={() => setRecalibrating(true)}>
+            Begin recalibration
+          </Btn>
+        </Card>
+      </section>
+
+      {recalibrating && (
+        <Recalibrate onClose={() => setRecalibrating(false)} />
+      )}
 
       <section className="axzio-rise axzio-rise-3">
         <Card className="border-white/10 p-6 md:p-8">
