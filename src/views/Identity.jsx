@@ -205,7 +205,7 @@ export default function Identity() {
 
       <section className="axzio-rise axzio-rise-3">
         <Card className="border-white/10 p-6 md:p-8">
-          <SectionHead label="Reset" />
+          <SectionHead label="Erase data" />
           <ResetZone />
         </Card>
       </section>

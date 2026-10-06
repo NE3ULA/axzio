@@ -447,7 +447,16 @@ function StarDetail({ star, axzio, onClose }) {
       </p>
 
       <div className="mt-6 border-t border-white/10 pt-5">
-        <MicroLabel className="mb-3">Place in the loop</MicroLabel>
+        <div className="mb-3 flex items-center gap-2">
+          <MicroLabel>Place in the loop</MicroLabel>
+          <HelpBubble title="Place in the loop">
+            <HelpText
+              what="Where this seed stands in the E3 practice loop — you declare it, the app doesn't guess."
+              why="A seed gains mass each orbit: completing Integrate returns it to Reveal, further developed. Placement you declare stays honest."
+              how="Move the seed as it matures. Released is a real branch, not a failure — a seed let go on purpose."
+            />
+          </HelpBubble>
+        </div>
         <div className="flex flex-wrap gap-2">
           {ALL_STAGES.map((s) => {
             const isSel = star.loopStage === s.key;
@@ -479,7 +488,16 @@ function StarDetail({ star, axzio, onClose }) {
       </div>
 
       <div className="mt-5">
-        <MicroLabel className="mb-3">Root into identity</MicroLabel>
+        <div className="mb-3 flex items-center gap-2">
+          <MicroLabel>Root into identity</MicroLabel>
+          <HelpBubble title="Root into identity">
+            <HelpText
+              what="Promotes a matured seed into an identity commitment — a standing promise that Focus items can serve."
+              why="Seeds that survive the loop become system assets. A commitment gives future actions something to align to."
+              how="One tap creates the commitment at the lowest priority; reorder it on the Identity page."
+            />
+          </HelpBubble>
+        </div>
         {rootedText ? (
           <div className="rounded-xl border border-white/20 bg-white/[0.03] p-4">
             <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
@@ -507,7 +525,16 @@ function StarDetail({ star, axzio, onClose }) {
       </div>
 
       <div className="mt-5">
-        <MicroLabel className="mb-3">Grow into a LifeMod</MicroLabel>
+        <div className="mb-3 flex items-center gap-2">
+          <MicroLabel>Grow into a LifeMod</MicroLabel>
+          <HelpBubble title="Grow into a LifeMod">
+            <HelpText
+              what="Turns a matured seed into a LifeMod — a designed life change tracked through the Becoming Cycle."
+              why="Some seeds aren't tasks to complete but conditions to change. A LifeMod gives them a structure to grow in."
+              how="One tap creates it from the seed; open the LifeMod to name its legend function and move it through Detect → Capture → Evaluate → Execute → Review → Evolve."
+            />
+          </HelpBubble>
+        </div>
         {grownLifeMod ? (
           <div className="rounded-xl border border-white/20 bg-white/[0.03] p-4">
             <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
@@ -616,7 +643,16 @@ function LifeModsSection() {
     <Card className="axzio-rise axzio-rise-3 p-6">
       {/* door B: name a friction */}
       <form onSubmit={create} className="mb-6">
-        <MicroLabel className="mb-3">Name a friction</MicroLabel>
+        <div className="mb-3 flex items-center gap-2">
+          <MicroLabel>Name a friction</MicroLabel>
+          <HelpBubble title="Name a friction">
+            <HelpText
+              what="The second door into a LifeMod: name a preexisting circumstance that creates drag — no seed required."
+              why="Not every LifeMod starts as inspiration. Friction-born LifeMods remove drag (repair, remove); seed-born ones build lift (unlock, expand)."
+              example="“My sleep schedule is wrecking my mornings.”"
+            />
+          </HelpBubble>
+        </div>
         <div className="flex flex-col gap-3 sm:flex-row">
           <Field
             value={frictionText}
@@ -786,11 +822,24 @@ function LifeModEditor({ lifemod }) {
             aria-label="Next action"
           />
           <div className="mt-5 grid grid-cols-2 gap-5">
-            <TriState
-              label="Impact"
-              value={m.impact}
-              onChange={(v) => set({ impact: v })}
-            />
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                  Impact
+                </p>
+                <HelpBubble title="Impact vs effort">
+                  <HelpText
+                    what="A rough read on the LifeMod: how much it matters (impact) versus how much it costs to make (effort)."
+                    why="High impact, low effort changes are the obvious first moves. The read keeps ambition honest."
+                    how="Set each by feel — it's a compass, not a calculation."
+                  />
+                </HelpBubble>
+              </div>
+              <TriState
+                value={m.impact}
+                onChange={(v) => set({ impact: v })}
+              />
+            </div>
             <TriState
               label="Effort"
               value={m.effort}
@@ -802,7 +851,16 @@ function LifeModEditor({ lifemod }) {
 
       {/* legend function */}
       <div className="mt-6">
-        <MicroLabel className="mb-3">Legend function</MicroLabel>
+        <div className="mb-3 flex items-center gap-2">
+          <MicroLabel>Legend function</MicroLabel>
+          <HelpBubble title="Legend functions">
+            <HelpText
+              what="The eight jobs a LifeMod can do for your legend — what this change is for."
+              why="Naming the function keeps the LifeMod honest: a change meant to Simplify that keeps Expanding is off-course."
+              how="Pick the one that fits. Friction-born LifeMods usually Repair or Remove; seed-born ones usually Unlock or Expand."
+            />
+          </HelpBubble>
+        </div>
         <div className="grid gap-2 md:grid-cols-2">
           {LEGEND_FUNCTIONS.map((f) => {
             const sel = m.legendFunction === f.key;
@@ -836,7 +894,16 @@ function LifeModEditor({ lifemod }) {
 
       {/* becoming cycle stepper */}
       <div className="mt-6">
-        <MicroLabel className="mb-3">Becoming Cycle</MicroLabel>
+        <div className="mb-3 flex items-center gap-2">
+          <MicroLabel>Becoming Cycle</MicroLabel>
+          <HelpBubble title="Becoming Cycle">
+            <HelpText
+              what="The six-stage journey every LifeMod travels: Detect → Capture → Evaluate → Execute → Review → Evolve."
+              why="A LifeMod is a change to living conditions, not a task — it needs its own cycle, with Review built in before it Evolves."
+              how="Move the LifeMod along as it matures. Review asks whether it's working; Evolve carries the lesson into the next change."
+            />
+          </HelpBubble>
+        </div>
         <div className="flex flex-wrap gap-2">
           {BECOMING_STAGES.map((s, i) => {
             const sel = m.becomingStage === s.key;

@@ -2,6 +2,7 @@
    pure black, white text, thin 1px borders, wide-tracked micro labels. */
 
 import { useState } from "react";
+import { logEvent } from "../events.js";
 
 export function Card({ className = "", children, ...rest }) {
   return (
@@ -98,11 +99,19 @@ export function SectionHead({ label, right, help }) {
  */
 export function HelpBubble({ title, children, className = "" }) {
   const [open, setOpen] = useState(false);
+  const toggle = () => {
+    setOpen((o) => {
+      // Dev-test telemetry: which bubbles get opened tells us where the
+      // design isn't self-explanatory. Logged to the event journal.
+      if (!o) logEvent("help.opened", { title });
+      return !o;
+    });
+  };
   return (
     <span className={`relative inline-flex shrink-0 align-middle ${className}`}>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         aria-label={`About: ${title}`}
         aria-expanded={open}
         className="flex h-5 w-5 items-center justify-center rounded-full border border-white/25 text-[11px] leading-none text-white/60 transition-colors hover:border-white/60 hover:text-white"

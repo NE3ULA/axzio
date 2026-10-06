@@ -15,6 +15,7 @@ import {
   sortedCommitments,
   legendFunctionLabel,
   becomingStageLabel,
+  integrateChoiceLabel,
   localDateKey,
   formatLongDate,
   formatTime,
@@ -127,6 +128,7 @@ export default function Deck() {
         <StateCard />
         <OrientationCard day={day} today={today} />
         <LifeModsCard />
+        <ReviewsDueCard today={today} />
       </div>
 
       {/* zone: reflection */}
@@ -698,6 +700,74 @@ function LifeModsCard() {
         </ul>
       )}
       <ModuleLink href="#/constellation">Open Constellation</ModuleLink>
+    </Card>
+  );
+}
+
+/** Resets whose revisit date has arrived and haven't been reviewed.
+    Closes the loop the Integrate step opens. */
+function ReviewsDueCard({ today }) {
+  const axzio = useAxzio();
+  const { state } = axzio;
+  const due = useMemo(() => {
+    const resets = Array.isArray(state.resets) ? state.resets : [];
+    return resets
+      .filter(
+        (r) =>
+          r &&
+          typeof r.reviewDate === "string" &&
+          r.reviewDate &&
+          r.reviewDate <= today &&
+          !r.reviewedAt
+      )
+      .sort((a, b) => (a.reviewDate < b.reviewDate ? -1 : 1));
+  }, [state.resets, today]);
+  if (due.length === 0) return null;
+  return (
+    <Card className="axzio-rise axzio-rise-5 border-white/25 p-6 md:col-span-2">
+      <SectionHead
+        label="Reviews due"
+        help={
+          <HelpBubble title="Reviews due">
+            <HelpText
+              what="Resets whose revisit date has arrived, waiting for their review."
+              why="The Integrate step sets a return point; this is where it lands. Reviewing closes the loop — confirm, revise, or release the reset."
+              how="Open the Action Card to revisit the reset, then mark it reviewed to clear it from this list."
+            />
+          </HelpBubble>
+        }
+        right={
+          <span className="text-[11px] uppercase tracking-[0.2em] text-white/40">
+            {due.length} due
+          </span>
+        }
+      />
+      <ul className="space-y-3">
+        {due.map((r) => (
+          <li
+            key={r.id}
+            className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-[15px] text-white/85">
+                {r.situation || "Unnamed reset"}
+              </p>
+              <p className="mt-0.5 text-[12px] text-white/40">
+                Revisit {r.reviewDate === today ? "today" : r.reviewDate}
+                {r.integrateChoice
+                  ? ` · ${integrateChoiceLabel(r.integrateChoice)}`
+                  : ""}
+              </p>
+            </div>
+            <a
+              href={`#/journeys?reset=${r.id}`}
+              className="shrink-0 text-[11px] uppercase tracking-[0.22em] text-white/55 transition-colors hover:text-white"
+            >
+              Open →
+            </a>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }

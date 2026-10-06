@@ -18,6 +18,8 @@ import {
   getDayState,
   actionsOn,
   formatTime,
+  QUADRANTS,
+  TIMEFRAMES,
 } from "../store.jsx";
 import {
   Card,
@@ -351,12 +353,14 @@ const RESET_STEPS = [
     field: "integrate",
     title: "Integrate",
     phase: "Integrate",
-    prompt: "How does this reset land — and when will you revisit it?",
+    prompt:
+      "Your best read right now: how should this reset land — and when will you check back? You'll confirm or adjust it at the review.",
     placeholder: "I will revisit this…",
     help: {
       title: "Integrate",
-      what: "Name how this reset lands, and set the return point.",
-      why: "A reset without a revisit evaporates. Naming the landing — retain, revise, release, repeat — keeps it honest.",
+      what: "A provisional landing for this reset, plus the return point where you'll confirm it.",
+      why: "A reset without a revisit evaporates. This isn't the final word — it's your best read today; the review is where you confirm, revise, or release it.",
+      how: "Retain — keep living it as is. Revise — adjust it at review. Release — let it go at review. Repeat — run the practice again. When the revisit date arrives, it appears on the Deck under Reviews due.",
       example:
         "“Revise — revisit in a week to see whether the boundary held.”",
     },
@@ -969,44 +973,58 @@ function ResetFieldStep({ stepId, scratch, setScratch }) {
 }
 
 /* Battery scan — "hear the instrument before forcing the performance."
-   Shows today's readings; the note names what's asking and what's
-   available in the context of this situation. */
+   Shows today's readings and lets them be corrected on the spot; edits
+   write through setBattery, so the Deck's State card sees them too. */
 function BatteryScan() {
-  const { state } = useAxzio();
-  const day = getDayState(state, localDateKey());
+  const axzio = useAxzio();
+  const { state } = axzio;
+  const today = localDateKey();
+  const day = getDayState(state, today);
   const anySet = BATTERY.some((b) => Number.isFinite(day.battery?.[b.key]));
   return (
     <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.02] p-4">
-      <MicroLabel className="mb-3">Today's instrument</MicroLabel>
+      <div className="mb-3 flex items-center gap-2">
+        <MicroLabel>Today's instrument</MicroLabel>
+        <HelpBubble title="Battery scan">
+          <HelpText
+            what="Your five batteries as they stand today — adjustable here if the reading is stale."
+            why="Interpretation from an empty battery gives different answers than from a full one. Correct the instrument before reading the situation through it."
+            how="Drag a slider; the change writes straight through to the Deck's State card."
+          />
+        </HelpBubble>
+      </div>
       {!anySet ? (
-        <p className="text-[13px] leading-relaxed text-white/45">
-          No battery reading today yet — answer from feel; the Deck's State
-          card holds the daily check.
+        <p className="mb-3 text-[13px] leading-relaxed text-white/45">
+          No battery reading today yet — set it here by feel; it counts as
+          today's check.
         </p>
-      ) : (
-        <ul className="space-y-1.5">
-          {BATTERY.map((b) => {
-            const v = day.battery?.[b.key];
-            const p = day.batteryPriority?.[b.key];
-            return (
-              <li
-                key={b.key}
-                className="flex items-center justify-between gap-3 text-[13px]"
-              >
+      ) : null}
+      <ul className="space-y-3">
+        {BATTERY.map((b) => {
+          const v = day.battery?.[b.key];
+          return (
+            <li key={b.key}>
+              <div className="mb-1 flex items-center justify-between gap-3 text-[13px]">
                 <span className="text-white/60">{b.label}</span>
                 <span className="text-white/85">
                   {Number.isFinite(v) ? `${v}/10` : "—"}
-                  {p === "high" && (
-                    <span className="ml-2 text-[10px] uppercase tracking-[0.18em] text-white/40">
-                      priority
-                    </span>
-                  )}
                 </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={Number.isFinite(v) ? v : 5}
+                onChange={(e) =>
+                  axzio.setBattery(today, b.key, Number(e.target.value))
+                }
+                className="w-full accent-white"
+                aria-label={`${b.label} battery`}
+              />
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -1062,9 +1080,19 @@ function ReadinessChips({ scratch, setScratch }) {
     }));
   return (
     <div className="mt-5">
-      <MicroLabel className="mb-2.5">
-        Readiness — do you have what this action needs right now?
-      </MicroLabel>
+      <div className="mb-2.5 flex items-center gap-2">
+        <MicroLabel>
+          Readiness — do you have what this action needs right now? (Tap all
+          that apply)
+        </MicroLabel>
+        <HelpBubble title="Readiness check">
+          <HelpText
+            what="An honest inventory before you commit: which of these do you actually have for this action? This is multi-select — choose every one that's true."
+            why="Acting without readiness is how actions stall. Naming what's missing tells you what to resupply first."
+            how="Curious — genuine interest in doing it, not just duty. Competent — you have the skill, resources, and time. Congruent — it fits who you're choosing to become. Connected — you have the people or support it needs."
+          />
+        </HelpBubble>
+      </div>
       <div className="flex flex-wrap gap-2">
         {READINESS_DIMS.map((d) => {
           const on = cur[d.key] === true;
@@ -1094,7 +1122,16 @@ function ReadinessChips({ scratch, setScratch }) {
 function LifeModTypePills({ scratch, setScratch }) {
   return (
     <div className="mt-5">
-      <MicroLabel className="mb-2.5">What kind of change is it?</MicroLabel>
+      <div className="mb-2.5 flex items-center gap-2">
+        <MicroLabel>What kind of change is it?</MicroLabel>
+        <HelpBubble title="LifeMod types">
+          <HelpText
+            what="The kind of condition you're changing. A LifeMod is never a to-do — it's a change to the setup around you."
+            why="Naming the kind keeps the change honest: a boundary problem solved with an action will just recur."
+            how="Environment — change your surroundings: physical or digital. (Phone charges outside the bedroom.) Boundary — a rule about what you'll allow. (No meetings before 10am.) Scope — shrink or expand what you're carrying. (Three projects, not nine.) Rhythm — change timing or cadence. (Weekly review every Friday.) Support — add people, tools, or help. (Hire the bookkeeper.) Framing — change how you see or name it. (Training, not exercise.)"
+          />
+        </HelpBubble>
+      </div>
       <div className="flex flex-wrap gap-2">
         {LIFEMOD_PLAIN_TYPES.map((t) => {
           const on = scratch.rlifemodType === t.key;
@@ -1458,6 +1495,43 @@ function ResetActionCard({ resetId, onBack, onRestart, allowDelete = false }) {
             Grown into a LifeMod — find it in the Constellation.
           </p>
         )}
+
+        {/* Review — the Integrate step's return point, confirmed here. */}
+        {reset.reviewDate && !reset.reviewedAt && (
+          <div className="rounded-xl border border-white/15 bg-white/[0.02] p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <MicroLabel>Review</MicroLabel>
+              <HelpBubble title="Reviewing a reset">
+                <HelpText
+                  what="The Integrate step set this return point. Now it's due: look back at the reset with fresh eyes."
+                  why="The landing you chose was provisional — your best read at the time. The review is where you confirm it, revise it, or release it."
+                  how="Read the card, then mark it reviewed. If the landing changed, run a new Reset rather than editing the old one — the record stays honest."
+                />
+              </HelpBubble>
+            </div>
+            <p className="mb-3 text-[14px] leading-relaxed text-white/60">
+              Revisit {formatLongDate(reset.reviewDate)}
+              {reset.reviewDate <= localDateKey()
+                ? " — this date has arrived"
+                : ""}
+              .
+            </p>
+            <Btn
+              variant="quiet"
+              onClick={() => axzio.markResetReviewed(reset.id)}
+            >
+              Mark reviewed
+            </Btn>
+          </div>
+        )}
+        {reset.reviewDate && reset.reviewedAt && (
+          <p className="text-[12px] uppercase tracking-[0.18em] text-white/40">
+            Reviewed — this reset is closed.
+          </p>
+        )}
+
+        {/* Thread the action into Focus as a linked item. */}
+        <AddToFocusFromReset reset={reset} />
       </div>
 
       <p className="mt-8 border-t border-white/10 pt-4 text-[12px] leading-relaxed tracking-wide text-white/40">
@@ -1503,6 +1577,119 @@ function ResetActionCard({ resetId, onBack, onRestart, allowDelete = false }) {
           ))}
       </div>
     </Card>
+  );
+}
+
+/* Add the reset's action to Focus as a linked item: the same capture
+   fields (text, quadrant, timeframe), pre-filled from the Act step.
+   The item carries sourceResetId so Focus can link back to this card. */
+function AddToFocusFromReset({ reset }) {
+  const axzio = useAxzio();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(reset.act || "");
+  const [quadrant, setQuadrant] = useState("q1");
+  const [timeframe, setTimeframe] = useState("day");
+  const [createdId, setCreatedId] = useState(null);
+  if (!reset.act?.trim() && !open && !createdId) return null;
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <MicroLabel>Add the action to Focus</MicroLabel>
+        <HelpBubble title="Add to Focus">
+          <HelpText
+            what="Turns the Act step into a real Focus item, linked back to this Action Card."
+            why="A reset action that never enters Focus is a wish. Linking keeps the thread: Focus item → this card, and back."
+            how="Adjust the text, pick the quadrant and timeframe, add it. The Focus item will show a link to this Action Card."
+          />
+        </HelpBubble>
+      </div>
+      {!open && !createdId && (
+        <Btn variant="quiet" onClick={() => setOpen(true)}>
+          Add to Focus
+        </Btn>
+      )}
+      {createdId && (
+        <p className="text-[14px] leading-relaxed text-white/70">
+          Added to Focus —{" "}
+          <a href="#/focus" className="text-white underline">
+            open Focus
+          </a>{" "}
+          to rank it.
+        </p>
+      )}
+      {open && !createdId && (
+        <div className="space-y-4">
+          <Field
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="The action, as it should appear in Focus"
+            maxLength={220}
+          />
+          <div>
+            <MicroLabel className="mb-2">Quadrant</MicroLabel>
+            <div className="flex flex-wrap gap-2">
+              {QUADRANTS.map((q) => (
+                <button
+                  key={q.key}
+                  type="button"
+                  onClick={() => setQuadrant(q.key)}
+                  className={`rounded-lg px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] transition-colors ${
+                    quadrant === q.key
+                      ? "bg-white/10 text-white"
+                      : "text-white/45 hover:text-white"
+                  }`}
+                >
+                  {q.key.toUpperCase()} · {q.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <MicroLabel className="mb-2">Timeframe</MicroLabel>
+            <div className="flex flex-wrap gap-2">
+              {TIMEFRAMES.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setTimeframe(t.key)}
+                  className={`rounded-lg px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] transition-colors ${
+                    timeframe === t.key
+                      ? "bg-white/10 text-white"
+                      : "text-white/45 hover:text-white"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Btn
+              onClick={() => {
+                const item = axzio.addFocusItem(text, quadrant, {
+                  timeframe,
+                  sourceResetId: reset.id,
+                });
+                if (item) {
+                  setCreatedId(item.id);
+                  setOpen(false);
+                }
+              }}
+              disabled={!text.trim()}
+            >
+              Add to Focus
+            </Btn>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

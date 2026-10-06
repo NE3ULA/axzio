@@ -17,7 +17,7 @@ import {
   sortedCommitments,
 } from "../store.jsx";
 import { logEvent } from "../events.js";
-import { Btn, Card, MicroLabel, TextArea, Field } from "./ui.jsx";
+import { Btn, Card, MicroLabel, TextArea, Field, HelpBubble, HelpText } from "./ui.jsx";
 
 const STEPS = [
   { id: "intro", title: "The sweep" },
@@ -159,7 +159,16 @@ export default function Recalibrate({ onClose }) {
       <Card className="w-full max-w-2xl p-6 md:p-10">
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
-            <MicroLabel className="mb-2">Recalibrate</MicroLabel>
+            <div className="mb-2 flex items-center gap-2">
+              <MicroLabel>Recalibrate</MicroLabel>
+              <HelpBubble title="Recalibrate">
+                <HelpText
+                  what="A full Identity Stack sweep: revisit your statements, commitments, primitives, and modes when the map no longer matches the territory."
+                  why="Earlier inputs may have been uninformed or partial, or life may have shifted. This revises the core against who you've become — informed by your history, not starting blind."
+                  how="Six short movements. Nothing is erased; everything is revised. Run it when drift feels structural rather than situational."
+                />
+              </HelpBubble>
+            </div>
             <h3 className="text-2xl font-light tracking-wide md:text-3xl">
               {STEPS[step].title}
             </h3>

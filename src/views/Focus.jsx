@@ -145,7 +145,18 @@ export default function Focus() {
       {/* capture */}
       <section className="axzio-rise axzio-rise-2 mb-8">
         <Card className="p-6">
-          <SectionHead label="Capture" />
+          <SectionHead
+            label="Capture"
+            help={
+              <HelpBubble title="Capture">
+                <HelpText
+                  what="Three layers of capture: a text line, then fields (quadrant, timeframe, mode and pillar tags, repeats, commitments), then the optional Quest layer."
+                  why="Capture is cheap and fast — the thinking happens later, in the matrix. Getting it out of your head is the whole job here."
+                  how="Type the action plainly. Expand the layers only when the item needs them; most items live happily as a single line."
+                />
+              </HelpBubble>
+            }
+          />
           <AddFocusForm
             key={timeframe}
             initialTimeframe={timeframe}
@@ -727,6 +738,7 @@ function FocusRow({ item, depth }) {
             {item.quest && item.quest.isQuest && (
               <Pill tone="lit">Quest</Pill>
             )}
+            {item.sourceResetId && <Pill>From Reset</Pill>}
             {item.priority && (
               <Pill tone="lit">{priorityLabel(item.priority)}</Pill>
             )}
@@ -953,7 +965,16 @@ function FocusItemEditor({
           </select>
         </div>
         <div>
-          <MicroLabel className="mb-2">Mode tag</MicroLabel>
+          <div className="mb-2 flex items-center gap-2">
+            <MicroLabel>Mode tag</MicroLabel>
+            <HelpBubble title="Mode tag">
+              <HelpText
+                what="Which mode this action belongs to — People, Pleasure, or Production."
+                why="Tagging reveals where your actions actually land versus where you intended your focus to go."
+                how="Optional. Over time the tags feed the readings about your modes."
+              />
+            </HelpBubble>
+          </div>
           <select
             value={draft.mode}
             onChange={(e) => set({ mode: e.target.value })}
@@ -969,7 +990,16 @@ function FocusItemEditor({
           </select>
         </div>
         <div>
-          <MicroLabel className="mb-2">Pillar tag</MicroLabel>
+          <div className="mb-2 flex items-center gap-2">
+            <MicroLabel>Pillar tag</MicroLabel>
+            <HelpBubble title="Pillar tag">
+              <HelpText
+                what="Which pillar this action serves — Mind, Body, Heart, or Spirit."
+                why="The tags show whether your doing is balanced across the four dimensions or collapsing into one."
+                how="Optional. Read a task through its pillar: a Body-tagged item is about the body, not just productivity."
+              />
+            </HelpBubble>
+          </div>
           <select
             value={draft.pillar}
             onChange={(e) => set({ pillar: e.target.value })}
@@ -1009,7 +1039,16 @@ function FocusItemEditor({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <MicroLabel className="mb-2">Serves commitment</MicroLabel>
+          <div className="mb-2 flex items-center gap-2">
+            <MicroLabel>Serves commitment</MicroLabel>
+            <HelpBubble title="Serves commitment">
+              <HelpText
+                what="Links this action to one of your identity commitments."
+                why="This is the thread that makes Focus more than a to-do list: every action can be read as serving — or drifting from — who you're choosing to become."
+                how="Pick the commitment this action moves forward. The Deck's readings use these links."
+              />
+            </HelpBubble>
+          </div>
           <select
             value={draft.commitmentId || ""}
             onChange={(e) => set({ commitmentId: e.target.value || null })}
@@ -1020,7 +1059,16 @@ function FocusItemEditor({
           </select>
         </div>
         <div>
-          <MicroLabel className="mb-2">Attach to…</MicroLabel>
+          <div className="mb-2 flex items-center gap-2">
+            <MicroLabel>Attach to…</MicroLabel>
+            <HelpBubble title="Attach to">
+              <HelpText
+                what="Makes this item a subtask of another open item."
+                why="Some actions are really steps of a larger one. Nesting keeps the top-level lists honest about what the actual units of work are."
+                how="Choose the parent item; this one nests inside it and leaves the top-level list. Choose “Top level” to detach."
+              />
+            </HelpBubble>
+          </div>
           <select
             value={draft.parentId}
             onChange={(e) => set({ parentId: e.target.value })}
@@ -1121,7 +1169,16 @@ function FocusItemEditor({
       </div>
 
       <div>
-        <MicroLabel className="mb-2">Priority</MicroLabel>
+        <div className="mb-2 flex items-center gap-2">
+          <MicroLabel>Priority</MicroLabel>
+          <HelpBubble title="Priority ranks">
+            <HelpText
+              what="The 1st, 2nd, and 3rd priorities for this item's timeframe — 1st is the one thing to focus on."
+              why="Ranking forces the trade: if everything is priority one, nothing is. Day, week, month, and year each hold their own independent 1/2/3."
+              how="Each rank holds exactly one item per timeframe — setting it here moves the rank to this item."
+            />
+          </HelpBubble>
+        </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -1282,48 +1339,66 @@ function FocusItemEditor({
 }
 
 /**
- * The completed Guided Reset(s) threaded from this focus item, derived
- * live from state.resets via sourceItemId — no stored reference, so a
- * deleted reset simply disappears and the most recent one always shows.
+ * The Guided Reset(s) threaded to this focus item, in both directions:
+ * resets triggered FROM the item (via sourceItemId, "Explore in Guided
+ * Reset") and the reset this item was created FROM (via sourceResetId,
+ * "Add to Focus" on the Action Card). Derived live from state.resets.
  */
 function LinkedResetCard({ item }) {
   const { state } = useAxzio();
   const linked = (state.resets || [])
     .filter((r) => r.sourceItemId === item.id)
     .sort((a, b) => b.ts - a.ts);
-  if (linked.length === 0) return null;
-  const reset = linked[0];
+  const sourceReset = item.sourceResetId
+    ? state.resets.find((r) => r.id === item.sourceResetId)
+    : null;
+  if (linked.length === 0 && !sourceReset) return null;
 
   return (
     <div>
       <MicroLabel className="mb-2">Guided Reset</MicroLabel>
-      <div className="rounded-xl border border-white/12 bg-white/[0.02] p-4">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-          Action Card
-        </p>
-        {reset.act && reset.act.trim() ? (
-          <p className="mt-1.5 whitespace-pre-wrap text-[15px] leading-relaxed text-white/85">
-            {reset.act}
-          </p>
-        ) : (
-          <p className="mt-1.5 text-[13px] tracking-wide text-white/40">
-            No action recorded on this card.
-          </p>
-        )}
-        <div className="mt-2.5 flex items-center justify-between gap-3">
-          <span className="text-[11px] tracking-[0.14em] text-white/35">
-            {reset.date ? formatLongDate(reset.date) : ""}
-            {linked.length > 1
-              ? `${reset.date ? " · " : ""}${linked.length} resets — most recent`
-              : ""}
-          </span>
-          <a
-            href={`#/journeys?reset=${reset.id}`}
-            className="shrink-0 text-[11px] uppercase tracking-[0.2em] text-white/60 underline decoration-white/30 underline-offset-4 transition-colors hover:text-white hover:decoration-white/80"
-          >
-            Open Action Card →
-          </a>
+      {sourceReset && (
+        <ResetLinkCard reset={sourceReset} caption="Created from this card" />
+      )}
+      {linked.length > 0 && (
+        <div className={sourceReset ? "mt-3" : ""}>
+          <ResetLinkCard
+            reset={linked[0]}
+            caption={linked.length > 1 ? `${linked.length} resets — most recent` : null}
+          />
         </div>
+      )}
+    </div>
+  );
+}
+
+/** One Action Card summary linking out to the full card on Journeys. */
+function ResetLinkCard({ reset, caption }) {
+  return (
+    <div className="rounded-xl border border-white/12 bg-white/[0.02] p-4">
+      <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+        Action Card
+      </p>
+      {reset.act && reset.act.trim() ? (
+        <p className="mt-1.5 whitespace-pre-wrap text-[15px] leading-relaxed text-white/85">
+          {reset.act}
+        </p>
+      ) : (
+        <p className="mt-1.5 text-[13px] tracking-wide text-white/40">
+          No action recorded on this card.
+        </p>
+      )}
+      <div className="mt-2.5 flex items-center justify-between gap-3">
+        <span className="text-[11px] tracking-[0.14em] text-white/35">
+          {reset.date ? formatLongDate(reset.date) : ""}
+          {caption ? `${reset.date ? " · " : ""}${caption}` : ""}
+        </span>
+        <a
+          href={`#/journeys?reset=${reset.id}`}
+          className="shrink-0 text-[11px] uppercase tracking-[0.2em] text-white/60 underline decoration-white/30 underline-offset-4 transition-colors hover:text-white hover:decoration-white/80"
+        >
+          Open Action Card →
+        </a>
       </div>
     </div>
   );

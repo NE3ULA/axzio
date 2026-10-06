@@ -739,6 +739,8 @@ function normalizeResets(raw) {
         ? r.integrateChoice
         : null,
       reviewDate: typeof r.reviewDate === "string" ? r.reviewDate : null,
+      // When the review was actually done (closes the "Reviews due" loop).
+      reviewedAt: Number(r.reviewedAt) || null,
       // Optional thread back to the Focus item that triggered this reset.
       sourceItemId: typeof r.sourceItemId === "string" ? r.sourceItemId : null,
       // Optional thread back to the star (seed) that triggered this reset.
@@ -1086,6 +1088,12 @@ function normalizeFocusItem(f, validQuadrants) {
     parentId: typeof f.parentId === "string" && f.parentId ? f.parentId : null,
     // Quest layer: old items predate quests — they gain an unposted default.
     quest: normalizeQuest(f.quest),
+    // Optional thread back to the Reset Action Card this item was
+    // created from ("Add to Focus" on the card).
+    sourceResetId:
+      typeof f.sourceResetId === "string" && f.sourceResetId
+        ? f.sourceResetId
+        : null,
   };
 }
 
@@ -1797,6 +1805,7 @@ export function AxzioProvider({ children }) {
           pillar: opts.pillar,
           parentId: opts.parentId,
           quest: opts.quest,
+          sourceResetId: opts.sourceResetId,
         },
         new Set(["q1", "q2", "q3", "q4"])
       );
@@ -2089,6 +2098,8 @@ export function AxzioProvider({ children }) {
           typeof fields?.reviewDate === "string" && fields.reviewDate
             ? fields.reviewDate
             : null,
+        // When the review was actually done (closes the "Reviews due" loop).
+        reviewedAt: null,
         // Optional thread back to the Focus item this reset was
         // triggered from ("Explore in Guided Reset").
         sourceItemId:
@@ -2124,6 +2135,14 @@ export function AxzioProvider({ children }) {
         const r = (d.resets || []).find((x) => x.id === resetId);
         if (r) r.lifemodId = lifemodId || null;
       });
+    },
+    /** Mark a reset's review as done — clears it from "Reviews due". */
+    markResetReviewed(resetId) {
+      update((d) => {
+        const r = (d.resets || []).find((x) => x.id === resetId);
+        if (r) r.reviewedAt = Date.now();
+      });
+      logEvent("reset.reviewed", { id: resetId });
     },
 
     /* decision -> journey thread (transient, never persisted) */
