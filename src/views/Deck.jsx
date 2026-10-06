@@ -328,24 +328,39 @@ function WhatsImportantCard() {
         }
       />
       <div className="flex-1">
-        <ul className="space-y-2.5">
-          {priorities.map((p) => (
-            <li key={p.rank} className="flex items-baseline gap-3">
-              <span className="shrink-0 text-[10px] uppercase tracking-[0.2em] text-white/40">
+        {/* rank 1 dominates: the one thing to focus on */}
+        <div className="mb-3 rounded-xl border border-white/20 bg-white/[0.03] p-4">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+            {priorityLabel(1)}
+          </p>
+          {priorities[0].item ? (
+            <p className="mt-1.5 line-clamp-2 text-xl font-light leading-snug text-white">
+              {priorities[0].item.text}
+            </p>
+          ) : (
+            <p className="mt-1.5 text-[13px] tracking-wide text-white/30">
+              Not set
+            </p>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {priorities.slice(1).map((p) => (
+            <div key={p.rank}>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
                 {priorityLabel(p.rank)}
-              </span>
+              </p>
               {p.item ? (
-                <span className="line-clamp-1 text-[15px] text-white">
+                <p className="mt-1 line-clamp-1 text-[15px] text-white">
                   {p.item.text}
-                </span>
+                </p>
               ) : (
-                <span className="text-[13px] tracking-wide text-white/30">
+                <p className="mt-1 text-[13px] tracking-wide text-white/30">
                   Not set
-                </span>
+                </p>
               )}
-            </li>
+            </div>
           ))}
-        </ul>
+        </div>
         <div className="mt-4 flex gap-6">
           <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
             Do{" "}
@@ -479,7 +494,7 @@ function StateCard() {
             <HelpText
               what="Your Human Battery: five dimensions of available capacity — physical, mental, emotional, social, purpose. Each dimension has a STATE (where the instrument is, 1–10) and a PRIORITY (how much attention it gets: low, medium, high)."
               why="State is not a work order. A low reading on a low priority is rest, not failure. The card reads the gap between state and priority — not raw depletion."
-              how="Expand to slide each dimension's state, then set where focus goes. 'Needs attention' is a low state on a high priority; 'Resting' is a low state on a low priority — intentional, not a problem."
+              how="Expand to slide each dimension's state — where the instrument is, 1–10 — then set its priority: how much attention it gets (Low/Med/High). 'Needs attention' is a low state on a high priority; 'Resting' is a low state on a low priority — intentional, not a problem."
             />
           </HelpBubble>
         }
@@ -1044,7 +1059,12 @@ function BatteryCheck({ day, today }) {
               aria-label={`${b.label} battery level`}
             />
             <div className="mt-3 flex items-center justify-between">
-              <MicroLabel>Where focus goes</MicroLabel>
+              <div>
+                <MicroLabel>Priority</MicroLabel>
+                <p className="mt-1 text-[11px] tracking-wide text-white/35">
+                  How much attention this gets
+                </p>
+              </div>
               <div
                 className="flex gap-0.5 rounded-full border border-white/10 p-0.5"
                 role="group"
@@ -1079,7 +1099,7 @@ function BatteryCheck({ day, today }) {
       </div>
       <p className="mt-4 text-[13px] leading-relaxed text-white/40">
         Read the pattern, not only the total. State tells you where the
-        instrument is; priority tells you where to point attention.
+        instrument is; priority tells you how much attention it gets.
       </p>
     </div>
   );

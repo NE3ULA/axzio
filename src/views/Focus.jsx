@@ -16,6 +16,7 @@ import {
   sortedCommitments,
   descendantIds,
   QUEST_KINDS,
+  formatLongDate,
 } from "../store.jsx";
 import {
   Card,
@@ -43,6 +44,9 @@ export default function Focus() {
   const axzio = useAxzio();
   const { state } = axzio;
   const [timeframe, setTimeframe] = useState("day");
+  /* Capture form's progressive layer (1 = text line, 2 = fields, 3 = quest).
+     Held here so the preference survives timeframe tab switches. */
+  const [captureLayer, setCaptureLayer] = useState(1);
   const items = state.focusItems;
 
   const byId = useMemo(() => new Map(items.map((f) => [f.id, f])), [items]);
@@ -127,10 +131,13 @@ export default function Focus() {
               />
             </HelpBubble>
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            {priorities.map((p) => (
-              <PrioritySlot key={p.rank} slot={p} />
-            ))}
+          <div className="space-y-3">
+            <PrioritySlotHero slot={priorities[0]} />
+            <div className="grid gap-3 md:grid-cols-2">
+              {priorities.slice(1).map((p) => (
+                <PrioritySlot key={p.rank} slot={p} />
+              ))}
+            </div>
           </div>
         </Card>
       </section>
@@ -139,7 +146,12 @@ export default function Focus() {
       <section className="axzio-rise axzio-rise-2 mb-8">
         <Card className="p-6">
           <SectionHead label="Capture" />
-          <AddFocusForm key={timeframe} initialTimeframe={timeframe} />
+          <AddFocusForm
+            key={timeframe}
+            initialTimeframe={timeframe}
+            layer={captureLayer}
+            setLayer={setCaptureLayer}
+          />
         </Card>
       </section>
 
@@ -202,6 +214,45 @@ export default function Focus() {
   );
 }
 
+/**
+ * Rank 1, large: the one thing to focus on takes roughly the space of
+ * ranks 2 and 3 combined — the hierarchy is visual, not just ordinal.
+ */
+function PrioritySlotHero({ slot }) {
+  const { setPriority } = useAxzio();
+  return (
+    <div
+      className={`rounded-xl border p-6 ${
+        slot.item ? "border-white/40 bg-white/[0.04]" : "border-white/10"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <MicroLabel>{priorityLabel(slot.rank)}</MicroLabel>
+        {slot.item && (
+          <button
+            onClick={() => setPriority(slot.item.id, null)}
+            aria-label={`Clear ${priorityLabel(slot.rank)}`}
+            className="text-white/25 transition-colors hover:text-white/80"
+          >
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.4" />
+            </svg>
+          </button>
+        )}
+      </div>
+      {slot.item ? (
+        <p className="mt-3 line-clamp-3 text-xl font-light leading-snug text-white md:text-2xl">
+          {slot.item.text}
+        </p>
+      ) : (
+        <p className="mt-3 text-[15px] tracking-wide text-white/30">
+          Not set — rank an item 1st to name the one thing to focus on.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function PrioritySlot({ slot }) {
   const { setPriority } = useAxzio();
   return (
@@ -256,7 +307,14 @@ function CommitmentOptions({ commitments, allowNew }) {
   );
 }
 
-function AddFocusForm({ initialTimeframe }) {
+/**
+ * Capture in three progressive layers:
+ *   1 — just the text input line (default, fully collapsed)
+ *   2 — quadrant, timeframe, commitment, mode, pillar
+ *   3 — quest fields (Make Quest, brief, help kinds)
+ * The expand icon toggles 1 ↔ 2; a distinct button opens 3.
+ */
+function AddFocusForm({ initialTimeframe, layer, setLayer }) {
   const { state, addFocusItem, addCommitment } = useAxzio();
   const commitments = sortedCommitments(state);
   const [text, setText] = useState("");
@@ -266,6 +324,14 @@ function AddFocusForm({ initialTimeframe }) {
   const [pillar, setPillar] = useState("");
   const [commitmentId, setCommitmentId] = useState("");
   const [newCommitment, setNewCommitment] = useState("");
+  const [isQuest, setIsQuest] = useState(false);
+  const [brief, setBrief] = useState("");
+  const [kinds, setKinds] = useState([]);
+
+  const toggleKind = (key) =>
+    setKinds((ks) =>
+      ks.includes(key) ? ks.filter((k) => k !== key) : [...ks, key]
+    );
 
   const submit = (e) => {
     e.preventDefault();
@@ -282,6 +348,7 @@ function AddFocusForm({ initialTimeframe }) {
         mode: mode || null,
         pillar: pillar || null,
         commitmentId: cid,
+        quest: { isQuest, brief, kinds },
       })
     ) {
       setText("");
@@ -289,92 +356,209 @@ function AddFocusForm({ initialTimeframe }) {
       setNewCommitment("");
       setMode("");
       setPillar("");
+      setIsQuest(false);
+      setBrief("");
+      setKinds([]);
     }
   };
 
   return (
     <form onSubmit={submit}>
-      <div className="flex flex-col gap-3 md:flex-row">
+      {/* Layer 1 — the text line, always visible */}
+      <div className="flex items-center gap-2">
         <Field
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="What needs doing? — name it plainly"
           maxLength={160}
-          className="md:flex-1"
+          className="flex-1"
+          aria-label="New action"
         />
         <Btn type="submit" variant="ghost" disabled={!text.trim()}>
           Place
         </Btn>
+        <button
+          type="button"
+          onClick={() => setLayer(layer >= 2 ? 1 : 2)}
+          aria-expanded={layer >= 2}
+          aria-label={layer >= 2 ? "Fewer capture options" : "More capture options"}
+          title={layer >= 2 ? "Collapse options" : "Expand options"}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 text-white/50 transition-colors hover:border-white/40 hover:text-white"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 12 12"
+            fill="none"
+            aria-hidden="true"
+            className={`transition-transform duration-200 ${
+              layer >= 2 ? "rotate-180" : ""
+            }`}
+          >
+            <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+        </button>
       </div>
-      <div className="mt-3 flex flex-wrap gap-3">
-        <select
-          value={quadrant}
-          onChange={(e) => setQuadrant(e.target.value)}
-          aria-label="Quadrant"
-          className={selectClass}
-        >
-          {QUADRANTS.map((q, i) => (
-            <option key={q.key} value={q.key}>
-              Q{i + 1} {q.label} — {q.sub}
-            </option>
-          ))}
-        </select>
-        <select
-          value={tf}
-          onChange={(e) => setTf(e.target.value)}
-          aria-label="Timeframe"
-          className={selectClass}
-        >
-          {TIMEFRAMES.map((t) => (
-            <option key={t.key} value={t.key}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={mode}
-          onChange={(e) => setMode(e.target.value)}
-          aria-label="Mode tag"
-          className={selectClass}
-        >
-          <option value="">No mode tag</option>
-          {VALID_MODES.map((m) => (
-            <option key={m} value={m}>
-              {modeLabel(m)}
-            </option>
-          ))}
-        </select>
-        <select
-          value={pillar}
-          onChange={(e) => setPillar(e.target.value)}
-          aria-label="Pillar tag"
-          className={selectClass}
-        >
-          <option value="">No pillar tag</option>
-          {VALID_PILLARS.map((p) => (
-            <option key={p} value={p}>
-              {pillarLabel(p)}
-            </option>
-          ))}
-        </select>
-        <select
-          value={commitmentId}
-          onChange={(e) => setCommitmentId(e.target.value)}
-          aria-label="Commitment"
-          className={`${selectClass} max-w-[220px]`}
-        >
-          <CommitmentOptions commitments={commitments} allowNew />
-        </select>
-      </div>
-      {commitmentId === "__new__" && (
+
+      {/* Layer 2 — placement fields */}
+      {layer >= 2 && (
         <div className="axzio-rise mt-3">
-          <Field
-            value={newCommitment}
-            onChange={(e) => setNewCommitment(e.target.value)}
-            placeholder="Name the new commitment — it is created on Place"
-            maxLength={120}
-            aria-label="New commitment"
-          />
+          <div className="flex flex-wrap gap-3">
+            <select
+              value={quadrant}
+              onChange={(e) => setQuadrant(e.target.value)}
+              aria-label="Quadrant"
+              className={selectClass}
+            >
+              {QUADRANTS.map((q, i) => (
+                <option key={q.key} value={q.key}>
+                  Q{i + 1} {q.label} — {q.sub}
+                </option>
+              ))}
+            </select>
+            <select
+              value={tf}
+              onChange={(e) => setTf(e.target.value)}
+              aria-label="Timeframe"
+              className={selectClass}
+            >
+              {TIMEFRAMES.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={mode}
+              onChange={(e) => setMode(e.target.value)}
+              aria-label="Mode tag"
+              className={selectClass}
+            >
+              <option value="">No mode tag</option>
+              {VALID_MODES.map((m) => (
+                <option key={m} value={m}>
+                  {modeLabel(m)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={pillar}
+              onChange={(e) => setPillar(e.target.value)}
+              aria-label="Pillar tag"
+              className={selectClass}
+            >
+              <option value="">No pillar tag</option>
+              {VALID_PILLARS.map((p) => (
+                <option key={p} value={p}>
+                  {pillarLabel(p)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={commitmentId}
+              onChange={(e) => setCommitmentId(e.target.value)}
+              aria-label="Commitment"
+              className={`${selectClass} max-w-[220px]`}
+            >
+              <CommitmentOptions commitments={commitments} allowNew />
+            </select>
+          </div>
+          {commitmentId === "__new__" && (
+            <div className="axzio-rise mt-3">
+              <Field
+                value={newCommitment}
+                onChange={(e) => setNewCommitment(e.target.value)}
+                placeholder="Name the new commitment — it is created on Place"
+                maxLength={120}
+                aria-label="New commitment"
+              />
+            </div>
+          )}
+          {/* Layer 3 — distinct expander for quest fields */}
+          <button
+            type="button"
+            onClick={() => setLayer(layer >= 3 ? 2 : 3)}
+            aria-expanded={layer >= 3}
+            className="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-white/20 px-3 py-2 text-[11px] uppercase tracking-[0.16em] text-white/55 transition-colors hover:border-white/50 hover:text-white"
+          >
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 12 12"
+              fill="none"
+              aria-hidden="true"
+              className={`transition-transform duration-200 ${
+                layer >= 3 ? "rotate-45" : ""
+              }`}
+            >
+              <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.4" />
+            </svg>
+            {layer >= 3 ? "Hide quest options" : "Quest options"}
+          </button>
+        </div>
+      )}
+
+      {/* Layer 3 — quest fields */}
+      {layer >= 3 && (
+        <div className="axzio-rise mt-3 rounded-xl border border-white/10 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <MicroLabel>Quest</MicroLabel>
+            <HelpBubble title="Quest">
+              <HelpText
+                what="Posting a quest turns this action into an invitation: here's how someone could help. Only quested items can ever be picked up by your tribe — everything else stays yours."
+                why="Writing the brief clarifies the task for you too: naming the help you need often reveals the real next move."
+                how="Flip Make Quest on, write the brief, pick the kinds of help. Tribe grabbing and sharing arrive later with accounts."
+              />
+            </HelpBubble>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsQuest((q) => !q)}
+            aria-pressed={isQuest}
+            className={`rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+              isQuest
+                ? "border-white/70 bg-white/10 text-white"
+                : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
+            }`}
+          >
+            {isQuest ? "Quested" : "Make Quest"}
+          </button>
+          {isQuest && (
+            <div className="mt-3 space-y-4">
+              <TextArea
+                value={brief}
+                onChange={(e) => setBrief(e.target.value)}
+                rows={3}
+                maxLength={600}
+                placeholder="How could someone help with this?"
+                aria-label="Quest brief — how someone could help"
+              />
+              <div>
+                <MicroLabel className="mb-2">What kind of help?</MicroLabel>
+                <div className="flex flex-wrap gap-2">
+                  {QUEST_KINDS.map((k) => {
+                    const on = kinds.includes(k.key);
+                    return (
+                      <button
+                        type="button"
+                        key={k.key}
+                        onClick={() => toggleKind(k.key)}
+                        aria-pressed={on}
+                        title={k.desc}
+                        className={`rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+                          on
+                            ? "border-white/70 bg-white/10 text-white"
+                            : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
+                        }`}
+                      >
+                        {k.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </form>
@@ -1074,6 +1258,8 @@ function FocusItemEditor({
         </button>
       </div>
 
+      <LinkedResetCard item={item} />
+
       <div className="flex items-center justify-between border-t border-white/10 pt-4">
         <button
           type="button"
@@ -1089,6 +1275,54 @@ function FocusItemEditor({
           <Btn variant="ghost" onClick={onSave} disabled={!draft.text.trim()}>
             Save
           </Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The completed Guided Reset(s) threaded from this focus item, derived
+ * live from state.resets via sourceItemId — no stored reference, so a
+ * deleted reset simply disappears and the most recent one always shows.
+ */
+function LinkedResetCard({ item }) {
+  const { state } = useAxzio();
+  const linked = (state.resets || [])
+    .filter((r) => r.sourceItemId === item.id)
+    .sort((a, b) => b.ts - a.ts);
+  if (linked.length === 0) return null;
+  const reset = linked[0];
+
+  return (
+    <div>
+      <MicroLabel className="mb-2">Guided Reset</MicroLabel>
+      <div className="rounded-xl border border-white/12 bg-white/[0.02] p-4">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+          Action Card
+        </p>
+        {reset.act && reset.act.trim() ? (
+          <p className="mt-1.5 whitespace-pre-wrap text-[15px] leading-relaxed text-white/85">
+            {reset.act}
+          </p>
+        ) : (
+          <p className="mt-1.5 text-[13px] tracking-wide text-white/40">
+            No action recorded on this card.
+          </p>
+        )}
+        <div className="mt-2.5 flex items-center justify-between gap-3">
+          <span className="text-[11px] tracking-[0.14em] text-white/35">
+            {reset.date ? formatLongDate(reset.date) : ""}
+            {linked.length > 1
+              ? `${reset.date ? " · " : ""}${linked.length} resets — most recent`
+              : ""}
+          </span>
+          <a
+            href={`#/journeys?reset=${reset.id}`}
+            className="shrink-0 text-[11px] uppercase tracking-[0.2em] text-white/60 underline decoration-white/30 underline-offset-4 transition-colors hover:text-white hover:decoration-white/80"
+          >
+            Open Action Card →
+          </a>
         </div>
       </div>
     </div>

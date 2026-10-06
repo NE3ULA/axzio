@@ -25,9 +25,11 @@ Conceptual grounding:
 - The four daily anchors are the canonical 4-line mantra
   (`ne3ula-knowledge/WORKING_DOCS/world/4_LINE_MANTRA.md`):
   Be Grateful / See Beauty / Take Action / Give Love.
-- The constellation renders the system's conceptual flow:
-  CALL/SIGNAL → INITIATION → WORLD → ENGINE → INTERFACE → DOMAINS →
-  SYSTEMS → LEGEND.
+- The constellation renders the journey of a seed through the E3
+  practice loop: Reveal → Interpret → Align → Act → Integrate, with a
+  Released branch for seeds that don't grow. (The old 8-stage system
+  map — CALL/SIGNAL → … → LEGEND — left the main view; it lives in the
+  repo docs.)
 - Visual language matches `ne3ula-site`: pure black, white type,
   starfield, thin 1px borders, wide-tracked micro labels, no emojis.
 
@@ -62,7 +64,7 @@ axzio/
 │       ├── Deck.jsx          # command deck: overview dashboard of module cards
 │       ├── Focus.jsx         # decision engine home: Eisenhower matrix + One Thing
 │       ├── Modes.jsx         # the three Modes of Energy: current mode (IN) + per-interval focus modes
-│       ├── Constellation.jsx # SVG star map of the 8 stages + user stars
+│       ├── Constellation.jsx # SVG seed-journey map: practice loop waypoints + Released branch + star placement
 │       ├── Identity.jsx      # Identity Core editor + primitives assessment
 │       └── Journeys.jsx      # guided step-through flows + launch sequence locator
 ├── architecture/         # this doc; app-level architecture notes
@@ -81,7 +83,7 @@ axzio/
 | `#/focus`         | Focus         | Decision Engine home: doing-first voice, per-timeframe 1st/2nd/3rd priorities (1st = the one thing to focus on), capture with commitment/mode/pillar tagging, Eisenhower 2×2 with Day/Week/Month/Year tabs, Q1 emphasized as where focus goes first. Items are living objects: tap to expand an inline editor (text, quadrant, timeframe + repeats, mode/pillar tags, commitment, attach-to nesting, notes, subtasks, priority); "Explore in Guided Reset" threads an action into a journey |
 | `#/modes`         | Modes         | The three Modes of Energy (Production, Pleasure, People): "Right now" single-select for the mode you're IN + "Where focus goes" primary/secondary per Day / Week / Month, each mode's gift and risk |
 | `#/tribe`         | Tribe         | People directory in core-group circles (Spouse/Partner, Family, Closest friends, Key Business Relationships, Other): add/edit/remove people, per-person Give Love history. Local-only v1; sharing arrives later with accounts |
-| `#/constellation` | Constellation | 8-stage star map, detail readings, orbiting user stars       |
+| `#/constellation` | Constellation | Seed journey through the practice loop (Reveal→Interpret→Align→Act→Integrate + Released branch); manual star placement; star → Guided Reset threading |
 | `#/identity`      | Identity      | Identity Core (4 orientation statements, values, ordered commitments), Four Pillars (Mind, Body, Heart, Spirit), primitives sliders + radar, walkthrough replay, reset |
 | `#/journeys`      | Journeys      | Morning Alignment, Evening Review, Ignite a Star, Guided Reset (phase-labeled) + Identity Launch Sequence locator + past reset Action Cards |
 
@@ -148,8 +150,7 @@ day rank-1 item is set — in Focus or via the row's select — mirroring
 the item's text into the entry; the manual toggle still overrides. The
 card shows n/4 with a one-line preview of each entry. The legacy
 `mantra` boolean map is kept in sync so the Morning Alignment journey
-step and the Constellation's "anchors held" count keep working; old
-held-anchors migrate into the new done flags.
+step keeps working; old held-anchors migrate into the new done flags.
 
 ## Four Pillars
 
@@ -206,7 +207,17 @@ sets a transient (never persisted) `resetPrefill` in the store, and routes
 to `#/journeys`, where the Guided Reset opens with its Situation
 pre-filled from the action's text (+ notes). Completing the reset stores
 `sourceItemId` on it; the Action Card renders a "From decision: <text>"
-line linking back to `#/focus`, and the copied card includes it.
+line linking back to `#/focus`, and the copied card includes it. The loop
+is closed back in Focus: the item's editor derives the most recent reset
+with a matching `sourceItemId` (no stored reference — a deleted reset
+simply disappears) and shows a "Guided Reset" section with the Action
+Card's `act` text, date, and a deep link `#/journeys?reset=<id>` that
+opens that card (Journeys parses the hash query on mount and hashchange).
+
+**Completing an action writes history**: `toggleFocusDone` appends
+`{ text: "Completed: <item text>", tag: "focus" }` to the action log when
+an item transitions to done. Reopening never removes the entry — the log
+is a record, not a mirror.
 
 ### Priorities per timeframe (replaces the single One Thing)
 
@@ -214,11 +225,13 @@ Each item holds `priority: null | 1 | 2 | 3`, **unique within its
 timeframe** — setting rank N clears rank N from every other item in the
 same timeframe; day/week/month/year each hold independent 1/2/3 sets.
 Rank 1 is the one thing to focus on ("1st — the one thing to focus on").
-The top strip shows the three slots for the active timeframe tab with
-per-slot clear; the editor offers a None/1st/2nd/3rd selector and each
-collapsed row a compact rank control. The Deck's "What's important today"
-card lists the day's three priorities. Old `oneThing: true` items migrate
-to `priority: 1` in their timeframe.
+The top strip gives rank 1 visual dominance: a large hero block on top
+taking roughly the space of ranks 2 and 3 combined, with 2 and 3 smaller
+side-by-side below; per-slot clear is kept. The editor offers a
+None/1st/2nd/3rd selector and each collapsed row a compact rank control.
+The Deck's "What's important today" card follows the same size logic
+(rank 1 large on top, 2+3 smaller below). Old `oneThing: true` items
+migrate to `priority: 1` in their timeframe.
 
 ### Timeframes + tagging (feeds future AI.D effort analysis)
 
@@ -231,6 +244,15 @@ select defaulting to the active tab. Week items take `daysOfWeek` [0–6]
 this tagging exists so effort can be analyzed across dimensions over time
 (the future AI.D nudges read these tags). Old items default to timeframe
 `'day'`, empty repeat arrays, and null tags.
+
+**Capture is three progressive layers** (default fully collapsed):
+Layer 1 is just the text input line + Place + a working expand/collapse
+icon (toggles 1 ↔ 2); Layer 2 holds quadrant, timeframe, commitment
+(+ inline new-commitment), mode, pillar; a distinct dashed "Quest
+options" button opens Layer 3 (Make Quest toggle, brief, help kinds).
+The layer preference lives in the Focus view's component state so it
+survives timeframe tab switches. `addFocusItem` passes `opts.quest`
+through `normalizeFocusItem` so capture-created quests persist.
 
 ### Subtask nesting (attach-to)
 
@@ -310,6 +332,38 @@ graceful empty states. `state.modes = { current, day: {primary, secondary},
 week: {...}, month: {...} }`; `MODES` / `MODE_INTERVALS` constants live in
 the store. Migration: old state without `current` normalizes to null.
 
+## Constellation — the seed journey (v1)
+
+The 8-stage system-architecture map left the main view (it lives in the
+repo docs). The Constellation is now personal: the journey of a seed
+(ignited star) through the E3 practice loop — Reveal → Interpret →
+Align → Act → Integrate — with a Released branch for seeds that don't
+grow. Ignite a Star (Deck Capture zone) is the seed; the map shows each
+seed's journey toward identity/legend or release.
+
+- **Schema**: stars carry `loopStage` ('reveal'|'interpret'|'align'|
+  'act'|'integrate'|'released'|null); newly ignited stars default to
+  `'reveal'`; old stars migrate to `'reveal'`. `setStarLoopStage(starId,
+  stage)` validates against the loop keys. `LOOP_STAGES` /
+  `RELEASED_STAGE` (with one-line brand-voice copy each) live in the store.
+- **View**: the loop rendered as a sky-map, not a kanban — five
+  constellation waypoints along an arc plus a dimmer Released node on a
+  dashed branch. Each waypoint shows its seeds as diamond chips (capped at
+  10 per node, "+N more" beyond). Selecting a stage reads its one-line
+  copy and lists its seeds; selecting a seed opens placement (six buttons:
+  five stages + Released), "Explore in Guided Reset →", and Extinguish
+  (confirm). Placement is manual — declare, don't guess.
+- **Star → Reset threading**: parallel to the focus-item thread.
+  `requestResetFromStar(starId)` pre-fills the Guided Reset's Situation
+  from the star's name (+ note) and stores `sourceStarId` on the completed
+  reset (`normalizeResets`/`saveReset` carry it; old resets → null). The
+  Action Card renders "From seed: <name>" linking to `#/constellation`
+  (instead of the `#/focus` decision link), and the copied card carries
+  it. Completing a reset does NOT auto-move the star — manual placement
+  stays manual (noted in the UI as a future revision).
+- **Future (deliberately not v1)**: derived/auto stage placement,
+  star↔focus-item linking, quest threads on the map.
+
 ## Guided Reset
 
 A fourth journey mirroring the guided practice at
@@ -353,8 +407,9 @@ everything else; the help bubble says so.
       },
       intention: string,
       battery: { physical, mental, emotional, social, purpose }  // 1–10 STATE
-      // batteryPriority: { physical, mental, ... } // 'low'|'med'|'high' FOCUS
-      // STATE is where the instrument is; PRIORITY is where focus goes.
+      // batteryPriority: { physical, mental, ... } // 'low'|'med'|'high' PRIORITY
+      // STATE is where the instrument is (1–10); PRIORITY is how much
+      // attention it gets (Low/Med/High) — labeled plainly as "Priority".
       // A low state on a low priority is rest, not failure. The Deck's State
       // card reads the gap: "Needs attention" = low state on high priority;
       // "Charged" = highest state; "Resting" = low state on low priority.
@@ -469,10 +524,11 @@ count; financial contributions).
 
 - **Backend sync** — state is local-only; a sync layer (account,
   multi-device) is stubbed out, not designed.
-- **ne3ulaverse quest integration** — the constellation's LEGEND stage and
-  journey completions are natural hooks for quest/progression systems;
-  no game logic lives here per repo boundaries.
-- **Richer constellation** — force-directed layout, zoom/pan, more than
-  the 8 canonical stages + user stars.
+- **ne3ulaverse quest integration** — journey completions are natural
+  hooks for quest/progression systems; no game logic lives here per
+  repo boundaries.
+- **Richer constellation** — derived/auto stage placement (declare-don't-guess
+  is v1), star↔focus-item linking, quest threads on the map,
+  force-directed layout, zoom/pan.
 - **Notifications/reminders** — daily check-in nudges.
 - **Data export/import** — JSON backup of `axzio-state-v1`.

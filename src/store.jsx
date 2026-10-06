@@ -625,10 +625,52 @@ function normalizeResets(raw) {
       integrate: String(r.integrate ?? ""),
       // Optional thread back to the Focus item that triggered this reset.
       sourceItemId: typeof r.sourceItemId === "string" ? r.sourceItemId : null,
+      // Optional thread back to the star (seed) that triggered this reset.
+      sourceStarId: typeof r.sourceStarId === "string" ? r.sourceStarId : null,
     }))
     .filter((r) => r.id);
 }
 
+/* The E3 practice loop — the Constellation's stages. A seed (ignited
+   star) journeys Reveal → Interpret → Align → Act → Integrate, or takes
+   the Released branch. Placement is manual in v1: declare, don't guess.
+   Auto-derivation is a future revision. */
+export const LOOP_STAGES = [
+  { key: "reveal", label: "Reveal", copy: "Name the seed. What sparked?" },
+  {
+    key: "interpret",
+    label: "Interpret",
+    copy: "Understand it. The Guided Reset lives here.",
+  },
+  { key: "align", label: "Align", copy: "Place it: mode, pillar, commitment." },
+  { key: "act", label: "Act", copy: "Do the work." },
+  {
+    key: "integrate",
+    label: "Integrate",
+    copy: "Root it into identity and legend.",
+  },
+];
+export const RELEASED_STAGE = {
+  key: "released",
+  label: "Released",
+  copy: "Let it go. Not every seed grows.",
+};
+const LOOP_STAGE_KEYS = new Set([
+  ...LOOP_STAGES.map((s) => s.key),
+  RELEASED_STAGE.key,
+]);
+
+/** Normalize one star; old stars predate loop stages → 'reveal'. */
+function normalizeStar(s) {
+  if (!s || typeof s !== "object") return null;
+  return {
+    id: String(s.id ?? ""),
+    name: String(s.name ?? ""),
+    note: String(s.note ?? ""),
+    created: Number(s.created) || 0,
+    loopStage: LOOP_STAGE_KEYS.has(s.loopStage) ? s.loopStage : "reveal",
+  };
+}
 /** Normalize one focus item's subtasks; malformed entries are dropped. */
 function normalizeSubtasks(raw) {
   if (!Array.isArray(raw)) return [];
@@ -896,7 +938,9 @@ function loadState() {
       days,
       actions: Array.isArray(parsed.actions) ? parsed.actions : [],
       signals: Array.isArray(parsed.signals) ? parsed.signals : [],
-      stars: Array.isArray(parsed.stars) ? parsed.stars : [],
+      stars: Array.isArray(parsed.stars)
+        ? parsed.stars.map(normalizeStar).filter(Boolean)
+        : [],
       assessments: Array.isArray(parsed.assessments) ? parsed.assessments : [],
       // Tribe v1: old states predate the people directory.
       people: normalizePeople(parsed.people),
@@ -1241,11 +1285,25 @@ export function AxzioProvider({ children }) {
     addStar(name, note = "") {
       const n = name.trim();
       if (!n) return null;
-      const star = { id: uid(), name: n, note: note.trim(), created: Date.now() };
+      const star = {
+        id: uid(),
+        name: n,
+        note: note.trim(),
+        created: Date.now(),
+        loopStage: "reveal",
+      };
       update((d) => {
         d.stars.push(star);
       });
       return star;
+    },
+    /** Move a seed along the practice loop (or release it). Manual in v1. */
+    setStarLoopStage(starId, stage) {
+      if (!LOOP_STAGE_KEYS.has(stage)) return;
+      update((d) => {
+        const s = d.stars.find((x) => x.id === starId);
+        if (s) s.loopStage = stage;
+      });
     },
     deleteStar(id) {
       update((d) => {
@@ -1315,6 +1373,7 @@ export function AxzioProvider({ children }) {
           mode: opts.mode,
           pillar: opts.pillar,
           parentId: opts.parentId,
+          quest: opts.quest,
         },
         new Set(["q1", "q2", "q3", "q4"])
       );
@@ -1333,7 +1392,19 @@ export function AxzioProvider({ children }) {
     toggleFocusDone(id) {
       update((d) => {
         const f = d.focusItems.find((x) => x.id === id);
-        if (f) f.done = !f.done;
+        if (!f) return;
+        f.done = !f.done;
+        // Completing an action writes it into the action log as history.
+        // Reopening never removes the entry — the log is a record, not a mirror.
+        if (f.done) {
+          d.actions.push({
+            id: uid(),
+            date: localDateKey(),
+            ts: Date.now(),
+            text: `Completed: ${f.text}`,
+            tag: "focus",
+          });
+        }
       });
     },
     deleteFocusItem(id) {
@@ -1558,6 +1629,12 @@ export function AxzioProvider({ children }) {
           typeof fields?.sourceItemId === "string"
             ? fields.sourceItemId
             : null,
+        // Optional thread back to the star (seed) this reset was
+        // triggered from (Constellation's "Explore in Guided Reset").
+        sourceStarId:
+          typeof fields?.sourceStarId === "string"
+            ? fields.sourceStarId
+            : null,
       };
       update((d) => {
         if (!Array.isArray(d.resets)) d.resets = [];
@@ -1586,6 +1663,22 @@ export function AxzioProvider({ children }) {
       setResetPrefill({
         situation: notes ? `${item.text}\n\nNotes:\n${notes}` : item.text,
         sourceItemId: item.id,
+      });
+      return true;
+    },
+    /**
+     * Begin a Guided Reset from a Constellation star (seed): the reset's
+     * Situation is pre-filled from the star's name (plus its note), and the
+     * saved reset keeps a sourceStarId thread back to the seed.
+     * Returns false when the star no longer exists.
+     */
+    requestResetFromStar(starId) {
+      const star = state.stars.find((x) => x.id === starId);
+      if (!star) return false;
+      const note = (star.note || "").trim();
+      setResetPrefill({
+        situation: note ? `${star.name}\n\nNote:\n${note}` : star.name,
+        sourceStarId: star.id,
       });
       return true;
     },

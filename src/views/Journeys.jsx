@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useAxzio,
   MANTRA,
@@ -47,12 +47,34 @@ export default function Journeys() {
       ? {
           rsituation: prefill.situation,
           _sourceItemId: prefill.sourceItemId,
+          _sourceStarId: prefill.sourceStarId,
         }
       : {};
   useEffect(() => {
     if (active === "reset" && prefill) axzio.clearResetPrefill();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
+
+  // Deep link: #/journeys?reset=<id> opens that reset's Action Card.
+  // Used by the Focus item editor's "Guided Reset" section.
+  const resetsRef = useRef([]);
+  resetsRef.current = axzio.state.resets;
+  useEffect(() => {
+    const openFromHash = () => {
+      const m = window.location.hash.match(/[?&]reset=([^&]+)/);
+      if (!m) return;
+      const id = decodeURIComponent(m[1]);
+      if (resetsRef.current.some((r) => r.id === id)) {
+        setViewingReset(id);
+        if (window.location.hash !== "#/journeys") {
+          window.location.hash = "#/journeys";
+        }
+      }
+    };
+    openFromHash();
+    window.addEventListener("hashchange", openFromHash);
+    return () => window.removeEventListener("hashchange", openFromHash);
+  }, []);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-5 pb-24 pt-8">
@@ -526,6 +548,7 @@ function StepContinue({ stepId, scratch, setScratch, onNext, last }) {
           lifemod: scratch.rlifemod,
           integrate: scratch.rintegrate,
           sourceItemId: scratch._sourceItemId || null,
+          sourceStarId: scratch._sourceStarId || null,
         });
         if (setScratch) {
           setScratch((s) => ({ ...s, savedResetId: entry.id }));
@@ -837,14 +860,14 @@ function ResetFieldStep({ stepId, scratch, setScratch }) {
 }
 
 /** Plain-text rendering of a reset, for the copy-to-clipboard action. */
-function formatResetCard(reset, sourceText) {
+function formatResetCard(reset, sourceLine) {
   const lines = [
     "E3 RESET — ACTION CARD",
     reset.date ? formatLongDate(reset.date) : "",
     "",
   ];
-  if (sourceText) {
-    lines.push(`From decision: ${sourceText}`, "");
+  if (sourceLine) {
+    lines.push(sourceLine, "");
   }
   for (const f of RESET_FIELDS) {
     const text = (reset[f.key] || "").trim();
@@ -871,6 +894,10 @@ function ResetActionCard({ resetId, onBack, onRestart, allowDelete = false }) {
   const sourceItem = reset?.sourceItemId
     ? state.focusItems.find((f) => f.id === reset.sourceItemId)
     : null;
+  // Thread back to the Constellation star (seed) this reset was triggered from.
+  const sourceStar = reset?.sourceStarId
+    ? state.stars.find((s) => s.id === reset.sourceStarId)
+    : null;
 
   if (!reset) {
     return (
@@ -886,7 +913,14 @@ function ResetActionCard({ resetId, onBack, onRestart, allowDelete = false }) {
   }
 
   const copyCard = async () => {
-    const text = formatResetCard(reset, sourceItem?.text);
+    const text = formatResetCard(
+      reset,
+      sourceStar
+        ? `From seed: ${sourceStar.name}`
+        : sourceItem
+          ? `From decision: ${sourceItem.text}`
+          : null
+    );
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -935,7 +969,18 @@ function ResetActionCard({ resetId, onBack, onRestart, allowDelete = false }) {
               {formatLongDate(reset.date)}
             </p>
           )}
-          {sourceItem && (
+          {sourceStar && (
+            <p className="mt-2 text-sm tracking-wide text-white/55">
+              From seed:{" "}
+              <a
+                href="#/constellation"
+                className="text-white underline decoration-white/30 underline-offset-4 transition-colors hover:decoration-white/80"
+              >
+                {sourceStar.name}
+              </a>
+            </p>
+          )}
+          {sourceItem && !sourceStar && (
             <p className="mt-2 text-sm tracking-wide text-white/55">
               From decision:{" "}
               <a
