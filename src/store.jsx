@@ -947,9 +947,201 @@ export function threadMassTier(star, offspring) {
 }
 
 const THREAD_FOG_MS = 7 * 24 * 3600 * 1000;
+
+/* ------------------------------------------------------------------ */
+/* Stellar classes — what kind of star a thread is. Seeds take dwarf   */
+/* colors by mass tier; crowned threads are white dwarfs (maintained    */
+/* identity — a badge, not an exit); marked threads render as black    */
+/* holes (anchor: core identity others orbit; trap: gravity well that  */
+/* robs energy).                                                       */
+/* ------------------------------------------------------------------ */
+export const STELLAR_CLASSES = {
+  "red-dwarf": { color: "#ff7a59", label: "Red dwarf" },
+  "orange-dwarf": { color: "#ffa94e", label: "Orange dwarf" },
+  "yellow-dwarf": { color: "#ffd75e", label: "Yellow dwarf" },
+  "blue-giant": { color: "#8ecbff", label: "Blue giant" },
+  "blue-supergiant": { color: "#d6ecff", label: "Blue supergiant" },
+  "white-dwarf": { color: "#ffffff", label: "White dwarf" },
+  anchor: { color: "#050508", ring: "#d8a94e", label: "Black hole · anchor" },
+  trap: { color: "#050508", ring: "#b45cff", label: "Black hole · trap" },
+  released: { color: "rgba(255,255,255,0.28)", label: "Released" },
+};
+
+export function stellarClass(state, star, tier) {
+  if (!star || star.loopStage === "released") return "released";
+  if (star.blackHole === "anchor") return "anchor";
+  if (star.blackHole === "trap") return "trap";
+  if (star.crowned) return "white-dwarf";
+  return (
+    ["red-dwarf", "orange-dwarf", "yellow-dwarf", "blue-giant", "blue-supergiant"][
+      Math.min(4, Math.max(0, tier || 0))
+    ] || "red-dwarf"
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* The E3 gates — soft graduation through the loop inside Evaluate.    */
+/* Each gate names its key practice; meeting it doesn't auto-advance,  */
+/* it knocks: the user approves the unlock (or bypasses by honest      */
+/* declaration). Old work counts — credits derive from existing state. */
+/*   Reveal → Interpret → Align : one Guided Reset (fog → decision)    */
+/*   Align → Act                   : one Growth Practice (direction →   */
+/*                                   structure)                        */
+/*   Act → Integrate               : completions (goals done + habits  */
+/*                                   integrated via rep goal or the     */
+/*                                   "I feel integrated" declaration)  */
+/* ------------------------------------------------------------------ */
+export const GATE_NEED_INTEGRATE = 3;
+
+export function habitSessionCount(h) {
+  const sess = h && h.sessions;
+  if (!sess || typeof sess !== "object") return 0;
+  return Object.values(sess).filter(Boolean).length;
+}
+
+/** A habit counts as integrated: rep goal met, or the user declared it
+ *  ("I feel I have integrated this" — on autopilot, become not practiced). */
+export function habitIntegrated(h) {
+  if (!h) return false;
+  if (h.integratedAt) return true;
+  return h.repGoal > 0 && habitSessionCount(h) >= h.repGoal;
+}
+
+export function threadGates(state, star) {
+  if (!star) return [];
+  const off = threadOffspring(state, star);
+  const resetsDone = (state.resets || []).filter(
+    (r) => r && r.sourceStarId === star.id
+  ).length;
+  const linkedGoalIds = new Set(off.goals.map((g) => g.id));
+  const linkedHabitIds = new Set(off.habits.map((h) => h.id));
+  const growthDone = (state.growthSessions || []).some(
+    (x) =>
+      x &&
+      ((x.subjectKind === "goal" && linkedGoalIds.has(x.subjectId)) ||
+        (x.subjectKind === "habit" && linkedHabitIds.has(x.subjectId)))
+  );
+  const goalsDone = off.goals.filter((g) => g.done).length;
+  const habitsDone = off.habits.filter(habitIntegrated).length;
+  return [
+    {
+      key: "reset",
+      label: "Fog → Decision",
+      need: 1,
+      have: resetsDone,
+      unit: "Reset",
+      instrument: "Reset",
+      blurb: "One Guided Reset turns fog into a decision.",
+      untilStage: "align",
+    },
+    {
+      key: "growth",
+      label: "Direction → Structure",
+      need: 1,
+      have: growthDone ? 1 : 0,
+      unit: "Growth Practice",
+      instrument: "Growth Practice",
+      blurb: "One Growth Practice designs the pursuit.",
+      untilStage: "act",
+    },
+    {
+      key: "integrate",
+      label: "Structure → Rooted",
+      need: GATE_NEED_INTEGRATE,
+      have: goalsDone + habitsDone,
+      unit: "completions",
+      instrument: null,
+      blurb: "Goals completed + habits integrated (rep goal or your declaration).",
+      untilStage: "integrate",
+      detail: { goalsDone, habitsDone, habits: off.habits },
+    },
+  ];
+}
+
+/* ------------------------------------------------------------------ */
+/* Evidence — the case file for the identity being claimed. A lens     */
+/* over existing records (no new bookkeeping); manual entries are the  */
+/* exception, clearly badged as entered-by-you.                        */
+/* ------------------------------------------------------------------ */
+export function threadEvidence(state, star) {
+  if (!star) return [];
+  const ev = [];
+  const off = threadOffspring(state, star);
+  const linkedGoalIds = new Set(off.goals.map((g) => g.id));
+  const linkedIds = new Set([
+    ...off.goals.map((g) => g.id),
+    ...off.habits.map((h) => h.id),
+  ]);
+  for (const r of (state.resets || []).filter((x) => x && x.sourceStarId === star.id))
+    ev.push({
+      kind: "reset", at: r.ts || 0, sys: true,
+      label: "Faced the fog", sub: r.situation ? `“${r.situation.slice(0, 90)}”` : "Guided Reset",
+    });
+  for (const x of (state.growthSessions || []).filter(
+    (s) =>
+      s &&
+      ((s.subjectKind === "goal" && linkedGoalIds.has(s.subjectId)) ||
+        (s.subjectKind === "habit" && new Set(off.habits.map((h) => h.id)).has(s.subjectId)))
+  ))
+    ev.push({
+      kind: "growth", at: x.createdAt || x.ts || 0, sys: true,
+      label: "Designed the pursuit", sub: x.outcome ? `“${String(x.outcome).slice(0, 90)}”` : "Growth Practice",
+    });
+  for (const g of off.goals.filter((x) => x.done))
+    ev.push({ kind: "goal", at: g.completedAt || 0, sys: true, label: "Completed goal", sub: `“${g.text}”` });
+  for (const h of off.habits) {
+    const n = habitSessionCount(h);
+    if (n > 0 || habitIntegrated(h))
+      ev.push({
+        kind: "habit", at: h.integratedAt || 0, sys: true,
+        label: habitIntegrated(h) ? "Integrated habit" : "Practiced habit",
+        sub: `“${h.text}” · ${n} session${n === 1 ? "" : "s"}`,
+      });
+  }
+  const focusDone = (state.focusItems || []).filter(
+    (f) =>
+      f && f.done &&
+      ((f.goalId && linkedGoalIds.has(f.goalId)) || (f.parentId && linkedIds.has(f.parentId)))
+  ).length;
+  if (focusDone > 0)
+    ev.push({ kind: "focus", at: 0, sys: true, label: "Showed up", sub: `${focusDone} focus task${focusDone === 1 ? "" : "s"} completed` });
+  if ((star.orbits || 1) > 1)
+    ev.push({ kind: "orbit", at: 0, sys: true, label: "Kept orbiting", sub: `${star.orbits} E3 orbits completed` });
+  for (const pn of star.previousNames || [])
+    ev.push({ kind: "rename", at: pn.at || 0, sys: true, label: "Renamed the becoming", sub: `“${pn.text}” → “${star.name}”` });
+  if (star.futureName)
+    ev.push({ kind: "beacon", at: 0, sys: true, label: "Named the future self", sub: `Becoming “${star.futureName}”` });
+  if (off.commitment)
+    ev.push({ kind: "ignition", at: 0, sys: true, label: "Ignited into identity", sub: `Became “${commitmentText(state, off.commitment.id)}”` });
+  if (star.crowned)
+    ev.push({ kind: "crown", at: 0, sys: true, label: "Crowned", sub: "Claimed as maintained identity" });
+  for (const m of star.manualEvidence || [])
+    ev.push({ kind: "manual", at: m.at || 0, sys: false, label: "Entered by you", sub: m.text });
+  return ev.sort((a, b) => (b.at || 0) - (a.at || 0));
+}
 /** What needs the user's attention on this thread, if anything. */
+const WELL_QUIET_MS = 3 * 24 * 3600 * 1000;
+/** Event-horizon warning: a trap unchecked for 3+ days surfaces. */
+export function wellAttention(star) {
+  if (!star || star.blackHole !== "trap") return null;
+  const quiet = Date.now() - (star.wellCheckedAt || 0);
+  if (!(star.wellCheckedAt && quiet <= WELL_QUIET_MS)) {
+    const days = star.wellCheckedAt ? Math.floor(quiet / 864e5) : null;
+    return {
+      type: "well",
+      label:
+        days == null
+          ? "Event horizon — this well has never been checked"
+          : `Event horizon — quiet for ${days} day${days === 1 ? "" : "s"}`,
+    };
+  }
+  return null;
+}
+
 export function threadAttention(state, star) {
   if (!star || star.loopStage === "released") return null;
+  const well = wellAttention(star);
+  if (well) return well;
   const due = threadReviewDue(state, star);
   if (due) return { type: "review", label: "Review due", target: due };
   const spine = threadSpine(state, star);
@@ -1114,6 +1306,37 @@ function normalizeStar(s) {
           .filter((x) => x && typeof x.text === "string" && x.text.trim())
           .map((x) => ({ text: x.text.slice(0, 80), at: Number(x.at) || 0 }))
       : [],
+    // The future name: what this thread is becoming. A beacon set early
+    // as a visualization ("→ becoming 'Mommas Boy'"); claimed or revised
+    // at the transition, never locked.
+    futureName:
+      typeof s.futureName === "string" && s.futureName.trim()
+        ? s.futureName.trim().slice(0, 80)
+        : null,
+    // User-entered evidence from outside AXZIO (or before it): [{id,text,at}].
+    manualEvidence: Array.isArray(s.manualEvidence)
+      ? s.manualEvidence
+          .filter((x) => x && typeof x.text === "string" && x.text.trim())
+          .map((x) => ({
+            id: String(x.id ?? ""),
+            text: x.text.slice(0, 300),
+            at: Number(x.at) || 0,
+          }))
+          .filter((x) => x.id)
+      : [],
+    // Crowned: a white dwarf — identity claimed and maintained. A status
+    // badge, not an exit: it stays in the sky and still decays if untended.
+    crowned: s.crowned === true,
+    // Black hole marking: 'anchor' (core identity others orbit) or
+    // 'trap' (a gravity well that robs energy — doomscrolling etc).
+    blackHole: s.blackHole === "anchor" || s.blackHole === "trap" ? s.blackHole : null,
+    // Trap check-ins: [{ at, fell }] — "steered clear" vs "fell in".
+    wellLog: Array.isArray(s.wellLog)
+      ? s.wellLog
+          .filter((x) => x && Number(x.at))
+          .map((x) => ({ at: Number(x.at), fell: x.fell === true }))
+      : [],
+    wellCheckedAt: Number(s.wellCheckedAt) || null,
   };
 }
 /** Normalize one focus item's subtasks; malformed entries are dropped. */
@@ -1264,6 +1487,13 @@ function normalizeHabits(raw, validCommitmentIds) {
       // Roadmap: a habit may be a child of a larger goal/habit.
       parentId:
         typeof h.parentId === "string" && h.parentId ? h.parentId : null,
+      // Rep goal: user-set session target counting toward a thread's
+      // Act→Integrate gate. Null = not set (the gate prompts for it).
+      repGoal:
+        Number.isInteger(h.repGoal) && h.repGoal > 0 ? h.repGoal : null,
+      // Declaration override: "I feel I have integrated this" — the habit
+      // is on autopilot, become not practiced. Timestamped, honest.
+      integratedAt: Number(h.integratedAt) || null,
       // How the habit evolves over time (captured by the Growth Practice).
       evolutionNote:
         typeof h.evolutionNote === "string"
@@ -2761,6 +2991,87 @@ export function AxzioProvider({ children }) {
       if (renamed)
         logEvent("seed.renamed", { id: starId, from: renamed.from, to: renamed.to });
       return renamed;
+    },
+    /** Set the thread's future name — the beacon ("becoming 'Mommas Boy'").
+     *  A visualization set early; claimed or revised at the transition. */
+    setFutureName(starId, name) {
+      const n = String(name || "").trim().slice(0, 80) || null;
+      update((d) => {
+        const s = d.stars.find((x) => x.id === starId);
+        if (s) s.futureName = n;
+      });
+      if (n) logEvent("seed.future_named", { id: starId, to: n });
+    },
+    /** Add user-entered evidence from outside AXZIO (or before it). */
+    addManualEvidence(starId, text) {
+      const t = String(text || "").trim().slice(0, 300);
+      if (!t) return null;
+      const entry = { id: uid(), text: t, at: Date.now() };
+      update((d) => {
+        const s = d.stars.find((x) => x.id === starId);
+        if (s) s.manualEvidence = [...(s.manualEvidence || []), entry];
+      });
+      logEvent("seed.evidence_added", { id: starId, text: t.slice(0, 80) });
+      return entry;
+    },
+    removeManualEvidence(starId, entryId) {
+      update((d) => {
+        const s = d.stars.find((x) => x.id === starId);
+        if (s)
+          s.manualEvidence = (s.manualEvidence || []).filter((x) => x.id !== entryId);
+      });
+    },
+    /** Crown / uncrown: white-dwarf status. A badge, not an exit — the
+     *  thread stays in the sky and still decays if untended. */
+    toggleCrowned(starId) {
+      let crowned = false;
+      update((d) => {
+        const s = d.stars.find((x) => x.id === starId);
+        if (s) {
+          s.crowned = !s.crowned;
+          crowned = s.crowned;
+        }
+      });
+      logEvent(crowned ? "seed.crowned" : "seed.uncrowned", { id: starId });
+      return crowned;
+    },
+    /** Mark a thread as a black hole: 'anchor' (core identity) or 'trap'
+     *  (gravity well that robs energy). Null clears the marking. */
+    setBlackHole(starId, kind) {
+      const k = kind === "anchor" || kind === "trap" ? kind : null;
+      update((d) => {
+        const s = d.stars.find((x) => x.id === starId);
+        if (s) s.blackHole = k;
+      });
+      if (k) logEvent("seed.blackhole", { id: starId, kind: k });
+    },
+    /** Log a trap check-in: fell=false "steered clear", true "fell in". */
+    logWellCheck(starId, fell) {
+      update((d) => {
+        const s = d.stars.find((x) => x.id === starId);
+        if (s) {
+          s.wellLog = [...(s.wellLog || []), { at: Date.now(), fell: fell === true }];
+          s.wellCheckedAt = Date.now();
+        }
+      });
+      logEvent("seed.well_check", { id: starId, fell: fell === true });
+    },
+    /** Set a habit's rep goal (session target for the Integrate gate). */
+    setHabitRepGoal(habitId, n) {
+      const v = Number.isInteger(n) && n > 0 ? n : null;
+      update((d) => {
+        const h = (d.habits || []).find((x) => x.id === habitId);
+        if (h) h.repGoal = v;
+      });
+    },
+    /** Declaration override: "I feel I have integrated this." The habit
+     *  is on autopilot — become, not practiced. Honest because it's yours. */
+    declareHabitIntegrated(habitId) {
+      update((d) => {
+        const h = (d.habits || []).find((x) => x.id === habitId);
+        if (h) h.integratedAt = Date.now();
+      });
+      logEvent("habit.integrated", { id: habitId });
     },
     deleteStar(id) {
       update((d) => {

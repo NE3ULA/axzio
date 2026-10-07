@@ -255,24 +255,6 @@ export default function Deck() {
         </Card>
       </section>
 
-      {/* add a star */}
-      <section className="axzio-rise axzio-rise-5 mt-6">
-        <Card className="p-6">
-          <SectionHead
-            label="Ignite a star"
-            help={
-              <HelpBubble title="Ignite a star">
-                <HelpText
-                  what="Name an intention or project to place it in your constellation as an orbiting star."
-                  why="Named things gain gravity; orbiting stars keep intentions visible across days."
-                  how="Name the star, add an optional note, ignite. Find your stars in the Constellation."
-                />
-              </HelpBubble>
-            }
-          />
-          <StarForm />
-        </Card>
-      </section>
     </div>
   );
 }
@@ -1656,51 +1638,4 @@ function SignalForm() {
   );
 }
 
-function StarForm() {
-  const { addStar, state } = useAxzio();
-  const [name, setName] = useState("");
-  const [note, setNote] = useState("");
-  const [flash, setFlash] = useState("");
 
-  const submit = (e) => {
-    e.preventDefault();
-    const star = addStar(name, note);
-    if (star) {
-      setName("");
-      setNote("");
-      setFlash(`“${star.name}” now orbits your constellation.`);
-      setTimeout(() => setFlash(""), 4000);
-    }
-  };
-
-  return (
-    <form onSubmit={submit} className="space-y-3">
-      <div className="flex flex-col gap-3 md:flex-row">
-        <Field
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Star name — e.g. “Ship the portfolio”"
-          maxLength={60}
-          className="md:flex-1"
-        />
-        <Btn type="submit" variant="ghost" disabled={!name.trim()}>
-          Ignite
-        </Btn>
-      </div>
-      <Field
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="A note on what this star means (optional)"
-        maxLength={160}
-      />
-      {flash && (
-        <p className="text-sm tracking-wide text-white/70">{flash}</p>
-      )}
-      {state.stars.length > 0 && (
-        <p className="text-[11px] uppercase tracking-[0.2em] text-white/35">
-          {state.stars.length} star{state.stars.length === 1 ? "" : "s"} in orbit
-        </p>
-      )}
-    </form>
-  );
-}
