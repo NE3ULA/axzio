@@ -424,26 +424,10 @@ export function GoalScheduleEditor({ value, onChange }) {
   const set = (patch) => {
     const next = { ...s, ...patch };
     if (next.kind === "none") return onChange(null);
-    if (next.kind === "once") {
-      return onChange(
-        next.date
-          ? { kind: "once", date: next.date, minutes: next.minutes || 30 }
-          : null
-      );
-    }
-    // weekly
-    const days = Array.isArray(next.days) ? next.days : [];
-    return onChange(
-      days.length > 0 && next.start && next.weeks > 0
-        ? {
-            kind: "weekly",
-            days,
-            start: next.start,
-            weeks: next.weeks,
-            minutes: next.minutes || 30,
-          }
-        : null
-    );
+    // Keep the draft — and its kind — through transiently invalid states.
+    // Clearing a field mid-edit (backspace to retype) must not collapse
+    // the form; the store normalizes on write and drops anything invalid.
+    onChange(next);
   };
 
   const toggleDay = (d) => {
@@ -500,7 +484,7 @@ export function GoalScheduleEditor({ value, onChange }) {
             <MicroLabel className="mb-1.5">Day</MicroLabel>
             <input
               type="date"
-              value={s.date || localDateKey()}
+              value={s.date || ""}
               onChange={(e) => set({ date: e.target.value })}
               aria-label="Session day"
               className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30 [color-scheme:dark]"
@@ -513,8 +497,12 @@ export function GoalScheduleEditor({ value, onChange }) {
               min={5}
               max={480}
               step={5}
-              value={s.minutes || 30}
-              onChange={(e) => set({ minutes: Number(e.target.value) })}
+              value={s.minutes ?? 30}
+              onChange={(e) =>
+                set({
+                  minutes: e.target.value === "" ? "" : Number(e.target.value),
+                })
+              }
               aria-label="Minutes per session"
               className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30"
             />
@@ -555,8 +543,13 @@ export function GoalScheduleEditor({ value, onChange }) {
                 min={5}
                 max={480}
                 step={5}
-                value={s.minutes || 30}
-                onChange={(e) => set({ minutes: Number(e.target.value) })}
+                value={s.minutes ?? 30}
+                onChange={(e) =>
+                  set({
+                    minutes:
+                      e.target.value === "" ? "" : Number(e.target.value),
+                  })
+                }
                 aria-label="Minutes per session"
                 className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30"
               />
@@ -565,7 +558,7 @@ export function GoalScheduleEditor({ value, onChange }) {
               <MicroLabel className="mb-1.5">Starts</MicroLabel>
               <input
                 type="date"
-                value={s.start || localDateKey()}
+                value={s.start || ""}
                 onChange={(e) => set({ start: e.target.value })}
                 aria-label="Schedule start date"
                 className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30 [color-scheme:dark]"
@@ -577,8 +570,12 @@ export function GoalScheduleEditor({ value, onChange }) {
                 type="number"
                 min={1}
                 max={52}
-                value={s.weeks || 4}
-                onChange={(e) => set({ weeks: Number(e.target.value) })}
+                value={s.weeks ?? 4}
+                onChange={(e) =>
+                  set({
+                    weeks: e.target.value === "" ? "" : Number(e.target.value),
+                  })
+                }
                 aria-label="Duration in weeks"
                 className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30"
               />
