@@ -15,11 +15,21 @@ import {
 } from "../components/ui.jsx";
 
 /* ------------------------------------------------------------------ */
-/* IDENTITY MAP — the differentiator, made visible. Not a task list:    */
-/* the journey. Time + action are the distance traveled. Orbit is the   */
-/* first impression (the system at a glance); Vertical digs into the    */
-/* details (the ladder: action → threads → commitments → identity).      */
+/* SYSTEM — the unified galaxy view, living in the Nebula tab. The       */
+/* orbit arrangement (Core, primitive arcs, commitments, threads — the   */
+/* map) with the sky's logic folded in: select a commitment to isolate + */
+/* zoom, select a thread to open it. Vertical keeps the ladder view.     */
+/* Not a task list: the journey. Time + action are the distance          */
+/* traveled.                                                             */
 /* ------------------------------------------------------------------ */
+
+/* Deterministic 0–1 hash so dust placement is stable between renders. */
+function hash01(str) {
+  let h = 0;
+  const s = String(str);
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return (h % 1000) / 1000;
+}
 
 const WEEK_MS = 7 * 864e5;
 const TWO_WEEKS_MS = 14 * 864e5;
@@ -227,11 +237,10 @@ function threadsInMotion(threads, movement) {
   return rows;
 }
 
-export default function IdentityMap() {
-  const { state } = useAxzio();
-  const [view, setView] = useState("orbit"); // 'orbit' | 'vertical'
-
-  const data = useMemo(() => {
+/* System data: commitments with vitality, threads, the week's action,
+   movement feed. */
+function useSystemData(state) {
+  return useMemo(() => {
     const now = Date.now();
     const becoming = (state.identity.becoming || "").trim();
     const commitments = sortedCommitments(state).map((c) => {
@@ -275,61 +284,58 @@ export default function IdentityMap() {
       motion: threadsInMotion(threads, movement),
     };
   }, [state]);
+}
+
+/* SYSTEM — bare (embedded in the Nebula tab). The unified view: orbit
+   arrangement + sky logic, with the Vertical ladder one toggle away. */
+export function SystemView({ onSelectThread }) {
+  const { state } = useAxzio();
+  const [view, setView] = useState("orbit"); // 'orbit' | 'vertical'
+  const data = useSystemData(state);
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-5 pb-24 pt-8">
-      <header className="axzio-rise mb-8">
-        <MicroLabel className="mb-2">The Journey</MicroLabel>
-        <div className="flex items-center gap-3">
-          <h2 className="text-3xl font-light tracking-wide md:text-4xl">
-            Identity Map
-          </h2>
-          <HelpBubble title="Identity Map">
-            <HelpText
-              what="The journey made visible: this week's doing flowing upward into threads, threads feeding commitments, commitments authoring identity. Time + action are the distance traveled."
-              why="Every other app optimizes the doing. This map shows the doing becoming the being — the one thing AXZIO is for."
-              how="Orbit is the system at a glance; Vertical digs into the details. Drift is shown honestly: a dimmed commitment is an invitation, not a failure."
-            />
-          </HelpBubble>
+    <div>
+      <div className="axzio-rise axzio-rise-1 mb-6 flex flex-wrap items-center gap-3">
+        <MicroLabel>System</MicroLabel>
+        <HelpBubble title="System">
+          <HelpText
+            what="Your solar system, condensed from your nebula: the Core star at the center, commitments as planets on their primitive arcs, threads orbiting."
+            why="The system at a glance: am I becoming who I said I am? Drift is shown honestly — a dimmed commitment is an invitation, not a failure."
+            how="Select a commitment to isolate its sky. Select a thread to open it. Vertical reads the same system as a ladder, action by action."
+          />
+        </HelpBubble>
+        <div className="ml-auto inline-flex rounded-full border border-white/10 p-1">
+          {[
+            { key: "orbit", label: "Orbit" },
+            { key: "vertical", label: "Vertical" },
+          ].map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setView(t.key)}
+              aria-pressed={view === t.key}
+              className={`rounded-full px-5 py-1.5 text-[11px] uppercase tracking-[0.16em] transition-colors ${
+                view === t.key
+                  ? "bg-white/10 text-white"
+                  : "text-white/40 hover:text-white/70"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
-        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/50">
-          Not a task list —{" "}
-          <span className="text-white/80">the journey</span>. Am I becoming
-          who I said I am? The map reads the week&apos;s action upward into
-          identity, so you can see formation happening.
-        </p>
-      </header>
-
-      {/* Orbit | Vertical toggle */}
-      <div className="axzio-rise axzio-rise-1 mb-6 inline-flex rounded-full border border-white/10 p-1">
-        {[
-          { key: "orbit", label: "Orbit" },
-          { key: "vertical", label: "Vertical" },
-        ].map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setView(t.key)}
-            aria-pressed={view === t.key}
-            className={`rounded-full px-5 py-1.5 text-[11px] uppercase tracking-[0.16em] transition-colors ${
-              view === t.key
-                ? "bg-white/10 text-white"
-                : "text-white/40 hover:text-white/70"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
       </div>
 
       {view === "orbit" ? (
-        <OrbitView data={data} />
+        <OrbitView data={data} state={state} onSelectThread={onSelectThread} />
       ) : (
         <VerticalView data={data} />
       )}
     </div>
   );
 }
+
+export default SystemView;
 
 /* ------------------------------ ORBIT ------------------------------ */
 
@@ -377,9 +383,29 @@ function becomingLines(text, per = 30) {
   return lines.slice(0, 2);
 }
 
-function OrbitView({ data }) {
+function OrbitView({ data, state, onSelectThread }) {
   const { becoming, commitments, threads, weekActions } = data;
   const nodes = useMemo(() => orbitCommitmentNodes(commitments), [commitments]);
+  const nodeById = useMemo(
+    () => new Map(nodes.map((n) => [n.c.id, n])),
+    [nodes]
+  );
+  const [focusId, setFocusId] = useState(null); // isolated commitment
+  const focusNode = focusId ? nodeById.get(focusId) : null;
+  const ZOOM = 1.8;
+  const zoomStyle = focusNode
+    ? {
+        transform: `translate(${CX}px, ${CY}px) scale(${ZOOM}) translate(${-focusNode.x}px, ${-focusNode.y}px)`,
+        transformOrigin: "0 0",
+        transition: "transform 0.65s cubic-bezier(0.22,1,0.36,1)",
+      }
+    : { transition: "transform 0.65s cubic-bezier(0.22,1,0.36,1)" };
+
+  // Unignited sparks hang as dust — pure atmosphere, not selectable.
+  const dust = (state.signals || [])
+    .filter((sg) => sg && !sg.ignited)
+    .slice(-12);
+
   const streaks = useMemo(() => {
     const n = Math.min(weekActions.length, 10);
     return Array.from({ length: n }, (_, j) => {
@@ -390,250 +416,375 @@ function OrbitView({ data }) {
     });
   }, [weekActions.length]);
 
+  const threadPts = threads.map((t, j) => {
+    const deg = -90 + j * (360 / Math.max(threads.length, 1));
+    const [x, y] = pt(R_THREAD, deg);
+    return { t, x, y, dimmed: !!(focusId && t.commitmentId !== focusId) };
+  });
+
+  const toggleFocus = (id) => setFocusId((cur) => (cur === id ? null : id));
   const blines = becoming ? becomingLines(becoming) : [];
 
   return (
     <div className="axzio-rise axzio-rise-2">
-      <svg
-        viewBox="0 0 900 660"
-        role="img"
-        aria-label="Identity map orbit view"
-        className="h-auto w-full"
-      >
-        <defs>
-          <radialGradient id="imap-core-glow">
-            <stop offset="0%" stopColor="#d8a94e" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#d8a94e" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-
-        {/* base ring + primitive arcs */}
-        <circle
-          cx={CX}
-          cy={CY}
-          r={R_COMMIT}
-          fill="none"
-          stroke="rgba(255,255,255,0.07)"
-          strokeWidth="1"
-        />
-        {PRIM_ARCS.map((a) => (
-          <g key={a.key}>
-            <path
-              d={arcPath(R_COMMIT, a.a0, a.a1)}
-              fill="none"
-              stroke={`rgba(${a.rgb},0.42)`}
-              strokeWidth="1.5"
-              strokeDasharray="5 5"
-            />
-            <text
-              x={pt(188, (a.a0 + a.a1) / 2)[0]}
-              y={pt(188, (a.a0 + a.a1) / 2)[1]}
-              textAnchor="middle"
-              fontSize="10"
-              letterSpacing="3"
-              fill={`rgba(${a.rgb},0.6)`}
-              style={{ textTransform: "uppercase" }}
+      {/* commitment selector — isolate a commitment to focus its seeds */}
+      {commitments.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setFocusId(null)}
+            className={`rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition-colors ${
+              !focusId
+                ? "border-white/60 text-white"
+                : "border-white/15 text-white/45 hover:border-white/40 hover:text-white"
+            }`}
+          >
+            All
+          </button>
+          {commitments.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => toggleFocus(c.id)}
+              aria-pressed={focusId === c.id}
+              className={`rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition-colors ${
+                focusId === c.id
+                  ? "border-[#d8a94e] text-[#d8a94e]"
+                  : "border-white/15 text-white/45 hover:border-white/40 hover:text-white"
+              }`}
             >
-              {primitiveLabel(a.key)}
-            </text>
-          </g>
-        ))}
-
-        {/* threads ring */}
-        <circle
-          cx={CX}
-          cy={CY}
-          r={R_THREAD}
-          fill="none"
-          stroke="rgba(255,255,255,0.09)"
-          strokeWidth="1"
-          strokeDasharray="3 6"
-        />
-        <text
-          x={CX}
-          y={CY - R_THREAD - 8}
-          textAnchor="middle"
-          fontSize="10"
-          letterSpacing="3"
-          fill="rgba(255,255,255,0.3)"
-          style={{ textTransform: "uppercase" }}
-        >
-          Threads
-        </text>
-
-        {/* incoming ring */}
-        <circle
-          cx={CX}
-          cy={CY}
-          r={R_IN}
-          fill="none"
-          stroke="rgba(255,255,255,0.05)"
-          strokeWidth="1"
-        />
-        <text
-          x={CX}
-          y={CY - R_IN - 8}
-          textAnchor="middle"
-          fontSize="10"
-          letterSpacing="3"
-          fill="rgba(255,255,255,0.25)"
-          style={{ textTransform: "uppercase" }}
-        >
-          This week
-        </text>
-
-        {/* incoming action streaks */}
-        <g stroke="rgba(126,226,168,0.5)" strokeWidth="1.5">
-          {streaks.map((s) => (
-            <g key={s.key}>
-              <line x1={s.x0} y1={s.y0} x2={s.x1} y2={s.y1} />
-              <circle cx={s.x0} cy={s.y0} r="2.5" fill="#7ee2a8" stroke="none" />
-            </g>
+              {(c.text || "").slice(0, 24)}
+            </button>
           ))}
-        </g>
+        </div>
+      )}
 
-        {/* threads */}
-        <g>
-          {threads.map((t, j) => {
-            const deg = -90 + j * (360 / Math.max(threads.length, 1));
-            const [x, y] = pt(R_THREAD, deg);
-            const color = t.crowned
-              ? "#ffffff"
-              : STAGE_COLORS[t.loopStage] || "#9db4ff";
-            return (
-              <g key={t.id}>
-                <title>{`${t.name} — ${stageLabel(t.loopStage)}${t.crowned ? " · crowned" : ""}`}</title>
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={t.crowned ? 8 : 6}
-                  fill={t.crowned ? "#0a0a10" : color}
-                  stroke={color}
-                  strokeWidth="1.6"
-                  opacity="0.9"
-                  style={
-                    t.crowned
-                      ? { filter: "drop-shadow(0 0 10px #ffffff)" }
-                      : undefined
-                  }
-                />
-              </g>
-            );
-          })}
-        </g>
+      <div className="relative overflow-hidden">
+        <svg
+          viewBox="0 0 900 660"
+          role="img"
+          aria-label="System orbit view"
+          className="h-auto w-full select-none"
+        >
+          <defs>
+            <radialGradient id="imap-core-glow">
+              <stop offset="0%" stopColor="#d8a94e" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="#d8a94e" stopOpacity="0" />
+            </radialGradient>
+            <radialGradient id="sys-dustV">
+              <stop offset="0%" stopColor="#6d5bd0" stopOpacity="0.5" />
+              <stop offset="100%" stopColor="#6d5bd0" stopOpacity="0" />
+            </radialGradient>
+            <radialGradient id="sys-dustT">
+              <stop offset="0%" stopColor="#2e8f9e" stopOpacity="0.45" />
+              <stop offset="100%" stopColor="#2e8f9e" stopOpacity="0" />
+            </radialGradient>
+            <radialGradient id="sys-dustI">
+              <stop offset="0%" stopColor="#3b4a8f" stopOpacity="0.5" />
+              <stop offset="100%" stopColor="#3b4a8f" stopOpacity="0" />
+            </radialGradient>
+          </defs>
 
-        {/* commitments on their arcs */}
-        <g>
-          {nodes.map(({ c, x, y }) => {
-            const v = c.vitality;
-            const stroke =
-              v === "tended"
-                ? "#d8a94e"
-                : v === "quiet"
-                  ? "rgba(255,255,255,0.35)"
-                  : "#b45cff";
-            return (
-              <g key={c.id} opacity={v === "drifting" ? 0.75 : 1}>
-                <title>{`${c.text}${c.primitive ? ` — ${primitiveLabel(c.primitive)}` : " — unplaced"} · ${vitalityMeta(v, c.lastActive)}`}</title>
-                <circle
-                  cx={x}
-                  cy={y}
-                  r="13"
-                  fill="#050508"
-                  stroke={stroke}
-                  strokeWidth="1.6"
-                  style={
-                    v === "tended"
-                      ? { filter: "drop-shadow(0 0 10px #d8a94e)" }
-                      : v === "drifting"
-                        ? { filter: "drop-shadow(0 0 8px #b45cff)" }
-                        : undefined
-                  }
+          <g style={zoomStyle}>
+            {/* dust clouds */}
+            <g
+              pointerEvents="none"
+              opacity={focusId ? 0.25 : 1}
+              style={{ transition: "opacity 0.5s" }}
+            >
+              {dust.map((sg, i) => {
+                const dx = 60 + hash01(sg.id + ":dx") * 780;
+                const dy = 60 + hash01(sg.id + ":dy") * 540;
+                const dr = 70 + hash01(sg.id + ":dr") * 90;
+                const grad = ["url(#sys-dustV)", "url(#sys-dustT)", "url(#sys-dustI)"][i % 3];
+                return (
+                  <ellipse
+                    key={sg.id}
+                    cx={dx}
+                    cy={dy}
+                    rx={dr}
+                    ry={dr * 0.62}
+                    fill={grad}
+                    opacity="0.34"
+                  />
+                );
+              })}
+            </g>
+
+            {/* base ring + primitive arcs */}
+            <circle
+              cx={CX}
+              cy={CY}
+              r={R_COMMIT}
+              fill="none"
+              stroke="rgba(255,255,255,0.07)"
+              strokeWidth="1"
+            />
+            {PRIM_ARCS.map((a) => (
+              <g key={a.key}>
+                <path
+                  d={arcPath(R_COMMIT, a.a0, a.a1)}
+                  fill="none"
+                  stroke={`rgba(${a.rgb},0.42)`}
+                  strokeWidth="1.5"
+                  strokeDasharray="5 5"
                 />
                 <text
-                  x={x}
-                  y={y - 20}
+                  x={pt(188, (a.a0 + a.a1) / 2)[0]}
+                  y={pt(188, (a.a0 + a.a1) / 2)[1]}
                   textAnchor="middle"
-                  fontSize="12"
-                  fill="rgba(255,255,255,0.8)"
+                  fontSize="10"
+                  letterSpacing="3"
+                  fill={`rgba(${a.rgb},0.6)`}
+                  style={{ textTransform: "uppercase" }}
                 >
-                  {c.text.length > 22 ? c.text.slice(0, 21) + "…" : c.text}
+                  {primitiveLabel(a.key)}
                 </text>
-                {v === "drifting" && (
-                  <text
-                    x={x + 18}
-                    y={y + 4}
-                    fontSize="9"
-                    fill="#b45cff"
-                    letterSpacing="1"
-                  >
-                    drifting
-                  </text>
-                )}
               </g>
-            );
-          })}
-        </g>
-
-        {/* core */}
-        <circle cx={CX} cy={CY} r="92" fill="url(#imap-core-glow)" />
-        <circle
-          cx={CX}
-          cy={CY}
-          r="64"
-          fill="#0a0a10"
-          stroke="#d8a94e"
-          strokeWidth="1.5"
-        />
-        {becoming ? (
-          <g>
-            {blines.map((ln, i) => (
-              <text
-                key={i}
-                x={CX}
-                y={CY - 8 + i * 18}
-                textAnchor="middle"
-                fill="#fff"
-                fontSize="13"
-                fontWeight="300"
-              >
-                {ln}
-              </text>
             ))}
+
+            {/* threads ring */}
+            <circle
+              cx={CX}
+              cy={CY}
+              r={R_THREAD}
+              fill="none"
+              stroke="rgba(255,255,255,0.09)"
+              strokeWidth="1"
+              strokeDasharray="3 6"
+            />
             <text
               x={CX}
-              y={CY + 34}
+              y={CY - R_THREAD - 8}
               textAnchor="middle"
-              fill="rgba(216,169,78,0.9)"
               fontSize="10"
               letterSpacing="3"
+              fill="rgba(255,255,255,0.3)"
+              style={{ textTransform: "uppercase" }}
             >
-              CORE
+              Threads
             </text>
+
+            {/* incoming ring */}
+            <circle
+              cx={CX}
+              cy={CY}
+              r={R_IN}
+              fill="none"
+              stroke="rgba(255,255,255,0.05)"
+              strokeWidth="1"
+            />
+            <text
+              x={CX}
+              y={CY - R_IN - 8}
+              textAnchor="middle"
+              fontSize="10"
+              letterSpacing="3"
+              fill="rgba(255,255,255,0.25)"
+              style={{ textTransform: "uppercase" }}
+            >
+              This week
+            </text>
+
+            {/* incoming action streaks */}
+            <g stroke="rgba(126,226,168,0.5)" strokeWidth="1.5">
+              {streaks.map((s) => (
+                <g key={s.key}>
+                  <line x1={s.x0} y1={s.y0} x2={s.x1} y2={s.y1} />
+                  <circle cx={s.x0} cy={s.y0} r="2.5" fill="#7ee2a8" stroke="none" />
+                </g>
+              ))}
+            </g>
+
+            {/* threads — select one to open it */}
+            <g>
+              {threadPts.map(({ t, x, y, dimmed }) => {
+                const color = t.crowned
+                  ? "#ffffff"
+                  : STAGE_COLORS[t.loopStage] || "#9db4ff";
+                return (
+                  <g
+                    key={t.id}
+                    onClick={() => onSelectThread && onSelectThread(t.id)}
+                    className="cursor-pointer"
+                    opacity={dimmed ? 0.07 : 1}
+                    style={{ transition: "opacity 0.45s" }}
+                  >
+                    <title>{`${t.name} — ${stageLabel(t.loopStage)}${t.crowned ? " · crowned" : ""}`}</title>
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={t.crowned ? 8 : 6}
+                      fill={t.crowned ? "#0a0a10" : color}
+                      stroke={color}
+                      strokeWidth="1.6"
+                      opacity={dimmed ? 0.6 : 0.9}
+                      style={
+                        t.crowned && !dimmed
+                          ? { filter: "drop-shadow(0 0 10px #ffffff)" }
+                          : undefined
+                      }
+                    />
+                    {!dimmed && (
+                      <text
+                        x={x}
+                        y={y < CY ? y - 14 : y + 22}
+                        textAnchor="middle"
+                        fontSize="11"
+                        fill="rgba(255,255,255,0.72)"
+                      >
+                        {t.name.length > 20 ? t.name.slice(0, 19) + "…" : t.name}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+
+            {/* commitments on their arcs — select to isolate */}
+            <g>
+              {nodes.map(({ c, x, y }) => {
+                const v = c.vitality;
+                const stroke =
+                  v === "tended"
+                    ? "#d8a94e"
+                    : v === "quiet"
+                      ? "rgba(255,255,255,0.35)"
+                      : "#b45cff";
+                const active = !focusId || focusId === c.id;
+                return (
+                  <g
+                    key={c.id}
+                    onClick={() => toggleFocus(c.id)}
+                    className="cursor-pointer"
+                    opacity={active ? (v === "drifting" ? 0.75 : 1) : 0.08}
+                    style={{ transition: "opacity 0.45s" }}
+                  >
+                    <title>{`${c.text}${c.primitive ? ` — ${primitiveLabel(c.primitive)}` : " — unplaced"} · ${vitalityMeta(v, c.lastActive)}`}</title>
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r="13"
+                      fill="#050508"
+                      stroke={focusId === c.id ? "#fff" : stroke}
+                      strokeWidth="1.6"
+                      style={
+                        v === "tended"
+                          ? { filter: "drop-shadow(0 0 10px #d8a94e)" }
+                          : v === "drifting"
+                            ? { filter: "drop-shadow(0 0 8px #b45cff)" }
+                            : undefined
+                      }
+                    />
+                    {active && (
+                      <text
+                        x={x}
+                        y={y - 20}
+                        textAnchor="middle"
+                        fontSize="12"
+                        fill="rgba(255,255,255,0.8)"
+                      >
+                        {c.text.length > 22 ? c.text.slice(0, 21) + "…" : c.text}
+                      </text>
+                    )}
+                    {v === "drifting" && active && (
+                      <text
+                        x={x + 18}
+                        y={y + 4}
+                        fontSize="9"
+                        fill="#b45cff"
+                        letterSpacing="1"
+                      >
+                        drifting
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+
+            {/* core */}
+            <circle cx={CX} cy={CY} r="92" fill="url(#imap-core-glow)" />
+            <circle
+              cx={CX}
+              cy={CY}
+              r="64"
+              fill="#0a0a10"
+              stroke="#d8a94e"
+              strokeWidth="1.5"
+            />
+            {becoming ? (
+              <g>
+                {blines.map((ln, i) => (
+                  <text
+                    key={i}
+                    x={CX}
+                    y={CY - 8 + i * 18}
+                    textAnchor="middle"
+                    fill="#fff"
+                    fontSize="13"
+                    fontWeight="300"
+                  >
+                    {ln}
+                  </text>
+                ))}
+                <text
+                  x={CX}
+                  y={CY + 34}
+                  textAnchor="middle"
+                  fill="rgba(216,169,78,0.9)"
+                  fontSize="10"
+                  letterSpacing="3"
+                >
+                  CORE
+                </text>
+              </g>
+            ) : (
+              <a href="#/core">
+                <text
+                  x={CX}
+                  y={CY - 4}
+                  textAnchor="middle"
+                  fill="rgba(255,255,255,0.6)"
+                  fontSize="12"
+                >
+                  Name your
+                </text>
+                <text
+                  x={CX}
+                  y={CY + 16}
+                  textAnchor="middle"
+                  fill="rgba(255,255,255,0.6)"
+                  fontSize="12"
+                >
+                  becoming in Core
+                </text>
+              </a>
+            )}
           </g>
-        ) : (
-          <a href="#/core">
-            <text
-              x={CX}
-              y={CY - 4}
-              textAnchor="middle"
-              fill="rgba(255,255,255,0.6)"
-              fontSize="12"
+        </svg>
+
+        {focusNode && (
+          <div className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-3 rounded-full border border-[#d8a94e]/40 bg-black/85 py-1.5 pl-4 pr-1.5 text-[11px] tracking-[0.14em] uppercase">
+            <span className="text-[#d8a94e]">
+              Isolated · {(focusNode.c.text || "").slice(0, 28)}
+            </span>
+            <button
+              type="button"
+              onClick={() => setFocusId(null)}
+              className="rounded-full border border-white/15 px-3 py-1 text-white/70 hover:border-white/40 hover:text-white"
             >
-              Name your
-            </text>
-            <text
-              x={CX}
-              y={CY + 16}
-              textAnchor="middle"
-              fill="rgba(255,255,255,0.6)"
-              fontSize="12"
-            >
-              becoming in Core
-            </text>
-          </a>
+              All
+            </button>
+          </div>
         )}
-      </svg>
+      </div>
+
+      <p className="mt-2 px-1 text-[10px] uppercase tracking-[0.24em] text-white/30">
+        {focusId
+          ? "Isolated — select the commitment again, or All, to return"
+          : "Select a commitment to isolate its sky · select a thread to open it · dust is unignited sparks"}
+      </p>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 px-1">
         <span className="text-[11px] tracking-wide text-white/35">
@@ -659,6 +810,7 @@ function OrbitView({ data }) {
     </div>
   );
 }
+
 
 /* ----------------------------- VERTICAL ----------------------------- */
 

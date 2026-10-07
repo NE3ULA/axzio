@@ -91,7 +91,7 @@ export default function Identity() {
               </div>
             ))}
             <a
-              href="#/identity-map"
+              href="#/nebula"
               className="inline-block text-[11px] uppercase tracking-[0.16em] text-white/40 transition-colors hover:text-white"
             >
               Is it working? See the journey →

@@ -1165,7 +1165,7 @@ function BecomingCard() {
           Open Core →
         </a>
         <a
-          href="#/identity-map"
+          href="#/nebula"
           className="text-[11px] uppercase tracking-[0.14em] text-white/40 transition-colors hover:text-white"
         >
           See the journey →

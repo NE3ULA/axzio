@@ -17,7 +17,7 @@ import Modes from "./views/Modes.jsx";
 
 import Tribe from "./views/Tribe.jsx";
 import Focus from "./views/Focus.jsx";
-import IdentityMap from "./views/IdentityMap.jsx";
+
 
 /* Hash-based routing — no react-router, works from static files.
    Four main tabs (Bridge · Nebula · Core · Focus); everything else lives
@@ -33,7 +33,6 @@ const ROUTES = [
   { key: "nebula", label: "Nebula", view: Constellation, main: true },
   { key: "core", label: "Core", view: Identity, main: true },
   { key: "atlas", label: "Atlas", view: Atlas },
-  { key: "identity-map", label: "Identity Map", view: IdentityMap },
   { key: "practice", label: "Practice", view: Practices },
   { key: "modes", label: "Modes", view: Modes },
   { key: "tribe", label: "Tribe", view: Tribe },
@@ -45,6 +44,7 @@ const LEGACY_ROUTES = {
   constellation: "nebula",
   identity: "core",
   journeys: "practice",
+  "identity-map": "nebula",
 };
 
 function routeFromHash() {
@@ -324,7 +324,6 @@ function TopNav({ route, name }) {
                   )}
                 </button>
               ))}
-              {drawerLink("#/identity-map", "Identity Map", "the journey")}
               {drawerLink("#/atlas", "Atlas", "index tables")}
             </div>
             <div>
