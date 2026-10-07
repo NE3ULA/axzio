@@ -5,6 +5,7 @@ import {
   formatLongDate,
   localDateKey,
   describeSchedule,
+  QUADRANTS,
 } from "../store.jsx";
 import { MicroLabel, Field, Btn, HelpBubble, HelpText } from "./ui.jsx";
 
@@ -31,6 +32,7 @@ export default function GoalCapture({
   const [newCommitment, setNewCommitment] = useState("");
   const [horizon, setHorizon] = useState("");
   const [schedule, setSchedule] = useState(null);
+  const [quadrant, setQuadrant] = useState("q2");
 
   const locked = commitmentId != null;
   const creatingCommitment = !locked && cid === "__new__";
@@ -46,6 +48,7 @@ export default function GoalCapture({
     const g = axzio.addGoal(text, targetCid, {
       horizon: horizon || null,
       schedule,
+      quadrant,
       sourceLifeModId,
       sourceStarId,
     });
@@ -54,6 +57,7 @@ export default function GoalCapture({
       setHorizon("");
       setNewCommitment("");
       setSchedule(null);
+      setQuadrant("q2");
       if (!locked) setCid(null);
       setOpen(false);
       if (onCreated) onCreated(g);
@@ -73,6 +77,7 @@ export default function GoalCapture({
           setHorizon("");
           setNewCommitment("");
           setSchedule(null);
+          setQuadrant("q2");
           setOpen(true);
         }}
         className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
@@ -110,7 +115,7 @@ export default function GoalCapture({
         Keep it crisp — if it needs paragraphs, it needs refining.
       </p>
       <GoalScheduleEditor value={schedule} onChange={setSchedule} />
-      <div className={`mt-3 grid gap-3 ${locked ? "" : "sm:grid-cols-2"}`}>
+      <div className={`mt-3 grid gap-3 ${locked ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
         {!locked && (
           <div>
             <MicroLabel className="mb-1.5">Serves commitment</MicroLabel>
@@ -149,6 +154,21 @@ export default function GoalCapture({
             aria-label="Goal horizon"
             className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30 [color-scheme:dark]"
           />
+        </div>
+        <div>
+          <MicroLabel className="mb-1.5">Quadrant</MicroLabel>
+          <select
+            value={quadrant}
+            onChange={(e) => setQuadrant(e.target.value)}
+            aria-label="Matrix quadrant for scheduled sessions"
+            className="w-full appearance-none rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white/85 outline-none transition-colors hover:border-white/30"
+          >
+            {QUADRANTS.map((q) => (
+              <option key={q.key} value={q.key}>
+                Q{q.key.slice(1)} — {q.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
       <div className="mt-3 flex items-center gap-3">
@@ -189,6 +209,7 @@ export default function GoalCapture({
   const [editHorizon, setEditHorizon] = useState("");
   const [editSchedule, setEditSchedule] = useState(null);
   const [editCommitmentId, setEditCommitmentId] = useState(null);
+  const [editQuadrant, setEditQuadrant] = useState("q2");
   const editCommitments = sortedCommitments(state);
 
   const startEdit = (g) => {
@@ -198,6 +219,7 @@ export default function GoalCapture({
     setEditHorizon(g.horizon || "");
     setEditSchedule(g.schedule || null);
     setEditCommitmentId(g.commitmentId || null);
+    setEditQuadrant(g.quadrant || "q2");
   };
   const cancelEdit = () => {
     setEditingId(null);
@@ -205,6 +227,7 @@ export default function GoalCapture({
     setEditHorizon("");
     setEditSchedule(null);
     setEditCommitmentId(null);
+    setEditQuadrant("q2");
   };
   const saveEdit = () => {
     if (!editText.trim() || !editCommitmentId) return;
@@ -213,6 +236,7 @@ export default function GoalCapture({
       horizon: editHorizon || null,
       schedule: editSchedule,
       commitmentId: editCommitmentId,
+      quadrant: editQuadrant,
     });
     cancelEdit();
   };
@@ -232,20 +256,37 @@ export default function GoalCapture({
               maxLength={80}
               aria-label="Goal text"
             />
-            <div className="mt-2">
-              <MicroLabel className="mb-1.5">Serves commitment</MicroLabel>
-              <select
-                value={editCommitmentId || ""}
-                onChange={(e) => setEditCommitmentId(e.target.value || null)}
-                aria-label="Commitment this goal serves"
-                className="w-full appearance-none rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white/85 outline-none transition-colors hover:border-white/30"
-              >
-                {editCommitments.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.text.length > 48 ? c.text.slice(0, 48) + "…" : c.text}
-                  </option>
-                ))}
-              </select>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <div>
+                <MicroLabel className="mb-1.5">Serves commitment</MicroLabel>
+                <select
+                  value={editCommitmentId || ""}
+                  onChange={(e) => setEditCommitmentId(e.target.value || null)}
+                  aria-label="Commitment this goal serves"
+                  className="w-full appearance-none rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white/85 outline-none transition-colors hover:border-white/30"
+                >
+                  {editCommitments.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.text.length > 48 ? c.text.slice(0, 48) + "…" : c.text}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <MicroLabel className="mb-1.5">Quadrant</MicroLabel>
+                <select
+                  value={editQuadrant}
+                  onChange={(e) => setEditQuadrant(e.target.value)}
+                  aria-label="Matrix quadrant for scheduled sessions"
+                  className="w-full appearance-none rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white/85 outline-none transition-colors hover:border-white/30"
+                >
+                  {QUADRANTS.map((q) => (
+                    <option key={q.key} value={q.key}>
+                      Q{q.key.slice(1)} — {q.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <input

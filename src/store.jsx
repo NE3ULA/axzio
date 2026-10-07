@@ -1046,6 +1046,7 @@ function normalizeGoals(raw, validCommitmentIds) {
       created: Number(g.created) || 0,
       schedule: normalizeSchedule(g.schedule),
       sessions: normalizeSessions(g.sessions),
+      quadrant: normalizeGoalQuadrant(g.quadrant),
       // Origin threads: what this goal grew from (seed or LifeMod).
       sourceLifeModId:
         typeof g.sourceLifeModId === "string" && g.sourceLifeModId
@@ -1081,6 +1082,12 @@ export function goalsForCommitment(state, commitmentId) {
 
 const SCHEDULE_KINDS = ["once", "weekly"];
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** Quadrant for a goal's sessions on the matrix. Defaults to Q2 —
+   goal work is important by definition; urgency is the exception. */
+export function normalizeGoalQuadrant(v) {
+  return QUADRANTS.some((q) => q.key === v) ? v : "q2";
+}
 
 /** Normalize a goal work-schedule. Null when absent or invalid. */
 export function normalizeSchedule(raw) {
@@ -1763,6 +1770,7 @@ export function AxzioProvider({ children }) {
           created: Date.now(),
           schedule: normalizeSchedule(opts.schedule),
           sessions: {},
+          quadrant: normalizeGoalQuadrant(opts.quadrant),
           sourceLifeModId:
             typeof opts.sourceLifeModId === "string"
               ? opts.sourceLifeModId
@@ -1802,6 +1810,9 @@ export function AxzioProvider({ children }) {
         }
         if ("schedule" in patch) {
           g.schedule = normalizeSchedule(patch.schedule);
+        }
+        if ("quadrant" in patch) {
+          g.quadrant = normalizeGoalQuadrant(patch.quadrant);
         }
         if ("commitmentId" in patch && typeof patch.commitmentId === "string") {
           // The no-orphan rule: a goal always serves a real commitment.

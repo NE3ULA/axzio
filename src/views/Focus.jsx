@@ -46,32 +46,12 @@ const QUAD_KEYS = ["q1", "q2", "q3", "q4"];
 const VALID_MODES = MODES.map((m) => m.key);
 const VALID_PILLARS = PILLARS.map((p) => p.key);
 
-/* ScheduledSessions — work sessions derived live from goal schedules.
-   Goals pre-populate Focus: each session is a dated occurrence of a
-   goal's work plan. Nothing is materialized — sessions derive from
-   goal.schedule, and done state lives on goal.sessions[dateKey].
-   The year tab shows per-goal aggregates instead of individual rows. */
-function ScheduledSessions({ timeframe }) {
+/* SessionRow — one scheduled work session, derived live from a goal's
+   schedule. Renders inside the goal's matrix quadrant; done state is
+   toggled per date against the goal itself. */
+function SessionRow({ session, showDate }) {
   const { state, toggleGoalSession } = useAxzio();
-  const { fromKey, toKey } = timeframeRange(timeframe);
-  const goals = (state.goals || []).filter((g) => g && !g.done && g.schedule);
-
-  const sessions = [];
-  for (const g of goals) {
-    for (const occ of goalOccurrences(g, fromKey, toKey)) {
-      sessions.push({
-        key: `${g.id}:${occ.date}`,
-        goal: g,
-        date: occ.date,
-        minutes: occ.minutes,
-        done: !!(g.sessions && g.sessions[occ.date]),
-      });
-    }
-  }
-  sessions.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-
-  if (sessions.length === 0) return null;
-
+  const s = session;
   const minsLabel = (m) =>
     m >= 60 && m % 60 === 0 ? `${m / 60} h` : `${m} min`;
   const dayLabel = (dateKey) => {
@@ -81,117 +61,100 @@ function ScheduledSessions({ timeframe }) {
       day: "numeric",
     });
   };
-  const openCount = sessions.filter((s) => !s.done).length;
-
-  const help = (
-    <HelpBubble title="Scheduled sessions">
-      <HelpText
-        what="Work sessions your goals scheduled — placed here automatically from each goal's work plan."
-        why="The day should start populated, not blank. Goals declare when they get worked on; Focus shows up with the sessions ready, so your time goes to reviewing and refining instead of re-entering."
-        how="Set work sessions on any goal — from Identity or the goal's editor. Check a session off when the work is done; it records against the goal, not as a separate task."
-      />
-    </HelpBubble>
+  return (
+    <li className="flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2.5">
+      <button
+        type="button"
+        onClick={() => toggleGoalSession(s.goal.id, s.date)}
+        aria-pressed={s.done}
+        aria-label={s.done ? "Reopen session" : "Complete session"}
+        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
+          s.done
+            ? "border-white/70 bg-white text-black"
+            : "border-white/30 hover:border-white/70"
+        }`}
+      >
+        {s.done && (
+          <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+            <path
+              d="M1.5 5.5l2.5 2.5 4.5-5.5"
+              stroke="currentColor"
+              strokeWidth="1.6"
+            />
+          </svg>
+        )}
+      </button>
+      <div className="min-w-0 flex-1">
+        <p
+          className={`truncate text-[14px] leading-snug ${
+            s.done ? "text-white/40 line-through" : "text-white/85"
+          }`}
+        >
+          {s.goal.text}
+        </p>
+        <p className="mt-0.5 truncate text-[11px] tracking-[0.08em] text-white/40">
+          {commitmentText(state, s.goal.commitmentId)} · {minsLabel(s.minutes)}
+        </p>
+      </div>
+      {showDate && (
+        <span className="shrink-0 text-[11px] tabular-nums tracking-[0.1em] text-white/45">
+          {dayLabel(s.date)}
+        </span>
+      )}
+      <Pill>Goal</Pill>
+    </li>
   );
+}
 
-  if (timeframe === "year") {
-    const byGoal = new Map();
-    for (const s of sessions) {
-      if (!byGoal.has(s.goal.id))
-        byGoal.set(s.goal.id, { goal: s.goal, total: 0, done: 0 });
-      const agg = byGoal.get(s.goal.id);
+/* ScheduledYearSummary — per-goal session progress for the year tab,
+   where individual session rows would be noise. */
+function ScheduledYearSummary() {
+  const { state } = useAxzio();
+  const { fromKey, toKey } = timeframeRange("year");
+  const goals = (state.goals || []).filter((g) => g && !g.done && g.schedule);
+
+  const byGoal = new Map();
+  for (const g of goals) {
+    for (const occ of goalOccurrences(g, fromKey, toKey)) {
+      if (!byGoal.has(g.id)) byGoal.set(g.id, { goal: g, total: 0, done: 0 });
+      const agg = byGoal.get(g.id);
       agg.total += 1;
-      if (s.done) agg.done += 1;
+      if (g.sessions && g.sessions[occ.date]) agg.done += 1;
     }
-    return (
-      <section className="mb-8">
-        <Card className="p-6">
-          <div className="mb-4 flex items-center gap-3">
-            <MicroLabel>Scheduled — {timeframeLabel(timeframe)}</MicroLabel>
-            {help}
-          </div>
-          <ul className="space-y-4">
-            {[...byGoal.values()].map(({ goal, total, done }) => (
-              <li key={goal.id}>
-                <div className="mb-1.5 flex items-baseline gap-3">
-                  <span className="min-w-0 flex-1 truncate text-[14px] text-white/85">
-                    {goal.text}
-                  </span>
-                  <span className="shrink-0 text-[11px] tabular-nums tracking-[0.14em] text-white/40">
-                    {done}/{total} sessions
-                  </span>
-                </div>
-                <div className="h-1 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full bg-white/60 transition-all"
-                    style={{
-                      width: `${total ? Math.round((done / total) * 100) : 0}%`,
-                    }}
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </section>
-    );
   }
-
+  if (byGoal.size === 0) return null;
   return (
     <section className="mb-8">
       <Card className="p-6">
         <div className="mb-4 flex items-center gap-3">
-          <MicroLabel>Scheduled — {timeframeLabel(timeframe)}</MicroLabel>
-          {help}
-          <span className="ml-auto text-[11px] uppercase tracking-[0.2em] text-white/40">
-            {openCount} open
-          </span>
+          <MicroLabel>Scheduled — Year</MicroLabel>
+          <HelpBubble title="Scheduled sessions">
+            <HelpText
+              what="The year's scheduled work, per goal — sessions your goals placed on the calendar."
+              why="The year view reads the load your goals committed to: what's scheduled, what's done, what's drifting."
+              how="Set work sessions on any goal — from Identity or the goal's editor. Sessions land in their quadrant on the day, week and month tabs."
+            />
+          </HelpBubble>
         </div>
-        <ul className="space-y-2">
-          {sessions.map((s) => (
-            <li
-              key={s.key}
-              className="flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2.5"
-            >
-              <button
-                type="button"
-                onClick={() => toggleGoalSession(s.goal.id, s.date)}
-                aria-pressed={s.done}
-                aria-label={s.done ? "Reopen session" : "Complete session"}
-                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                  s.done
-                    ? "border-white/70 bg-white text-black"
-                    : "border-white/30 hover:border-white/70"
-                }`}
-              >
-                {s.done && (
-                  <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
-                    <path
-                      d="M1.5 5.5l2.5 2.5 4.5-5.5"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                    />
-                  </svg>
-                )}
-              </button>
-              <div className="min-w-0 flex-1">
-                <p
-                  className={`truncate text-[14px] leading-snug ${
-                    s.done ? "text-white/40 line-through" : "text-white/85"
-                  }`}
-                >
-                  {s.goal.text}
-                </p>
-                <p className="mt-0.5 truncate text-[11px] tracking-[0.08em] text-white/40">
-                  {commitmentText(state, s.goal.commitmentId)} ·{" "}
-                  {minsLabel(s.minutes)}
-                </p>
-              </div>
-              {timeframe !== "day" && (
-                <span className="shrink-0 text-[11px] tabular-nums tracking-[0.1em] text-white/45">
-                  {dayLabel(s.date)}
+        <ul className="space-y-4">
+          {[...byGoal.values()].map(({ goal, total, done }) => (
+            <li key={goal.id}>
+              <div className="mb-1.5 flex items-baseline gap-3">
+                <span className="min-w-0 flex-1 truncate text-[14px] text-white/85">
+                  {goal.text}
                 </span>
-              )}
-              <Pill>Goal</Pill>
+                <span className="shrink-0 text-[11px] tabular-nums tracking-[0.14em] text-white/40">
+                  {done}/{total} sessions
+                </span>
+              </div>
+              <div className="h-1 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-white/60 transition-all"
+                  style={{
+                    width: `${total ? Math.round((done / total) * 100) : 0}%`,
+                  }}
+                />
+              </div>
             </li>
           ))}
         </ul>
@@ -240,6 +203,40 @@ export default function Focus() {
   }, [visible]);
 
   const openCount = visible.filter((f) => !f.done).length;
+
+  /** Goal sessions derived into the active timeframe, bucketed by the
+      goal's quadrant. Unscheduled goals never appear here — they aren't
+      on the day's matrix until given a work rhythm (or linked manually
+      from a captured item via Serves). */
+  const sessionsByQuadrant = useMemo(() => {
+    const map = { q1: [], q2: [], q3: [], q4: [] };
+    if (timeframe === "year") return map;
+    const { fromKey, toKey } = timeframeRange(timeframe);
+    const goals = (state.goals || []).filter((g) => g && !g.done && g.schedule);
+    for (const g of goals) {
+      const q = map[g.quadrant] ? g.quadrant : "q2";
+      for (const occ of goalOccurrences(g, fromKey, toKey)) {
+        map[q].push({
+          key: `${g.id}:${occ.date}`,
+          goal: g,
+          date: occ.date,
+          minutes: occ.minutes,
+          done: !!(g.sessions && g.sessions[occ.date]),
+        });
+      }
+    }
+    for (const k of QUAD_KEYS) {
+      map[k].sort((a, b) =>
+        a.date < b.date ? -1 : a.date > b.date ? 1 : 0
+      );
+    }
+    return map;
+  }, [state.goals, timeframe]);
+
+  const openSessionCount = QUAD_KEYS.reduce(
+    (n, k) => n + sessionsByQuadrant[k].filter((s) => !s.done).length,
+    0
+  );
 
   /** The 1st/2nd/3rd priorities for the active timeframe. */
   const priorities = useMemo(
@@ -327,7 +324,7 @@ export default function Focus() {
       </section>
 
       {/* goal-scheduled work sessions for the active timeframe */}
-      <ScheduledSessions timeframe={timeframe} />
+      {timeframe === "year" && <ScheduledYearSummary />}
 
       {/* the matrix */}
       <section className="axzio-rise axzio-rise-3">
@@ -338,13 +335,13 @@ export default function Focus() {
               <HelpText
                 what="The Eisenhower Matrix: a prioritization lens inside the Decision Engine — urgency on one axis, importance on the other."
                 why="Urgency shouts; importance compounds. The matrix protects attention for aligned action instead of reactive motion."
-                how="Capture items, place each in a quadrant and timeframe, tag mode and pillar, move them as reality changes, link commitments, and rank the 1/2/3 priorities."
+                how="Capture items, place each in a quadrant and timeframe, tag mode and pillar, move them as reality changes, link commitments, and rank the 1/2/3 priorities. Goals with work sessions land in their quadrant on their own — the Goal pill marks them."
               />
             </HelpBubble>
           }
           right={
             <span className="text-[11px] uppercase tracking-[0.2em] text-white/40">
-              {openCount} open
+              {openCount + openSessionCount} open
             </span>
           }
         />
@@ -378,6 +375,8 @@ export default function Focus() {
               key={q.key}
               quadrant={q}
               items={byQuadrant[q.key]}
+              sessions={sessionsByQuadrant[q.key]}
+              showSessionDates={timeframe !== "day"}
               index={i}
               emphasized={q.key === "q1"}
             />
@@ -758,8 +757,10 @@ function AddFocusForm({ initialTimeframe, layer, setLayer }) {
   );
 }
 
-function QuadrantCard({ quadrant, items, index, emphasized }) {
-  const open = items.filter((f) => !f.done).length;
+function QuadrantCard({ quadrant, items, sessions = [], showSessionDates, index, emphasized }) {
+  const open =
+    items.filter((f) => !f.done).length +
+    sessions.filter((s) => !s.done).length;
   return (
     <Card
       className={`axzio-rise axzio-rise-${(index % 4) + 1} p-6 ${
@@ -788,11 +789,14 @@ function QuadrantCard({ quadrant, items, index, emphasized }) {
       </p>
 
       <div className="mt-4 space-y-2">
-        {items.length === 0 && (
+        {items.length === 0 && sessions.length === 0 && (
           <p className="py-4 text-center text-sm tracking-wide text-white/30">
             Empty quadrant.
           </p>
         )}
+        {sessions.map((s) => (
+          <SessionRow key={s.key} session={s} showDate={showSessionDates} />
+        ))}
         {items.map((f) => (
           <FocusRow key={f.id} item={f} depth={0} />
         ))}
