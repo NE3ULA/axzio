@@ -963,20 +963,6 @@ function FocusRow({ item, depth }) {
     }
   };
 
-  const subCount = (item.subtasks || []).length;
-  const subDone = (item.subtasks || []).filter((s) => s.done).length;
-  // Inherited serves: a nested item with no explicit link shows what
-  // its parent serves.
-  const effServes = effectiveServes(state, item);
-  const servesGoal = effServes.goalId ? goalById(state, effServes.goalId) : null;
-  const servesText = servesGoal
-    ? servesGoal.text
-    : commitmentText(state, effServes.commitmentId);
-  const servesInherited =
-    effServes.commitmentId != null &&
-    !item.goalId &&
-    !item.commitmentId;
-
   return (
     <div
       className={`rounded-xl border px-4 py-3 transition-colors ${
@@ -985,12 +971,12 @@ function FocusRow({ item, depth }) {
           : "border-white/12 bg-white/[0.02]"
       }`}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-center gap-3">
         <button
           onClick={() => axzio.toggleFocusDone(item.id)}
           aria-label={item.done ? "Reopen item" : "Mark done"}
           aria-pressed={item.done}
-          className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
             item.done
               ? "border-white/70 bg-white text-black"
               : "border-white/30 hover:border-white/70"
@@ -1010,124 +996,34 @@ function FocusRow({ item, depth }) {
           className="min-w-0 flex-1 text-left"
         >
           <p
-            className={`text-[15px] leading-snug ${
+            className={`truncate text-[15px] leading-snug ${
               item.done ? "text-white/50 line-through" : ""
             }`}
           >
             {item.text}
           </p>
-          <p className="mt-1.5 flex flex-wrap gap-1.5">
-            <Pill>{timeframeLabel(item.timeframe)}</Pill>
-            {item.mode && <Pill>{modeLabel(item.mode)}</Pill>}
-            {item.pillar && <Pill>{pillarLabel(item.pillar)}</Pill>}
-            {item.quest && item.quest.isQuest && (
-              <Pill tone="lit">Quest</Pill>
-            )}
-            {item.sourceResetId && <Pill>From Reset</Pill>}
-            {item.priority && (
-              <Pill tone="lit">{priorityLabel(item.priority)}</Pill>
-            )}
-          </p>
-          {subCount > 0 && (
-            <p className="mt-1 text-[11px] tracking-[0.14em] text-white/35">
-              {subCount} subtask{subCount === 1 ? "" : "s"} · {subDone}/{subCount} done
-            </p>
-          )}
-          {servesText && (
-            <p className="mt-1.5">
-              <Pill>
-                Serves: {servesText}
-                {servesInherited && (
-                  <span className="opacity-60"> · inherited</span>
-                )}
-              </Pill>
-            </p>
-          )}
         </button>
 
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 12 12"
-          fill="none"
-          aria-hidden="true"
-          className={`mt-1.5 shrink-0 text-white/40 transition-transform duration-200 ${
-            expanded ? "rotate-180" : ""
-          }`}
+        <button
+          onClick={() => (expanded ? closeEditor() : openEditor())}
+          aria-expanded={expanded}
+          aria-label={expanded ? "Collapse editor" : "Expand editor"}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 text-white/60 transition-colors hover:border-white/50 hover:text-white"
         >
-          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.4" />
-        </svg>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            aria-hidden="true"
+            className={`transition-transform duration-200 ${
+              expanded ? "rotate-180" : ""
+            }`}
+          >
+            <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+        </button>
       </div>
-
-      {!expanded && !item.done && (
-        <div className="mt-2.5 flex flex-wrap items-center gap-2 pl-8">
-          {/* move between quadrants */}
-          <select
-            value={item.quadrant}
-            onChange={(e) => axzio.moveFocusItem(item.id, e.target.value)}
-            aria-label="Move to quadrant"
-            className="rounded-lg border border-white/12 bg-black px-2.5 py-1.5 text-[11px] uppercase tracking-[0.14em] text-white/60 outline-none focus:border-white/40"
-          >
-            {QUADRANTS.map((q, i) => (
-              <option key={q.key} value={q.key}>
-                Q{i + 1} {q.label}
-              </option>
-            ))}
-          </select>
-
-          {/* link a commitment */}
-          <select
-            value={item.commitmentId || ""}
-            onChange={(e) =>
-              axzio.linkFocusCommitment(item.id, e.target.value || null)
-            }
-            aria-label="Link to a commitment"
-            className="max-w-[190px] rounded-lg border border-white/12 bg-black px-2.5 py-1.5 text-[11px] tracking-wide text-white/60 outline-none focus:border-white/40"
-          >
-            <option value="">No commitment</option>
-            {commitments.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.text.length > 34 ? c.text.slice(0, 34) + "…" : c.text}
-              </option>
-            ))}
-          </select>
-
-          {/* priority rank */}
-          <select
-            value={item.priority || ""}
-            onChange={(e) =>
-              axzio.setPriority(
-                item.id,
-                e.target.value === "" ? null : Number(e.target.value)
-              )
-            }
-            aria-label="Priority rank"
-            title="Priority rank — 1st is the one thing to focus on"
-            className={`rounded-lg border px-2.5 py-1.5 text-[11px] uppercase tracking-[0.14em] outline-none transition-colors ${
-              item.priority
-                ? "border-white/60 bg-white/10 text-white"
-                : "border-white/12 text-white/45 hover:border-white/40 hover:text-white"
-            } bg-black focus:border-white/40`}
-          >
-            <option value="">No priority</option>
-            {PRIORITY_RANKS.map((r) => (
-              <option key={r.rank} value={r.rank}>
-                {priorityLabel(r.rank)}
-              </option>
-            ))}
-          </select>
-
-          <button
-            onClick={() => axzio.deleteFocusItem(item.id)}
-            aria-label="Delete item"
-            className="ml-auto text-white/25 transition-colors hover:text-white/80"
-          >
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-              <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.4" />
-            </svg>
-          </button>
-        </div>
-      )}
 
       {expanded && draft && (
         <FocusItemEditor
