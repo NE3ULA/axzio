@@ -13,6 +13,7 @@ import {
   DAYS_OF_WEEK,
   MONTHS_OF_YEAR,
   commitmentText,
+  describeSchedule,
   sortedCommitments,
   goalById,
   goalsForCommitment,
@@ -102,6 +103,63 @@ function SessionRow({ session, showDate }) {
         </span>
       )}
       <Pill>Habit</Pill>
+    </li>
+  );
+}
+
+/* HabitSessionGroup — one consolidated row per habit on the week/month
+   tabs, where a daily row per session would clutter the quadrant. Shows
+   the habit, its rhythm and M/N progress; expanding reveals the
+   individual session rows for checking off. */
+function HabitSessionGroup({ sessions, showDate }) {
+  const { state } = useAxzio();
+  const [expanded, setExpanded] = useState(false);
+  const h = sessions[0].habit;
+  const done = sessions.filter((s) => s.done).length;
+  return (
+    <li className="rounded-lg border border-white/10">
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          aria-label={expanded ? "Collapse sessions" : "Expand sessions"}
+          className="shrink-0 rounded p-1 text-white/40 transition-colors hover:text-white"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+          >
+            <path
+              d="M4.5 2.5l3.5 3.5-3.5 3.5"
+              stroke="currentColor"
+              strokeWidth="1.4"
+            />
+          </svg>
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[14px] leading-snug text-white/85">
+            {h.text}
+          </p>
+          <p className="mt-0.5 truncate text-[11px] tracking-[0.08em] text-white/40">
+            {commitmentText(state, h.commitmentId)} · {describeSchedule(h.schedule)}
+          </p>
+        </div>
+        <span className="shrink-0 text-[11px] tabular-nums tracking-[0.1em] text-white/45">
+          {done}/{sessions.length}
+        </span>
+        <Pill>Habit</Pill>
+      </div>
+      {expanded && (
+        <ul className="space-y-1.5 px-3 pb-3">
+          {sessions.map((s) => (
+            <SessionRow key={s.key} session={s} showDate={showDate} />
+          ))}
+        </ul>
+      )}
     </li>
   );
 }
@@ -237,10 +295,11 @@ export default function Focus() {
     return map;
   }, [state.habits, timeframe]);
 
-  const openSessionCount = QUAD_KEYS.reduce(
-    (n, k) => n + sessionsByQuadrant[k].filter((s) => !s.done).length,
-    0
-  );
+  const openSessionCount = QUAD_KEYS.reduce((n, k) => {
+    const ss = sessionsByQuadrant[k];
+    if (timeframe === "day") return n + ss.filter((s) => !s.done).length;
+    return n + new Set(ss.filter((s) => !s.done).map((s) => s.habit.id)).size;
+  }, 0);
 
   /** The 1st/2nd/3rd priorities for the active timeframe. */
   const priorities = useMemo(
@@ -339,7 +398,7 @@ export default function Focus() {
               <HelpText
                 what="The Eisenhower Matrix: a prioritization lens inside the Decision Engine — urgency on one axis, importance on the other."
                 why="Urgency shouts; importance compounds. The matrix protects attention for aligned action instead of reactive motion."
-                how="Capture items, place each in a quadrant and timeframe, tag mode and pillar, move them as reality changes, link commitments, and rank the 1/2/3 priorities. Goals with work sessions land in their quadrant on their own — the Goal pill marks them."
+                how="Capture items, place each in a quadrant and timeframe, tag mode and pillar, move them as reality changes, link commitments, and rank the 1/2/3 priorities. Habits place their practice sessions in their quadrant on their own — the Habit pill marks them."
               />
             </HelpBubble>
           }
@@ -381,6 +440,7 @@ export default function Focus() {
               items={byQuadrant[q.key]}
               sessions={sessionsByQuadrant[q.key]}
               showSessionDates={timeframe !== "day"}
+              consolidate={timeframe !== "day"}
               index={i}
               emphasized={q.key === "q1"}
             />
@@ -761,10 +821,25 @@ function AddFocusForm({ initialTimeframe, layer, setLayer }) {
   );
 }
 
-function QuadrantCard({ quadrant, items, sessions = [], showSessionDates, index, emphasized }) {
-  const open =
-    items.filter((f) => !f.done).length +
-    sessions.filter((s) => !s.done).length;
+function QuadrantCard({ quadrant, items, sessions = [], showSessionDates, consolidate, index, emphasized }) {
+  const openItems = items.filter((f) => !f.done).length;
+  const openSessions = consolidate
+    ? new Set(sessions.filter((s) => !s.done).map((s) => s.habit.id)).size
+    : sessions.filter((s) => !s.done).length;
+  const open = openItems + openSessions;
+  // Week/month: one row per habit (sorted by first session); day keeps
+  // the individual rows.
+  const sessionGroups = [];
+  if (consolidate) {
+    const byHabit = new Map();
+    for (const s of sessions) {
+      if (!byHabit.has(s.habit.id)) byHabit.set(s.habit.id, []);
+      byHabit.get(s.habit.id).push(s);
+    }
+    sessionGroups.push(
+      ...[...byHabit.values()].sort((a, b) => (a[0].date < b[0].date ? -1 : 1))
+    );
+  }
   return (
     <Card
       className={`axzio-rise axzio-rise-${(index % 4) + 1} p-6 ${
@@ -798,9 +873,17 @@ function QuadrantCard({ quadrant, items, sessions = [], showSessionDates, index,
             Empty quadrant.
           </p>
         )}
-        {sessions.map((s) => (
-          <SessionRow key={s.key} session={s} showDate={showSessionDates} />
-        ))}
+        {consolidate
+          ? sessionGroups.map((g) => (
+              <HabitSessionGroup
+                key={g[0].habit.id}
+                sessions={g}
+                showDate={showSessionDates}
+              />
+            ))
+          : sessions.map((s) => (
+              <SessionRow key={s.key} session={s} showDate={showSessionDates} />
+            ))}
         {items.map((f) => (
           <FocusRow key={f.id} item={f} depth={0} />
         ))}
