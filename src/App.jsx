@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAxzio } from "./store.jsx";
 import { useCloud } from "./cloud.jsx";
 import { AuthForm } from "./components/AccountControl.jsx";
@@ -142,13 +142,60 @@ function TopNav({ route, name }) {
   const go = (key) => {
     window.location.hash = `#/${key}`;
   };
+  // Mobile menu: the tab strip doesn't fit on a phone, so small screens
+  // get a hamburger dropdown; Deck stays pinned on the bar as the
+  // priority page. Desktop keeps the full tab strip.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const headerRef = useRef(null);
+  const closeMenu = () => setMenuOpen(false);
+
+  // Close the dropdown on route change, Escape, or a tap outside it.
+  useEffect(() => {
+    closeMenu();
+  }, [route]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") closeMenu();
+    };
+    const onPointer = (e) => {
+      if (headerRef.current && !headerRef.current.contains(e.target)) {
+        closeMenu();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+    };
+  }, [menuOpen]);
 
   return (
     <header
+      ref={headerRef}
       className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-md"
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3.5">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3.5">
+        {/* Mobile: hamburger */}
+        <button
+          onClick={() => setMenuOpen((o) => !o)}
+          aria-expanded={menuOpen}
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-white/70 transition-colors hover:border-white/40 hover:text-white md:hidden"
+        >
+          {menuOpen ? (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
+          )}
+        </button>
+
         <button
           onClick={() => go("deck")}
           className="flex items-center gap-3"
@@ -164,7 +211,8 @@ function TopNav({ route, name }) {
           </span>
         </button>
 
-        <nav className="flex items-center gap-1 overflow-x-auto" aria-label="Views">
+        {/* Desktop: full tab strip */}
+        <nav className="hidden items-center gap-1 md:flex" aria-label="Views">
           {ROUTES.map((r) => (
             <button
               key={r.key}
@@ -181,11 +229,50 @@ function TopNav({ route, name }) {
           ))}
         </nav>
 
+        {/* Mobile: Deck stays pinned on the bar as the priority page */}
+        <button
+          onClick={() => go("deck")}
+          aria-current={route === "deck" ? "page" : undefined}
+          className={`shrink-0 rounded-lg px-3.5 py-2 text-[11px] font-medium uppercase tracking-[0.2em] transition-colors md:hidden ${
+            route === "deck"
+              ? "bg-white/10 text-white"
+              : "text-white/45 hover:text-white"
+          }`}
+        >
+          Deck
+        </button>
+
         <span className="hidden max-w-[160px] truncate text-[11px] uppercase tracking-[0.22em] text-white/40 sm:block">
           {name || "Traveler"}
         </span>
         <AccountControl />
       </div>
+
+      {/* Mobile: hamburger dropdown */}
+      {menuOpen && (
+        <nav
+          className="border-t border-white/10 bg-black/95 px-5 py-2 backdrop-blur-md md:hidden"
+          aria-label="Views"
+        >
+          {ROUTES.map((r) => (
+            <button
+              key={r.key}
+              onClick={() => go(r.key)}
+              aria-current={route === r.key ? "page" : undefined}
+              className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-[13px] uppercase tracking-[0.2em] transition-colors ${
+                route === r.key
+                  ? "bg-white/10 text-white"
+                  : "text-white/55 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              {r.label}
+              {route === r.key && (
+                <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true" />
+              )}
+            </button>
+          ))}
+        </nav>
+      )}
     </header>
   );
 }
