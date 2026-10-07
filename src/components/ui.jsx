@@ -60,7 +60,7 @@ export function Field({ className = "", ...rest }) {
 export function TextArea({ className = "", ...rest }) {
   return (
     <textarea
-      className={`w-full rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-[15px] leading-relaxed text-white placeholder-white/30 outline-none transition-colors focus:border-white/50 ${className}`}
+      className={`w-full rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-base leading-relaxed text-white placeholder-white/30 outline-none transition-colors focus:border-white/50 ${className}`}
       {...rest}
     />
   );
