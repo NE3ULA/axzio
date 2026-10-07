@@ -1183,15 +1183,19 @@ export function normalizeSchedule(raw) {
     const days = (Array.isArray(raw.days) ? raw.days : [])
       .map(Number)
       .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+    // weeks: null = ongoing (no end date); a positive int = fixed run.
+    // "" / undefined / 0 are transient-or-invalid, never ongoing.
     const weeks =
-      Number.isInteger(Number(raw.weeks)) && Number(raw.weeks) > 0
-        ? Math.min(52, Number(raw.weeks))
-        : 0;
+      raw.weeks === null
+        ? null
+        : Number.isInteger(Number(raw.weeks)) && Number(raw.weeks) > 0
+          ? Math.min(52, Number(raw.weeks))
+          : 0;
     if (
       days.length === 0 ||
       typeof raw.start !== "string" ||
       !/^\d{4}-\d{2}-\d{2}$/.test(raw.start) ||
-      weeks <= 0
+      weeks === 0
     )
       return null;
     return {
@@ -1235,11 +1239,16 @@ export function habitOccurrences(habit, fromKey, toKey) {
       out.push({ date: s.date, minutes });
   } else if (s.kind === "weekly") {
     const start = parseDateKey(s.start);
-    const end = new Date(start);
-    end.setDate(end.getDate() + s.weeks * 7 - 1);
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const end = s.weeks == null ? null : new Date(start);
+    if (end) end.setDate(end.getDate() + s.weeks * 7 - 1);
+    const to = parseDateKey(toKey);
+    for (
+      let d = new Date(start);
+      d <= to && (!end || d <= end);
+      d.setDate(d.getDate() + 1)
+    ) {
       const k = localDateKey(d);
-      if (k < fromKey || k > toKey) continue;
+      if (k < fromKey) continue;
       if (s.days.includes(d.getDay())) out.push({ date: k, minutes });
     }
   }
@@ -1283,7 +1292,9 @@ export function describeSchedule(s) {
     return `${label} · ${mins}`;
   }
   if (s.kind === "weekly") {
-    return `${daysLabel(s.days)} · ${mins} · ${s.weeks} wk${s.weeks === 1 ? "" : "s"}`;
+    const dur =
+      s.weeks == null ? "ongoing" : `${s.weeks} wk${s.weeks === 1 ? "" : "s"}`;
+    return `${daysLabel(s.days)} · ${mins} · ${dur}`;
   }
   return "";
 }

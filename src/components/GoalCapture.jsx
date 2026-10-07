@@ -480,7 +480,7 @@ export function GoalScheduleEditor({ value, onChange }) {
                 date: s.date || localDateKey(),
                 days: Array.isArray(s.days) && s.days.length ? s.days : [1, 2, 3, 4, 5],
                 start: s.start || localDateKey(),
-                weeks: s.weeks || 4,
+                weeks: s.weeks ?? 4,
                 minutes: s.minutes || 30,
               });
             }}
@@ -582,20 +582,40 @@ export function GoalScheduleEditor({ value, onChange }) {
               />
             </div>
             <div>
-              <MicroLabel className="mb-1.5">Weeks</MicroLabel>
-              <input
-                type="number"
-                min={1}
-                max={52}
-                value={s.weeks ?? 4}
-                onChange={(e) =>
-                  set({
-                    weeks: e.target.value === "" ? "" : Number(e.target.value),
-                  })
-                }
-                aria-label="Duration in weeks"
-                className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30"
-              />
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <MicroLabel>Duration</MicroLabel>
+                <button
+                  type="button"
+                  onClick={() => set({ weeks: s.weeks == null ? 4 : null })}
+                  aria-pressed={s.weeks == null}
+                  className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] uppercase tracking-[0.14em] transition-colors ${
+                    s.weeks == null
+                      ? "border-white/70 bg-white/10 text-white"
+                      : "border-white/15 text-white/45 hover:border-white/40 hover:text-white"
+                  }`}
+                >
+                  Ongoing
+                </button>
+              </div>
+              {s.weeks == null ? (
+                <div className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white/60">
+                  Ongoing — until paused
+                </div>
+              ) : (
+                <input
+                  type="number"
+                  min={1}
+                  max={52}
+                  value={s.weeks ?? 4}
+                  onChange={(e) =>
+                    set({
+                      weeks: e.target.value === "" ? "" : Number(e.target.value),
+                    })
+                  }
+                  aria-label="Duration in weeks"
+                  className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30"
+                />
+              )}
             </div>
           </div>
         </div>
