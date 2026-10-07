@@ -204,13 +204,19 @@ export default function Bridge() {
                   <span className="text-[11px] tracking-[0.14em] text-white/35">
                     {formatTime(sg.ts)}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => axzio.addStar(sg.text, "")}
-                    className="text-[11px] uppercase tracking-[0.14em] text-white/45 transition-colors hover:text-[#d8a94e]"
-                  >
-                    Ignite as seed →
-                  </button>
+                  {sg.ignited ? (
+                    <span className="text-[11px] uppercase tracking-[0.14em] text-[#d8a94e]/60">
+                      Ignited ✓
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => axzio.igniteSpark(sg.id)}
+                      className="text-[11px] uppercase tracking-[0.14em] text-white/45 transition-colors hover:text-[#d8a94e]"
+                    >
+                      Ignite as seed →
+                    </button>
+                  )}
                 </p>
               </div>
             ))}

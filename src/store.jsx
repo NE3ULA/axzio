@@ -3011,6 +3011,31 @@ export function AxzioProvider({ children }) {
         d.signals = d.signals.filter((s) => s.id !== id);
       });
     },
+    /** Ignite a spark into a star seed: the seed is born and the spark
+     *  leaves the dust cloud (marked ignited, stays as a record). */
+    igniteSpark(id) {
+      let star = null;
+      update((d) => {
+        const sg = (d.signals || []).find((x) => x.id === id);
+        if (!sg || sg.ignited) return;
+        const n = sg.text.trim();
+        if (!n) return;
+        star = {
+          id: uid(),
+          name: n.slice(0, 80),
+          note: "",
+          created: Date.now(),
+          loopStage: "reveal",
+          orbits: 1,
+          commitmentId: null,
+          fromSparkId: id,
+        };
+        d.stars.push(star);
+        sg.ignited = true;
+      });
+      if (star) logEvent("seed.created", { id: star.id, name: star.name, fromSpark: true });
+      return star;
+    },
 
     /* stars (user constellation nodes) */
     addStar(name, note = "") {

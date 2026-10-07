@@ -425,154 +425,282 @@ function anchorPos(commitments, id) {
   return [x, 372];
 }
 
+/* Anchors are commitments: scattered through the sky as gold-ringed
+   black holes. Rooted seeds ride their commitment's orbit ring — and a
+   seed's angle on the ring IS its E3 stage (the orbit is the loop).
+   Unignited sparks hang as dust clouds: the more waiting ideas, the
+   thicker the nebula. Selecting an anchor isolates and zooms its sky. */
+const ORBIT_RX = 100;
+const ORBIT_RY = 64;
+
+function scatteredAnchor(n, i) {
+  // loose deterministic scatter with room for orbit rings
+  const cols = n <= 2 ? n : 3;
+  const col = i % cols;
+  const row = Math.floor(i / cols);
+  const rows = Math.ceil(n / cols);
+  const x = SKY_W * (0.18 + (cols === 1 ? 0.32 : (col / Math.max(1, cols - 1)) * 0.64));
+  const y = SKY_H * (0.3 + (rows === 1 ? 0.2 : (row / Math.max(1, rows - 1)) * 0.4));
+  const jx = (hash01("anchor" + i + ":x") - 0.5) * 60;
+  const jy = (hash01("anchor" + i + ":y") - 0.5) * 40;
+  return [
+    Math.min(SKY_W - 140, Math.max(140, x + jx)),
+    Math.min(SKY_H - 90, Math.max(110, y + jy)),
+  ];
+}
+
+function orbitAngle(loopStage) {
+  const idx = E3_ORDER.indexOf(loopStage);
+  if (idx < 0) return -Math.PI / 2;
+  return -Math.PI / 2 + idx * ((Math.PI * 2) / E3_ORDER.length);
+}
+
 function SkyView({ stars, state, selectedId, onSelect }) {
   const commitments = sortedCommitments(state);
-  const anchorById = new Map(commitments.map((c) => [c.id, anchorPos(commitments, c.id)]));
-  const pts = stars.map((s) => {
-    const spine = threadSpine(state, s);
-    const off = threadOffspring(state, s);
-    const tier = threadMassTier(s, off);
-    let [x, y] = threadPos(s, spine);
-    // rooted threads orbit their anchor
-    const ap = s.commitmentId && anchorById.get(s.commitmentId);
+  const [focusId, setFocusId] = useState(null); // isolated commitment
+  const dust = (state.signals || []).filter((sg) => sg && !sg.ignited).slice(-12);
+
+  const anchorById = new Map(
+    commitments.map((c, i) => [c.id, scatteredAnchor(commitments.length, i)])
+  );
+  const focusAnchor = focusId ? anchorById.get(focusId) : null;
+  const ZOOM = 1.85;
+  const zoomStyle = focusAnchor
+    ? {
+        transform: `translate(${SKY_W / 2}px, ${SKY_H / 2}px) scale(${ZOOM}) translate(${-focusAnchor[0]}px, ${-focusAnchor[1]}px)`,
+        transition: "transform 0.65s cubic-bezier(0.22,1,0.36,1)",
+        transformBox: "fill-box",
+      }
+    : { transition: "transform 0.65s cubic-bezier(0.22,1,0.36,1)" };
+
+  const pts = stars.map((sg) => {
+    const spine = threadSpine(state, sg);
+    const off = threadOffspring(state, sg);
+    const tier = threadMassTier(sg, off);
+    let x, y;
+    const ap = sg.commitmentId && anchorById.get(sg.commitmentId);
     if (ap && spine !== "released") {
-      const ang = hash01(s.id + ":orbit") * Math.PI * 2;
-      const rad = 52 + hash01(s.id + ":rad") * 30;
-      x = Math.min(975, Math.max(25, ap[0] + Math.cos(ang) * rad));
-      y = Math.min(340, Math.max(40, ap[1] - 40 - Math.abs(Math.sin(ang)) * rad));
+      // on the orbit ring: angle = E3 stage
+      const ang = orbitAngle(sg.loopStage);
+      const jx = (hash01(sg.id + ":jx") - 0.5) * 26;
+      const jy = (hash01(sg.id + ":jy") - 0.5) * 20;
+      x = ap[0] + Math.cos(ang) * ORBIT_RX + jx;
+      y = ap[1] + Math.sin(ang) * ORBIT_RY + jy;
+    } else {
+      [x, y] = threadPos(sg, spine);
     }
-    return { star: s, spine, tier, x, y };
+    const dimmed = focusId && sg.commitmentId !== focusId;
+    return { star: sg, spine, tier, x, y, dimmed };
   });
+
   const spineLabel = (sp) =>
     sp === "released"
       ? "Released"
-      : (SPINE_STAGES.find((s) => s.key === sp) || {}).label || sp;
+      : (SPINE_STAGES.find((st) => st.key === sp) || {}).label || sp;
+
+  const toggleFocus = (id) => setFocusId((cur) => (cur === id ? null : id));
+
   return (
     <Card className="axzio-rise axzio-rise-2 relative overflow-hidden p-2 md:p-4">
-      <div className="flex justify-between px-4 pt-3 text-[10px] uppercase tracking-[0.24em] text-white/30">
-        <span>Capture</span>
-        <span>Evaluate</span>
-        <span>Execute</span>
-        <span>Review · Evolve</span>
-      </div>
+      {/* commitment selector */}
+      {commitments.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 px-4 pt-3">
+          <button
+            type="button"
+            onClick={() => setFocusId(null)}
+            className={`rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition-colors ${
+              !focusId
+                ? "border-white/60 text-white"
+                : "border-white/15 text-white/45 hover:border-white/40 hover:text-white"
+            }`}
+          >
+            All
+          </button>
+          {commitments.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => toggleFocus(c.id)}
+              aria-pressed={focusId === c.id}
+              className={`rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition-colors ${
+                focusId === c.id
+                  ? "border-[#d8a94e] text-[#d8a94e]"
+                  : "border-white/15 text-white/45 hover:border-white/40 hover:text-white"
+              }`}
+            >
+              {c.text}
+            </button>
+          ))}
+        </div>
+      )}
       <svg
         viewBox={`0 0 ${SKY_W} ${SKY_H}`}
         className="h-auto w-full select-none"
         role="img"
-        aria-label="Thread sky: one star per thread along the spine"
+        aria-label="Thread sky: commitments as anchors, seeds on their orbit rings"
       >
         <defs>
           <radialGradient id="skyGlow">
             <stop offset="0%" stopColor="#d8a94e" stopOpacity="0.55" />
             <stop offset="100%" stopColor="#d8a94e" stopOpacity="0" />
           </radialGradient>
+          <radialGradient id="dustViolet">
+            <stop offset="0%" stopColor="#6d5bd0" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#6d5bd0" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="dustTeal">
+            <stop offset="0%" stopColor="#2e8f9e" stopOpacity="0.45" />
+            <stop offset="100%" stopColor="#2e8f9e" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="dustIndigo">
+            <stop offset="0%" stopColor="#3b4a8f" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#3b4a8f" stopOpacity="0" />
+          </radialGradient>
         </defs>
-        {/* the journey arc */}
-        <path
-          d="M60,335 Q300,90 520,205 T950,150"
-          fill="none"
-          stroke="rgba(255,255,255,0.10)"
-          strokeWidth="1.5"
-          strokeDasharray="4 7"
-        />
-        {pts.map((p) => {
-          const r = TIER_R[p.tier];
-          const isSel = selectedId === p.star.id;
-          const cls = stellarClass(state, p.star, p.tier);
-          const def = STELLAR_CLASSES[cls];
-          const isBH = cls === "trap";
-          const dim = cls === "released";
-          const labelBelow = p.y < 300;
-          return (
-            <g
-              key={p.star.id}
-              onClick={() => onSelect(p.star.id)}
-              className="cursor-pointer"
-            >
-              {isBH ? (
-                <g>
-                  <circle cx={p.x} cy={p.y} r={r * 2.1} fill="none" stroke={def.ring} strokeWidth="1" opacity="0.35" strokeDasharray="3 5" />
-                  <circle cx={p.x} cy={p.y} r={r} fill={def.color} stroke={def.ring} strokeWidth="1.6" />
-                  <circle cx={p.x} cy={p.y} r={r} fill="none" stroke={def.ring} strokeWidth="1" opacity="0.9"
-                    style={{ filter: `drop-shadow(0 0 ${8 + p.tier * 2}px ${def.ring})` }} />
-                </g>
-              ) : (
-                <g>
-                  {p.tier >= 2 && !dim && (
-                    <circle cx={p.x} cy={p.y} r={r * 2.8} fill={def.color} opacity="0.16" />
-                  )}
+        <g style={zoomStyle}>
+          {/* dust clouds — unignited sparks. Not selectable: pure atmosphere. */}
+          <g pointerEvents="none" opacity={focusId ? 0.25 : 1} style={{ transition: "opacity 0.5s" }}>
+            {dust.map((sg, i) => {
+              const dx = 60 + hash01(sg.id + ":dx") * (SKY_W - 120);
+              const dy = 60 + hash01(sg.id + ":dy") * (SKY_H - 120);
+              const dr = 70 + hash01(sg.id + ":dr") * 90;
+              const grad = ["url(#dustViolet)", "url(#dustTeal)", "url(#dustIndigo)"][i % 3];
+              return (
+                <ellipse key={sg.id} cx={dx} cy={dy} rx={dr} ry={dr * 0.62} fill={grad} opacity="0.34" />
+              );
+            })}
+          </g>
+
+          {/* orbit rings */}
+          {commitments.map((c) => {
+            const [ax, ay] = anchorById.get(c.id);
+            const active = !focusId || focusId === c.id;
+            return (
+              <g key={`ring-${c.id}`} opacity={active ? 1 : 0.08} style={{ transition: "opacity 0.45s" }}>
+                <ellipse cx={ax} cy={ay} rx={ORBIT_RX} ry={ORBIT_RY} fill="none" stroke="rgba(216,169,78,0.30)" strokeWidth="1" strokeDasharray="3 6" />
+                {E3_ORDER.map((st, si) => {
+                  const a = -Math.PI / 2 + si * ((Math.PI * 2) / E3_ORDER.length);
+                  const tx = ax + Math.cos(a) * ORBIT_RX;
+                  const ty = ay + Math.sin(a) * ORBIT_RY;
+                  return (
+                    <circle key={st} cx={tx} cy={ty} r={1.6} fill="rgba(216,169,78,0.55)" />
+                  );
+                })}
+              </g>
+            );
+          })}
+
+          {/* anchors */}
+          {commitments.map((c) => {
+            const [ax, ay] = anchorById.get(c.id);
+            const active = !focusId || focusId === c.id;
+            return (
+              <g
+                key={`anchor-${c.id}`}
+                onClick={() => toggleFocus(c.id)}
+                className="cursor-pointer"
+                opacity={active ? 1 : 0.08}
+                style={{ transition: "opacity 0.45s" }}
+              >
+                <circle cx={ax} cy={ay} r={26} fill="none" stroke="#d8a94e" strokeWidth="1" opacity="0.3" strokeDasharray="3 5" />
+                <circle cx={ax} cy={ay} r={13} fill="#050508" stroke="#d8a94e" strokeWidth="1.6" />
+                <circle cx={ax} cy={ay} r={13} fill="none" stroke="#d8a94e" strokeWidth="1" opacity="0.9"
+                  style={{ filter: "drop-shadow(0 0 10px #d8a94e)" }} />
+                <text x={ax} y={ay + 34} textAnchor="middle" fill={focusId === c.id ? "#d8a94e" : "rgba(216,169,78,0.85)"} fontSize="10" letterSpacing="2">
+                  {(c.text || "").slice(0, 22).toUpperCase()}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* stars */}
+          {pts.map((p) => {
+            const r = TIER_R[p.tier];
+            const isSel = selectedId === p.star.id;
+            const cls = stellarClass(state, p.star, p.tier);
+            const def = STELLAR_CLASSES[cls];
+            const isBH = cls === "trap";
+            const dim = cls === "released" || p.dimmed;
+            const labelBelow = p.y < 300;
+            return (
+              <g
+                key={p.star.id}
+                onClick={() => onSelect(p.star.id)}
+                className="cursor-pointer"
+                opacity={p.dimmed ? 0.07 : 1}
+                style={{ transition: "opacity 0.45s" }}
+              >
+                {isBH ? (
+                  <g>
+                    <circle cx={p.x} cy={p.y} r={r * 2.1} fill="none" stroke={def.ring} strokeWidth="1" opacity="0.35" strokeDasharray="3 5" />
+                    <circle cx={p.x} cy={p.y} r={r} fill={def.color} stroke={def.ring} strokeWidth="1.6" />
+                    <circle cx={p.x} cy={p.y} r={r} fill="none" stroke={def.ring} strokeWidth="1" opacity="0.9"
+                      style={{ filter: `drop-shadow(0 0 ${8 + p.tier * 2}px ${def.ring})` }} />
+                  </g>
+                ) : (
+                  <g>
+                    {p.tier >= 2 && !dim && (
+                      <circle cx={p.x} cy={p.y} r={r * 2.8} fill={def.color} opacity="0.16" />
+                    )}
+                    <circle
+                      cx={p.x}
+                      cy={p.y}
+                      r={r}
+                      fill={def.color}
+                      opacity={dim ? 0.6 : 0.95}
+                      style={{
+                        animation: `axzio-twinkle ${3 + (p.tier % 3)}s ease-in-out ${(p.x % 3).toFixed(1)}s infinite`,
+                        filter: dim ? "none" : `drop-shadow(0 0 ${6 + p.tier * 3}px ${def.color})`,
+                      }}
+                    />
+                  </g>
+                )}
+                {isSel && (
                   <circle
                     cx={p.x}
                     cy={p.y}
-                    r={r}
-                    fill={def.color}
-                    opacity={dim ? 0.6 : 0.95}
-                    style={{
-                      animation: `axzio-twinkle ${3 + (p.tier % 3)}s ease-in-out ${(p.x % 3).toFixed(1)}s infinite`,
-                      filter: dim ? "none" : `drop-shadow(0 0 ${6 + p.tier * 3}px ${def.color})`,
-                    }}
+                    r={r + 7}
+                    fill="none"
+                    stroke="rgba(255,255,255,0.7)"
+                    strokeWidth="1"
                   />
-                </g>
-              )}
-              {isSel && (
-                <circle
-                  cx={p.x}
-                  cy={p.y}
-                  r={r + 7}
-                  fill="none"
-                  stroke="rgba(255,255,255,0.7)"
-                  strokeWidth="1"
-                />
-              )}
-              {!dim && (
-                <g>
-                  <text
-                    x={p.x}
-                    y={labelBelow ? p.y + r + 16 : p.y - r - 20}
-                    textAnchor="middle"
-                    fill={isSel ? "#fff" : "rgba(255,255,255,0.72)"}
-                    fontSize="12"
-                    letterSpacing="1"
-                  >
-                    {p.star.name.slice(0, 20)}
-                  </text>
-                  <text
-                    x={p.x}
-                    y={labelBelow ? p.y + r + 30 : p.y - r - 6}
-                    textAnchor="middle"
-                    fill={isBH ? def.ring : "rgba(255,255,255,0.35)"}
-                    fontSize="9"
-                    letterSpacing="2"
-                    style={{ textTransform: "uppercase" }}
-                  >
-                    {isBH
-                      ? def.label.toUpperCase()
-                      : `${spineLabel(p.spine).toUpperCase()} · ${def.label.toUpperCase()}`}
-                  </text>
-                </g>
-              )}
-            </g>
-          );
-        })}
-        {/* anchors — commitments as black holes */}
-        {commitments.map((c) => {
-          const [ax, ay] = anchorPos(commitments, c.id);
-          return (
-            <g key={`anchor-${c.id}`}>
-              <circle cx={ax} cy={ay} r={26} fill="none" stroke="#d8a94e" strokeWidth="1" opacity="0.3" strokeDasharray="3 5" />
-              <circle cx={ax} cy={ay} r={13} fill="#050508" stroke="#d8a94e" strokeWidth="1.6" />
-              <circle cx={ax} cy={ay} r={13} fill="none" stroke="#d8a94e" strokeWidth="1" opacity="0.9"
-                style={{ filter: "drop-shadow(0 0 10px #d8a94e)" }} />
-              <text x={ax} y={ay + 32} textAnchor="middle" fill="rgba(216,169,78,0.85)" fontSize="10" letterSpacing="2">
-                {(c.text || "").slice(0, 22).toUpperCase()}
-              </text>
-            </g>
-          );
-        })}
+                )}
+                {!dim && (
+                  <g>
+                    <text
+                      x={p.x}
+                      y={labelBelow ? p.y + r + 16 : p.y - r - 20}
+                      textAnchor="middle"
+                      fill={isSel ? "#fff" : "rgba(255,255,255,0.72)"}
+                      fontSize="12"
+                      letterSpacing="1"
+                    >
+                      {p.star.name.slice(0, 20)}
+                    </text>
+                    <text
+                      x={p.x}
+                      y={labelBelow ? p.y + r + 30 : p.y - r - 6}
+                      textAnchor="middle"
+                      fill={isBH ? def.ring : "rgba(255,255,255,0.35)"}
+                      fontSize="9"
+                      letterSpacing="2"
+                      style={{ textTransform: "uppercase" }}
+                    >
+                      {isBH
+                        ? def.label.toUpperCase()
+                        : `${spineLabel(p.spine).toUpperCase()} · ${def.label.toUpperCase()}`}
+                    </text>
+                  </g>
+                )}
+              </g>
+            );
+          })}
+        </g>
       </svg>
       <p className="px-3 pb-2 text-[10px] uppercase tracking-[0.24em] text-white/30">
-        One star per thread — brightness is mass · gold rings are your
-        commitments, anchoring what orbits them
+        {focusId
+          ? "Isolated — select the anchor again, or All, to return"
+          : "Gold rings are your commitments — seeds orbit them, angle is the orbit stage · dust is unignited sparks"}
       </p>
     </Card>
   );
@@ -923,9 +1051,12 @@ function gateForTarget(target, gates) {
   return gates[2];
 }
 
-/* The loop: the E3 stages as a quiet stepper. Gates run in the
-   background — tapping a stage opens its popup, which says plainly what
-   the stage asks and where the thread stands. Stages are earned. */
+/* The orbit: the E3 loop as a quiet stepper. A thread walks its orbit
+   over and over — Reveal → Interpret → Align → Act → Integrate, one full
+   revolution per pass. Gates run in the background: tapping a stage opens
+   its popup, which says plainly what the stage asks and where the thread
+   stands. Stages are earned. (The orbit is the loop; the spine is the
+   Becoming Cycle — the thread's one-way biography.) */
 function GateSection({ star, axzio }) {
   const [flow, setFlow] = useState(null); // {target, gate, met}
   const [repDraft, setRepDraft] = useState("");
@@ -976,10 +1107,10 @@ function GateSection({ star, axzio }) {
   return (
     <div className="mt-6 border-t border-white/10 pt-5">
       <div className="mb-3 flex items-center gap-2">
-        <MicroLabel>The loop</MicroLabel>
-        <HelpBubble title="The loop">
+        <MicroLabel>The orbit</MicroLabel>
+        <HelpBubble title="The orbit">
           <HelpText
-            what="The E3 loop the thread walks: Reveal → Interpret → Align → Act → Integrate."
+            what="The E3 loop this thread walks, over and over: Reveal → Interpret → Align → Act → Integrate. Its angle on the commitment's orbit ring is its stage."
             why="Stages you earn mean something. The gate doesn't auto-advance you; it knocks, and you decide whether the work is real."
             how="Tap the next stage to see what it asks. Meet the requirement and approve — or move early: the instrument is offered first, and honest declaration is always accepted."
           />

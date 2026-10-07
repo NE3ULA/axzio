@@ -245,20 +245,25 @@ function TopNav({ route, name }) {
           ))}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-2">
-          {/* Mobile: Bridge stays pinned as the priority page */}
-          <button
-            onClick={() => go("bridge")}
-            aria-current={route === "bridge" ? "page" : undefined}
-            className={`shrink-0 rounded-lg px-3.5 py-2 text-[11px] font-medium uppercase tracking-[0.2em] transition-colors md:hidden ${
-              route === "bridge"
-                ? "bg-white/10 text-white"
-                : "text-white/45 hover:text-white"
-            }`}
-          >
-            Bridge
-          </button>
+        {/* Mobile: all four main tabs, compact */}
+        <nav className="flex shrink-0 items-center gap-0.5 md:hidden" aria-label="Views">
+          {MAIN_ROUTES.map((r) => (
+            <button
+              key={r.key}
+              onClick={() => go(r.key)}
+              aria-current={route === r.key ? "page" : undefined}
+              className={`shrink-0 rounded-lg px-2 py-2 text-[10px] font-medium uppercase tracking-[0.14em] transition-colors ${
+                route === r.key
+                  ? "bg-white/10 text-white"
+                  : "text-white/45 hover:text-white"
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </nav>
 
+        <div className="flex shrink-0 items-center gap-2">
           <span className="hidden max-w-[160px] truncate text-[11px] uppercase tracking-[0.22em] text-white/40 sm:block">
             {name || "Traveler"}
           </span>
