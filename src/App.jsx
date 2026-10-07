@@ -10,6 +10,8 @@ import SupabaseSetup from "./components/SupabaseSetup.jsx";
 import AccountControl from "./components/AccountControl.jsx";
 import Bridge from "./views/Bridge.jsx";
 import Constellation from "./views/Constellation.jsx";
+import Galaxy from "./views/Galaxy.jsx";
+import Universe from "./views/Universe.jsx";
 import Identity from "./views/Identity.jsx";
 import Practices from "./views/Practices.jsx";
 import Atlas from "./views/Atlas.jsx";
@@ -33,6 +35,8 @@ const ROUTES = [
   { key: "nebula", label: "Nebula", view: Constellation, main: true },
   { key: "core", label: "Core", view: Identity, main: true },
   { key: "atlas", label: "Atlas", view: Atlas },
+  { key: "galaxy", label: "Galaxy", view: Galaxy },
+  { key: "universe", label: "Universe", view: Universe },
   { key: "practice", label: "Practice", view: Practices },
   { key: "modes", label: "Modes", view: Modes },
   { key: "tribe", label: "Tribe", view: Tribe },
@@ -302,7 +306,7 @@ function TopNav({ route, name }) {
           className="border-t border-white/10 bg-black/95 px-5 py-4 backdrop-blur-md"
           aria-label="Atlas"
         >
-          <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <div>
               <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.24em] text-white/35">
                 Views
@@ -325,6 +329,13 @@ function TopNav({ route, name }) {
                 </button>
               ))}
               {drawerLink("#/atlas", "Atlas", "index tables")}
+            </div>
+            <div>
+              <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.24em] text-white/35">
+                Zoom out
+              </p>
+              {drawerLink("#/galaxy", "Galaxy", "tribe systems")}
+              {drawerLink("#/universe", "Universe", "curated external")}
             </div>
             <div>
               <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.24em] text-white/35">

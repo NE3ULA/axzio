@@ -3312,6 +3312,51 @@ export function AxzioProvider({ children }) {
       logEvent("lifemod.deleted", { id });
     },
 
+    /* universe — curated external systems admitted into your focus */
+    addUniverseLink(name, url, kind) {
+      const n = typeof name === "string" ? name.trim().slice(0, 80) : "";
+      if (!n) return null;
+      let u = typeof url === "string" ? url.trim().slice(0, 300) : "";
+      if (u && !/^https?:\/\//i.test(u)) u = "https://" + u;
+      const kinds = ["platform", "tool", "education", "community", "venture", "other"];
+      const k = kinds.includes(kind) ? kind : "other";
+      const entry = {
+        id: uid(),
+        name: n,
+        url: u,
+        kind: k,
+        inFocus: true,
+        createdAt: Date.now(),
+      };
+      update((d) => {
+        if (!Array.isArray(d.universeLinks)) d.universeLinks = [];
+        d.universeLinks.push(entry);
+      });
+      logEvent("universe.link_added", { id: entry.id, kind: k });
+      return entry;
+    },
+    updateUniverseLink(id, patch = {}) {
+      update((d) => {
+        const l = (d.universeLinks || []).find((x) => x.id === id);
+        if (!l) return;
+        if (typeof patch.name === "string" && patch.name.trim())
+          l.name = patch.name.trim().slice(0, 80);
+        if (typeof patch.url === "string") {
+          let u = patch.url.trim().slice(0, 300);
+          if (u && !/^https?:\/\//i.test(u)) u = "https://" + u;
+          l.url = u;
+        }
+        if (typeof patch.inFocus === "boolean") l.inFocus = patch.inFocus;
+      });
+      logEvent("universe.link_updated", { id });
+    },
+    deleteUniverseLink(id) {
+      update((d) => {
+        d.universeLinks = (d.universeLinks || []).filter((l) => l && l.id !== id);
+      });
+      logEvent("universe.link_deleted", { id });
+    },
+
     /* primitive assessments */
     saveAssessment(scores) {
       const entry = {
