@@ -672,9 +672,11 @@ function defaultState() {
     // Guided Reset completions (private, local only):
     // { id, ts, date, situation, reveal, interpret, align, act, lifemod, integrate }
     resets: [],
-    // In-progress Guided Reset draft (synced): { v, savedAt, step, subject, scratch } | null.
-    // One slot — opening the reset offers Resume / Start over.
-    resetDraft: null,
+    // In-progress Guided Reset drafts (synced): one per source so resets
+    // can span multiple sessions and assets.
+    // [{ id, sourceKind: 'focus'|'goal'|'habit'|'star'|'general',
+    //    sourceId, sourceName, step, subject, scratch, savedAt }]
+    resetDrafts: [],
   };
 }
 
@@ -729,7 +731,7 @@ export function computeStreak(state) {
   return streak;
 }
 
-function uid() {
+export function uid() {
   return (
     Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
   );
@@ -1540,13 +1542,85 @@ function normalizeResetDraft(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   if (!raw.scratch || typeof raw.scratch !== "object" || Array.isArray(raw.scratch))
     return null;
+  const kinds = ["focus", "goal", "habit", "star", "general"];
   return {
-    v: 1,
+    id:
+      typeof raw.id === "string" && raw.id
+        ? raw.id
+        : raw.migratedSingle === true
+          ? "migrated:single"
+          : `gen:${uid()}`,
+    sourceKind: kinds.includes(raw.sourceKind) ? raw.sourceKind : "general",
+    sourceId: typeof raw.sourceId === "string" ? raw.sourceId : null,
+    sourceName: typeof raw.sourceName === "string" ? raw.sourceName.slice(0, 80) : "",
     savedAt: Number.isFinite(raw.savedAt) ? raw.savedAt : 0,
     step: Number.isInteger(raw.step) && raw.step >= 0 ? raw.step : 0,
     subject: typeof raw.subject === "string" ? raw.subject.slice(0, 90) : "",
     scratch: raw.scratch,
   };
+}
+
+/* Draft collection: validates each entry, drops the invalid, and migrates
+   the old single-slot resetDraft (pre-multi-draft) as a general draft. */
+function normalizeResetDrafts(rawList, rawSingle) {
+  const list = Array.isArray(rawList) ? rawList : [];
+  const out = [];
+  const seen = new Set();
+  for (const raw of list) {
+    const d = normalizeResetDraft(raw);
+    if (d && !seen.has(d.id)) {
+      seen.add(d.id);
+      out.push(d);
+    }
+  }
+  const single =
+    rawSingle && typeof rawSingle === "object"
+      ? normalizeResetDraft({ ...rawSingle, migratedSingle: true })
+      : null;
+  if (single && !seen.has(single.id)) {
+    out.push(single);
+  }
+  return out;
+}
+
+/* Resolve a reset source to its display name + Situation autofill text.
+   The autofill is re-derived from the live item every time, so it can
+   never go stale the way a one-shot prefill could. */
+export function resetSourceInfo(state, kind, id) {
+  if (kind === "focus") {
+    const item = (state.focusItems || []).find((x) => x.id === id);
+    if (!item) return null;
+    const notes = (item.notes || "").trim();
+    return {
+      name: item.text,
+      situation: notes ? `${item.text}\n\nNotes:\n${notes}` : item.text,
+    };
+  }
+  if (kind === "star") {
+    const star = (state.stars || []).find((x) => x.id === id);
+    if (!star) return null;
+    const note = (star.note || "").trim();
+    return {
+      name: star.name,
+      situation: note ? `${star.name}\n\nNote:\n${note}` : star.name,
+    };
+  }
+  if (kind === "goal") {
+    const goal = (state.goals || []).find((x) => x.id === id);
+    if (!goal) return null;
+    return { name: goal.text, situation: goal.text };
+  }
+  if (kind === "habit") {
+    const habit = (state.habits || []).find((x) => x.id === id);
+    if (!habit) return null;
+    return { name: habit.text, situation: habit.text };
+  }
+  return null;
+}
+
+/** Deterministic draft id for a source: one in-progress reset per source. */
+export function resetDraftIdFor(sourceKind, sourceId) {
+  return `${sourceKind}:${sourceId || "general"}`;
 }
 
 export function normalizeState(parsed) {
@@ -1651,7 +1725,7 @@ export function normalizeState(parsed) {
       ? parsed.focusItems.filter((f) => f && typeof f === "object")
       : [];
 
-    return {
+    const normalized = {
       ...base,
       ...parsed,
       identity,
@@ -1688,7 +1762,7 @@ export function normalizeState(parsed) {
           : null,
       modes: normalizeModes(parsed.modes),
       resets: normalizeResets(parsed.resets),
-      resetDraft: normalizeResetDraft(parsed.resetDraft),
+      resetDrafts: normalizeResetDrafts(parsed.resetDrafts, parsed.resetDraft),
       // Settings: merge so future keys default cleanly on old states.
       settings: {
         aiEnabled: !!(parsed.settings && parsed.settings.aiEnabled),
@@ -1705,6 +1779,10 @@ export function normalizeState(parsed) {
           ? parsed.syncVersion
           : SYNC_VERSION,
     };
+    // The old single-slot draft key is superseded by resetDrafts — drop it
+    // so a stale copy can't re-migrate on a later load.
+    delete normalized.resetDraft;
+    return normalized;
 }
 
 function loadState() {
@@ -1737,10 +1815,11 @@ export function useAxzio() {
 export function AxzioProvider({ children }) {
   const [state, setState] = useState(loadState);
 
-  /* Transient (never persisted): prefill for a Guided Reset triggered
-     from a Focus item via "Explore in Guided Reset". Consumed once by
-     the Journeys view, then cleared. */
-  const [resetPrefill, setResetPrefill] = useState(null);
+  /* Transient (never persisted): the source a Guided Reset was launched
+     from — { kind: 'focus'|'goal'|'habit'|'star', id }. Consumed once by
+     the Journeys view, which resolves the live item for the Situation
+     autofill (re-derived every time, never a stale one-shot prefill). */
+  const [pendingResetSource, setPendingResetSource] = useState(null);
 
   useEffect(() => {
     try {
@@ -2848,21 +2927,17 @@ export function AxzioProvider({ children }) {
     },
 
     /* decision -> journey thread (transient, never persisted) */
-    resetPrefill,
+    pendingResetSource,
     /**
-     * Begin a Guided Reset from a Focus item: the reset's Situation is
-     * pre-filled from the item's text (plus its notes), and the saved
-     * reset keeps a sourceItemId thread back to the decision.
+     * Begin a Guided Reset from a Focus item. Only the source identity is
+     * kept — the Journeys view resolves the live item for the Situation
+     * autofill and matches any in-progress draft for that source.
      * Returns false when the item no longer exists.
      */
     requestResetFromDecision(id) {
       const item = state.focusItems.find((x) => x.id === id);
       if (!item) return false;
-      const notes = (item.notes || "").trim();
-      setResetPrefill({
-        situation: notes ? `${item.text}\n\nNotes:\n${notes}` : item.text,
-        sourceItemId: item.id,
-      });
+      setPendingResetSource({ kind: "focus", id: item.id });
       return true;
     },
     /**
@@ -2874,28 +2949,34 @@ export function AxzioProvider({ children }) {
     requestResetFromStar(starId) {
       const star = state.stars.find((x) => x.id === starId);
       if (!star) return false;
-      const note = (star.note || "").trim();
-      setResetPrefill({
-        situation: note ? `${star.name}\n\nNote:\n${note}` : star.name,
-        sourceStarId: star.id,
-      });
+      setPendingResetSource({ kind: "star", id: star.id });
       return true;
     },
-    clearResetPrefill() {
-      setResetPrefill(null);
+    clearPendingResetSource() {
+      setPendingResetSource(null);
     },
-    /* In-progress Guided Reset draft (synced — this is what makes resume
-       work across devices). Saved on every step/scratch change while the
-       reset is open; cleared on completion or explicit restart. */
+    /* In-progress Guided Reset drafts (synced — this is what makes resume
+       work across devices). Saved on every step/scratch change while a
+       reset is open; cleared on completion, explicit restart, or discard.
+       One draft per id; source drafts use a deterministic id so a source
+       holds at most one in-progress reset. */
     saveResetDraft(draft) {
-      update((d) => {
-        d.resetDraft = normalizeResetDraft(draft);
+      const d = normalizeResetDraft(draft);
+      if (!d) return;
+      update((s) => {
+        const list = Array.isArray(s.resetDrafts) ? s.resetDrafts : [];
+        const i = list.findIndex((x) => x && x.id === d.id);
+        if (i >= 0) list[i] = d;
+        else list.push(d);
+        s.resetDrafts = list;
       });
     },
-    clearResetDraft() {
-      if (!state.resetDraft) return;
-      update((d) => {
-        d.resetDraft = null;
+    clearResetDraft(id) {
+      if (!id) return;
+      update((s) => {
+        const list = Array.isArray(s.resetDrafts) ? s.resetDrafts : [];
+        const next = list.filter((x) => x && x.id !== id);
+        if (next.length !== list.length) s.resetDrafts = next;
       });
     },
 

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
   useAxzio,
+  uid,
+  resetSourceInfo,
+  resetDraftIdFor,
   MANTRA,
   TAGS,
   LAUNCH_STAGES,
@@ -38,96 +41,111 @@ import {
 /* JOURNEYS — guided step-through flows that write into the state        */
 /* ------------------------------------------------------------------ */
 
-/* In-progress Guided Reset draft: lives in the synced state (this is
-   what makes resume work across devices). The localStorage key below is
-   only the one-time migration source for drafts saved before the sync
-   move — once migrated it is deleted and never written again. */
-const RESET_DRAFT_KEY = "axzio-reset-draft-v1";
-function loadLocalDraft() {
-  try {
-    const raw = localStorage.getItem(RESET_DRAFT_KEY);
-    if (!raw) return null;
-    const d = JSON.parse(raw);
-    return d && d.scratch && typeof d.scratch === "object" ? d : null;
-  } catch {
-    return null;
-  }
-}
-function clearLocalDraft() {
-  try {
-    localStorage.removeItem(RESET_DRAFT_KEY);
-  } catch {
-    /* noop */
-  }
-}
-
 export default function Journeys() {
   const axzio = useAxzio();
   const [active, setActive] = useState(null); // journey id
   const [viewingReset, setViewingReset] = useState(null); // reset id -> Action Card
-  // Live reset session once it is running (scratch + step), and a saved
-  // draft awaiting the Resume / Start over decision.
+  // Live reset session once it is running.
+  // { id, sourceKind, sourceId, sourceName, scratch, step, fresh }
   const [resetSession, setResetSession] = useState(null);
-  const [draftChoice, setDraftChoice] = useState(null);
-  const prefill = axzio.resetPrefill;
+  // Per-source Resume / Start over prompt (launch from an item or star).
+  // { kind, id, name, autofill, draft }
+  const [sourcePrompt, setSourcePrompt] = useState(null);
+  const [resetBooted, setResetBooted] = useState(false);
+  const pendingSource = axzio.pendingResetSource;
+  const drafts = axzio.state.resetDrafts || [];
 
-  // A Focus item's "Explore in Guided Reset" lands here: open the reset
-  // journey (the session bootstrap below consumes the prefill).
+  // A Focus item's "Explore in Guided Reset" (or a star's) lands here:
+  // open the reset journey; the bootstrap below consumes the pending source.
   useEffect(() => {
-    if (prefill && !active) setActive("reset");
-  }, [prefill, active]);
+    if (pendingSource && !active) setActive("reset");
+  }, [pendingSource, active]);
 
-  const startFreshReset = () => {
-    const init =
-      prefill
-        ? {
-            rsituation: prefill.situation,
-            _sourceItemId: prefill.sourceItemId,
-            _sourceStarId: prefill.sourceStarId,
-          }
-        : {};
-    if (prefill) axzio.clearResetPrefill();
-    axzio.clearResetDraft();
-    setDraftChoice(null);
-    setResetSession({ scratch: init, step: 0 });
-  };
-  const resumeDraft = () => {
-    if (prefill) axzio.clearResetPrefill(); // the resumed draft wins
-    setResetSession({
-      scratch: draftChoice.scratch,
-      step: draftChoice.step || 0,
-    });
-    setDraftChoice(null);
+  /** Begin (or resume) a reset session for a source. */
+  const startSession = ({ sourceKind, sourceId, sourceName, autofill, draft }) => {
+    if (draft) {
+      setResetSession({
+        id: draft.id,
+        sourceKind: draft.sourceKind,
+        sourceId: draft.sourceId,
+        sourceName: draft.sourceName,
+        // Stamp the draft id into the scratch so completion can clear it,
+        // even for drafts saved before _draftId existed.
+        scratch: { ...draft.scratch, _draftId: draft.id },
+        step: draft.step || 0,
+        fresh: false,
+      });
+    } else {
+      const id =
+        sourceKind === "general"
+          ? `gen:${uid()}`
+          : resetDraftIdFor(sourceKind, sourceId);
+      setResetSession({
+        id,
+        sourceKind,
+        sourceId: sourceId || null,
+        sourceName: sourceName || "",
+        scratch: {
+          rsituation: autofill || "",
+          _draftId: id,
+          _sourceKind: sourceKind,
+          _sourceId: sourceId || null,
+        },
+        step: 0,
+        fresh: true,
+      });
+    }
+    setSourcePrompt(null);
   };
 
   // Reset session bootstrap: when the reset journey opens without a live
-  // session, offer the synced draft (migrating any pre-sync local draft)
-  // or start fresh.
+  // session — a launch from an item/star jumps straight to that source's
+  // draft (resume or start over); the plain Journeys entry shows the full
+  // list of unfinished drafts, or starts fresh when there are none.
   useEffect(() => {
-    if (active !== "reset" || resetSession || draftChoice) return;
-    let d =
-      axzio.state.resetDraft && axzio.state.resetDraft.scratch
-        ? axzio.state.resetDraft
-        : null;
-    if (!d) {
-      d = loadLocalDraft();
-      if (d) {
-        axzio.saveResetDraft(d);
-        clearLocalDraft();
+    if (active !== "reset" || resetSession || sourcePrompt) return;
+    if (pendingSource) {
+      const { kind, id } = pendingSource;
+      const info = resetSourceInfo(axzio.state, kind, id);
+      const draft =
+        drafts.find((d) => d.sourceKind === kind && d.sourceId === id) || null;
+      axzio.clearPendingResetSource();
+      setResetBooted(true);
+      if (draft || info) {
+        setSourcePrompt({
+          kind,
+          id,
+          name: info ? info.name : draft ? draft.sourceName : "Unknown",
+          autofill: info ? info.situation : "",
+          draft,
+        });
+        return;
       }
+      // Source vanished before we got here — fall through to list/fresh.
     }
-    if (d) setDraftChoice(d);
-    else startFreshReset();
+    if (resetBooted) return;
+    setResetBooted(true);
+    if (drafts.length === 0) {
+      startSession({
+        sourceKind: "general",
+        sourceId: null,
+        sourceName: "",
+        autofill: "",
+        draft: null,
+      });
+    }
+    // Else: the draft list renders below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, resetSession, draftChoice]);
+  }, [active, resetSession, sourcePrompt, pendingSource, drafts.length, resetBooted]);
 
   const exitReset = () => {
-    // A declined launch prefill must not linger, or it would reopen the
+    // A declined launch source must not linger, or it would reopen the
     // reset immediately after backing out.
-    if (axzio.resetPrefill) axzio.clearResetPrefill();
+    if (axzio.pendingResetSource) axzio.clearPendingResetSource();
     setActive(null);
     setResetSession(null);
-    setDraftChoice(null);
+    setSourcePrompt(null);
+    setResetBooted(false);
   };
 
   // Deep link: #/journeys?reset=<id> opens that reset's Action Card.
@@ -209,46 +227,95 @@ export default function Journeys() {
           </div>
           <ResetHistory onOpen={(id) => setViewingReset(id)} />
         </>
-      ) : active === "reset" && draftChoice && !resetSession ? (
+      ) : active === "reset" && resetSession ? (
+        <JourneyRunner
+          key={resetSession.id}
+          journey={JOURNEYS.find((j) => j.id === "reset")}
+          onExit={exitReset}
+          initialSession={resetSession}
+        />
+      ) : active === "reset" && sourcePrompt ? (
         <Card className="axzio-rise p-6 md:p-10">
           <MicroLabel className="mb-2">Reset passage</MicroLabel>
           <h3 className="text-2xl font-light tracking-wide md:text-3xl">
-            Resume your reset?
+            {sourcePrompt.draft ? "Resume your reset?" : "Begin reset"}
           </h3>
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-white/60">
-            You have a reset in progress
-            {draftChoice.subject ? (
+            {sourcePrompt.draft ? (
               <>
-                {" "}
-                — <span className="text-white/85">“{draftChoice.subject}”</span>
+                You have a reset in progress on{" "}
+                <span className="text-white/85">“{sourcePrompt.name}”</span>{" "}
+                (step {(sourcePrompt.draft.step || 0) + 1} of 8).
               </>
             ) : (
-              ""
-            )}{" "}
-            (step {(draftChoice.step || 0) + 1} of 8).
-            {prefill
-              ? " Starting over begins fresh from the new item instead."
-              : ""}
+              <>
+                Begin a reset on{" "}
+                <span className="text-white/85">“{sourcePrompt.name}”</span>?
+                The Situation will be pre-filled — you can refine it on step
+                two.
+              </>
+            )}
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Btn onClick={resumeDraft}>Resume</Btn>
-            <Btn variant="quiet" onClick={startFreshReset}>
-              Start over
+            {sourcePrompt.draft && (
+              <Btn
+                onClick={() =>
+                  startSession({
+                    sourceKind: sourcePrompt.kind,
+                    sourceId: sourcePrompt.id,
+                    sourceName: sourcePrompt.name,
+                    autofill: sourcePrompt.autofill,
+                    draft: sourcePrompt.draft,
+                  })
+                }
+              >
+                Resume
+              </Btn>
+            )}
+            <Btn
+              variant={sourcePrompt.draft ? "quiet" : undefined}
+              onClick={() =>
+                startSession({
+                  sourceKind: sourcePrompt.kind,
+                  sourceId: sourcePrompt.id,
+                  sourceName: sourcePrompt.name,
+                  autofill: sourcePrompt.autofill,
+                  draft: null,
+                })
+              }
+            >
+              {sourcePrompt.draft ? "Start over" : "Begin"}
             </Btn>
             <Btn variant="quiet" onClick={exitReset}>
               Back to journeys
             </Btn>
           </div>
         </Card>
-      ) : active === "reset" && resetSession ? (
-        <JourneyRunner
-          key="reset"
-          journey={JOURNEYS.find((j) => j.id === "reset")}
-          onExit={exitReset}
-          initialScratch={resetSession.scratch}
-          initialStep={resetSession.step}
+      ) : active === "reset" && (drafts.length > 0 || resetBooted) ? (
+        <ResetDraftList
+          drafts={drafts}
+          onResume={(draft) =>
+            startSession({
+              sourceKind: draft.sourceKind,
+              sourceId: draft.sourceId,
+              sourceName: draft.sourceName,
+              autofill: "",
+              draft,
+            })
+          }
+          onDiscard={(id) => axzio.clearResetDraft(id)}
+          onNew={() =>
+            startSession({
+              sourceKind: "general",
+              sourceId: null,
+              sourceName: "",
+              autofill: "",
+              draft: null,
+            })
+          }
+          onBack={exitReset}
         />
-      ) : (
+      ) : active === "reset" ? null : (
         <JourneyRunner
           key={active}
           journey={JOURNEYS.find((j) => j.id === active)}
@@ -561,21 +628,105 @@ const JOURNEYS = [
   },
 ];
 
-function JourneyRunner({ journey, onExit, initialScratch, initialStep }) {
+/* Compact relative time for the draft list. */
+function relativeTime(ts) {
+  const s = Math.max(0, (Date.now() - (ts || 0)) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return new Date(ts).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+/* The resume page: every unfinished reset, named by its source, with
+   resume / discard per draft and a fresh start. Reached from the main
+   Guided Reset entry; launches from an item jump straight to that
+   source's draft instead. */
+function ResetDraftList({ drafts, onResume, onDiscard, onNew, onBack }) {
+  const sorted = [...drafts].sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+  return (
+    <Card className="axzio-rise p-6 md:p-10">
+      <MicroLabel className="mb-2">Reset passage</MicroLabel>
+      <h3 className="text-2xl font-light tracking-wide md:text-3xl">
+        Unfinished resets
+      </h3>
+      <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-white/60">
+        Resets keep across sessions — pick one up where you left it, or
+        begin a new one. Each holds its own source, so several can stay
+        open at once.
+      </p>
+      <ul className="mt-6 space-y-3">
+        {sorted.map((d) => (
+          <li
+            key={d.id}
+            className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[15px] text-white/90">
+                {d.sourceName || d.subject || "Untitled reset"}
+              </p>
+              <p className="mt-0.5 truncate text-[12px] tracking-wide text-white/40">
+                {d.subject && d.subject !== (d.sourceName || "")
+                  ? `${d.subject} · `
+                  : ""}
+                Step {(d.step || 0) + 1} of 8 · {relativeTime(d.savedAt)}
+              </p>
+            </div>
+            <Btn
+              variant="quiet"
+              onClick={() => onResume(d)}
+              className="shrink-0"
+            >
+              Resume
+            </Btn>
+            <button
+              onClick={() => onDiscard(d.id)}
+              aria-label={`Discard reset on ${d.sourceName || "untitled"}`}
+              className="shrink-0 rounded p-1.5 text-white/25 transition-colors hover:text-white/80"
+            >
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.4" />
+              </svg>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-6 flex flex-wrap gap-3">
+        <Btn onClick={onNew}>Start new reset</Btn>
+        <Btn variant="quiet" onClick={onBack}>
+          Back to journeys
+        </Btn>
+      </div>
+    </Card>
+  );
+}
+
+function JourneyRunner({ journey, onExit, initialSession, initialScratch, initialStep }) {
   const axzio = useAxzio();
-  const [step, setStep] = useState(initialStep || 0);
+  // A reset runs inside a session (draft id + source carried for the
+  // persist below); other journeys keep the legacy scratch props.
+  const session = initialSession || null;
+  const [step, setStep] = useState(
+    session ? session.step || 0 : initialStep || 0
+  );
   const [finished, setFinished] = useState(false);
-  // Per-journey transient inputs; a reset triggered from a Focus decision
-  // arrives with its Situation pre-filled (plus a _sourceItemId thread).
-  const [scratch, setScratch] = useState(initialScratch || {});
+  // Per-journey transient inputs; a reset launched from a source arrives
+  // with its Situation pre-filled (plus _draftId/_source threads).
+  const [scratch, setScratch] = useState(
+    session ? session.scratch : initialScratch || {}
+  );
   const StepView = journey.steps[step].render;
 
-  // Persist the in-progress Guided Reset (step + scratch) into the synced
-  // state, so an accidental navigation out can be resumed — on this device
-  // or another. Cleared on completion (in the rintegrate commit) or
-  // explicit restart. A blank open (nothing entered) leaves no draft behind.
+  // Persist the in-progress Guided Reset into the synced drafts collection,
+  // so an accidental navigation out can be resumed — on this device or
+  // another. Cleared on completion (in the rintegrate commit), explicit
+  // restart, or discard. A blank fresh session leaves no draft behind, so
+  // "start over then immediately exit" can never wipe the previous draft.
+  const drafts = axzio.state.resetDrafts || [];
   useEffect(() => {
-    if (journey.id !== "reset" || finished) return;
+    if (journey.id !== "reset" || !session || finished) return;
     const hasContent =
       step > 0 ||
       Object.keys(scratch).some((k) => {
@@ -585,10 +736,14 @@ function JourneyRunner({ journey, onExit, initialScratch, initialStep }) {
         if (typeof v === "object") return Object.keys(v).length > 0;
         return true;
       });
-    if (!hasContent && !axzio.state.resetDraft) return;
+    const exists = drafts.some((d) => d.id === session.id);
+    if (!hasContent && (session.fresh || !exists)) return;
     const subject = (scratch.rsituation || "").trim().slice(0, 90);
     axzio.saveResetDraft({
-      v: 1,
+      id: session.id,
+      sourceKind: session.sourceKind,
+      sourceId: session.sourceId,
+      sourceName: session.sourceName,
       savedAt: Date.now(),
       step,
       subject,
@@ -622,7 +777,7 @@ function JourneyRunner({ journey, onExit, initialScratch, initialStep }) {
     setStep(0);
     setFinished(false);
     setScratch({});
-    if (journey.id === "reset") axzio.clearResetDraft();
+    if (journey.id === "reset" && session) axzio.clearResetDraft(session.id);
   };
 
   return (
@@ -790,10 +945,16 @@ function StepContinue({ stepId, scratch, setScratch, onNext, last }) {
           lifemodType: scratch.rlifemodType || null,
           integrateChoice: scratch.rintegrateChoice || null,
           reviewDate: scratch.rintegrateDate || null,
-          sourceItemId: scratch._sourceItemId || null,
-          sourceStarId: scratch._sourceStarId || null,
+          sourceItemId:
+            (scratch._sourceKind === "focus" ? scratch._sourceId : null) ||
+            scratch._sourceItemId ||
+            null,
+          sourceStarId:
+            (scratch._sourceKind === "star" ? scratch._sourceId : null) ||
+            scratch._sourceStarId ||
+            null,
         });
-        axzio.clearResetDraft();
+        axzio.clearResetDraft(scratch._draftId);
         if (setScratch) {
           setScratch((s) => ({ ...s, savedResetId: entry.id }));
         }
