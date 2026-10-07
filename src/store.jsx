@@ -120,6 +120,12 @@ export const ORIENTATION_PRACTICES = [  {
   },
 ];
 
+/* Sync protocol version, stamped into every snapshot. Bump when the
+   sync protocol changes incompatibly; a DB CHECK constraint rejects
+   writes from older clients so a stale cached build can never clobber
+   the cloud (fail-safe instead of fail-deadly). */
+export const SYNC_VERSION = 2;
+
 /* The Four Primitives (E3 human engine, identity stack). */
 export const PRIMITIVES = [
   {
@@ -587,6 +593,8 @@ export const MONTHS_OF_YEAR = [
 function defaultState() {
   return {
     version: 1,
+    // Sync protocol version (see SYNC_VERSION). Old envelopes predate it.
+    syncVersion: SYNC_VERSION,
     // Local mutation clock (ms epoch). Bumped on every store mutation;
     // drives cloud last-write-wins. Old envelopes migrate to 0.
     updatedAt: 0,
@@ -1576,6 +1584,12 @@ export function normalizeState(parsed) {
         Number.isFinite(parsed.updatedAt) && parsed.updatedAt > 0
           ? Math.floor(parsed.updatedAt)
           : 0,
+      // Sync protocol: old snapshots adopt the running client's version —
+      // from here on this snapshot is managed by a current client.
+      syncVersion:
+        Number.isInteger(parsed.syncVersion) && parsed.syncVersion > 0
+          ? parsed.syncVersion
+          : SYNC_VERSION,
     };
 }
 

@@ -17,7 +17,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useAxzio, STORAGE_KEY, isEmptyState, consumeIntentionalErase } from "./store.jsx";
+import { useAxzio, STORAGE_KEY, SYNC_VERSION, isEmptyState, consumeIntentionalErase } from "./store.jsx";
 import { peekOutbox, dropEvents, logEvent } from "./events.js";
 import {
   CLOUD_TABLE,
@@ -167,6 +167,21 @@ export function CloudProvider({ children }) {
         const err = await pushState(client, u.id, local);
         if (err) throw err;
         markSynced(local);
+      } else if ((cloudState.syncVersion || 0) < SYNC_VERSION) {
+        // The cloud was written by a stale client (pre-protocol version).
+        // Never pull that poison in — heal the cloud by pushing this
+        // device's state instead. Exception: this device is empty, in
+        // which case the cloud's copy is the best available — take it.
+        // (A DB CHECK constraint now rejects stale writes outright, so
+        // this branch only ever handles pre-constraint rows.)
+        if (!forcePush && isEmptyState(local) && !isEmptyState(cloudState)) {
+          replaceState(cloudState);
+          markSynced(cloudState);
+        } else {
+          const err = await pushState(client, u.id, local);
+          if (err) throw err;
+          markSynced(local);
+        }
       } else if (!localDirty && !cloudDirty) {
         // Already in agreement.
         markSynced(local);

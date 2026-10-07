@@ -343,6 +343,11 @@ export default function AccountControl() {
           </div>
           <AiToggle />
           <div className="h-2" />
+          <div className="border-t border-white/10 px-3 py-2">
+            <p className="text-[10px] tracking-[0.14em] text-white/25">
+              BUILD {typeof __BUILD_SHA__ !== "undefined" ? __BUILD_SHA__ : "dev"}
+            </p>
+          </div>
         </div>
       )}
 
