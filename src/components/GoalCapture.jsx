@@ -166,11 +166,72 @@ export default function GoalCapture({
         Number(a.done) - Number(b.done) || (a.created || 0) - (b.created || 0)
     );
   const [confirmId, setConfirmId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState("");
+  const [editHorizon, setEditHorizon] = useState("");
+
+  const startEdit = (g) => {
+    setConfirmId(null);
+    setEditingId(g.id);
+    setEditText(g.text || "");
+    setEditHorizon(g.horizon || "");
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
+    setEditHorizon("");
+  };
+  const saveEdit = () => {
+    if (!editText.trim()) return;
+    axzio.updateGoal(editingId, {
+      text: editText,
+      horizon: editHorizon || null,
+    });
+    cancelEdit();
+  };
 
   if (goals.length === 0) return null;
   return (
     <ul className="mt-2 space-y-1.5">
-      {goals.map((g) => (
+      {goals.map((g) =>
+        editingId === g.id ? (
+          <li
+            key={g.id}
+            className="rounded-lg border border-white/25 bg-white/[0.03] px-3 py-2"
+          >
+            <Field
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              maxLength={140}
+              aria-label="Goal text"
+            />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                type="date"
+                value={editHorizon}
+                onChange={(e) => setEditHorizon(e.target.value)}
+                aria-label="Goal horizon"
+                className="rounded-lg border border-white/15 bg-black px-3 py-2 text-[13px] text-white outline-none transition-colors hover:border-white/30 [color-scheme:dark]"
+              />
+              <span className="flex-1" />
+              <button
+                type="button"
+                onClick={saveEdit}
+                disabled={!editText.trim()}
+                className="rounded-lg border border-white/25 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-white/80 transition-colors hover:border-white/60 hover:text-white disabled:opacity-40"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="text-[11px] uppercase tracking-[0.14em] text-white/40 transition-colors hover:text-white"
+              >
+                Cancel
+              </button>
+            </div>
+          </li>
+        ) : (
         <li
           key={g.id}
           className="flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2"
@@ -196,13 +257,16 @@ export default function GoalCapture({
               </svg>
             )}
           </button>
-          <span
-            className={`min-w-0 flex-1 text-[14px] leading-snug ${
+          <button
+            type="button"
+            onClick={() => startEdit(g)}
+            title="Edit goal"
+            className={`min-w-0 flex-1 cursor-text text-left text-[14px] leading-snug ${
               g.done ? "text-white/40 line-through" : "text-white/85"
             }`}
           >
             {g.text}
-          </span>
+          </button>
           {g.horizon && (
             <span className="shrink-0 text-[11px] tracking-[0.14em] text-white/35">
               {formatLongDate(g.horizon)}
@@ -239,7 +303,8 @@ export default function GoalCapture({
             </button>
           )}
         </li>
-      ))}
+        )
+      )}
     </ul>
   );
 }
