@@ -38,32 +38,92 @@ import {
 /* JOURNEYS — guided step-through flows that write into the state        */
 /* ------------------------------------------------------------------ */
 
+/* In-progress Guided Reset draft: localStorage only (a draft is
+   per-device working state, not synced journal data). One slot; the
+   Journeys view offers Resume / Start over when the reset is opened. */
+const RESET_DRAFT_KEY = "axzio-reset-draft-v1";
+function loadResetDraft() {
+  try {
+    const raw = localStorage.getItem(RESET_DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    return d && d.scratch && typeof d.scratch === "object" ? d : null;
+  } catch {
+    return null;
+  }
+}
+function saveResetDraft(draft) {
+  try {
+    localStorage.setItem(RESET_DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    /* storage full or unavailable — the reset still works in memory */
+  }
+}
+function clearResetDraft() {
+  try {
+    localStorage.removeItem(RESET_DRAFT_KEY);
+  } catch {
+    /* noop */
+  }
+}
+
 export default function Journeys() {
   const axzio = useAxzio();
   const [active, setActive] = useState(null); // journey id
   const [viewingReset, setViewingReset] = useState(null); // reset id -> Action Card
+  // Live reset session once it is running (scratch + step), and a saved
+  // draft awaiting the Resume / Start over decision.
+  const [resetSession, setResetSession] = useState(null);
+  const [draftChoice, setDraftChoice] = useState(null);
   const prefill = axzio.resetPrefill;
 
   // A Focus item's "Explore in Guided Reset" lands here: open the reset
-  // journey with its Situation pre-filled from the decision.
+  // journey (the session bootstrap below consumes the prefill).
   useEffect(() => {
     if (prefill && !active) setActive("reset");
   }, [prefill, active]);
 
-  // Scratch prefill for a freshly opened reset journey. Computed during
-  // render while the prefill is still set; consumed (cleared) on mount.
-  const resetInitial =
-    active === "reset" && prefill
-      ? {
-          rsituation: prefill.situation,
-          _sourceItemId: prefill.sourceItemId,
-          _sourceStarId: prefill.sourceStarId,
-        }
-      : {};
+  const startFreshReset = () => {
+    const init =
+      prefill
+        ? {
+            rsituation: prefill.situation,
+            _sourceItemId: prefill.sourceItemId,
+            _sourceStarId: prefill.sourceStarId,
+          }
+        : {};
+    if (prefill) axzio.clearResetPrefill();
+    clearResetDraft();
+    setDraftChoice(null);
+    setResetSession({ scratch: init, step: 0 });
+  };
+  const resumeDraft = () => {
+    if (prefill) axzio.clearResetPrefill(); // the resumed draft wins
+    setResetSession({
+      scratch: draftChoice.scratch,
+      step: draftChoice.step || 0,
+    });
+    setDraftChoice(null);
+  };
+
+  // Reset session bootstrap: when the reset journey opens without a live
+  // session, offer a saved draft or start fresh.
   useEffect(() => {
-    if (active === "reset" && prefill) axzio.clearResetPrefill();
+    if (active !== "reset" || resetSession || draftChoice) return;
+    const d = loadResetDraft();
+    if (d) setDraftChoice(d);
+    else startFreshReset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, [active, resetSession, draftChoice]);
+
+  const exitReset = () => {
+    // A declined launch prefill must not linger, or it would reopen the
+    // reset immediately after backing out.
+    if (axzio.resetPrefill) axzio.clearResetPrefill();
+    setActive(null);
+    setResetSession(null);
+    setDraftChoice(null);
+  };
 
   // Deep link: #/journeys?reset=<id> opens that reset's Action Card.
   // Used by the Focus item editor's "Guided Reset" section.
@@ -144,12 +204,50 @@ export default function Journeys() {
           </div>
           <ResetHistory onOpen={(id) => setViewingReset(id)} />
         </>
+      ) : active === "reset" && draftChoice && !resetSession ? (
+        <Card className="axzio-rise p-6 md:p-10">
+          <MicroLabel className="mb-2">Reset passage</MicroLabel>
+          <h3 className="text-2xl font-light tracking-wide md:text-3xl">
+            Resume your reset?
+          </h3>
+          <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-white/60">
+            You have a reset in progress
+            {draftChoice.subject ? (
+              <>
+                {" "}
+                — <span className="text-white/85">“{draftChoice.subject}”</span>
+              </>
+            ) : (
+              ""
+            )}{" "}
+            (step {(draftChoice.step || 0) + 1} of 8).
+            {prefill
+              ? " Starting over begins fresh from the new item instead."
+              : ""}
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Btn onClick={resumeDraft}>Resume</Btn>
+            <Btn variant="quiet" onClick={startFreshReset}>
+              Start over
+            </Btn>
+            <Btn variant="quiet" onClick={exitReset}>
+              Back to journeys
+            </Btn>
+          </div>
+        </Card>
+      ) : active === "reset" && resetSession ? (
+        <JourneyRunner
+          key="reset"
+          journey={JOURNEYS.find((j) => j.id === "reset")}
+          onExit={exitReset}
+          initialScratch={resetSession.scratch}
+          initialStep={resetSession.step}
+        />
       ) : (
         <JourneyRunner
           key={active}
           journey={JOURNEYS.find((j) => j.id === active)}
           onExit={() => setActive(null)}
-          initialScratch={resetInitial}
         />
       )}
     </div>
@@ -458,13 +556,28 @@ const JOURNEYS = [
   },
 ];
 
-function JourneyRunner({ journey, onExit, initialScratch }) {
-  const [step, setStep] = useState(0);
+function JourneyRunner({ journey, onExit, initialScratch, initialStep }) {
+  const [step, setStep] = useState(initialStep || 0);
   const [finished, setFinished] = useState(false);
   // Per-journey transient inputs; a reset triggered from a Focus decision
   // arrives with its Situation pre-filled (plus a _sourceItemId thread).
   const [scratch, setScratch] = useState(initialScratch || {});
   const StepView = journey.steps[step].render;
+
+  // Persist the in-progress Guided Reset (step + scratch) so an
+  // accidental navigation out can be resumed. Cleared on completion
+  // (in the rintegrate commit) or explicit restart.
+  useEffect(() => {
+    if (journey.id !== "reset" || finished) return;
+    const subject = (scratch.rsituation || "").trim().slice(0, 90);
+    saveResetDraft({
+      v: 1,
+      savedAt: Date.now(),
+      step,
+      subject,
+      scratch,
+    });
+  }, [journey.id, scratch, step, finished]);
 
   // The reset's subject, carried across stages: what the user named on the
   // Situation step (pre-filled when launched from a Focus item or star).
@@ -491,6 +604,7 @@ function JourneyRunner({ journey, onExit, initialScratch }) {
     setStep(0);
     setFinished(false);
     setScratch({});
+    if (journey.id === "reset") clearResetDraft();
   };
 
   return (
@@ -654,12 +768,14 @@ function StepContinue({ stepId, scratch, setScratch, onNext, last }) {
           integrate: "",
           frictionReading: scratch.rfriction || null,
           readiness: scratch.rreadiness || null,
+          readinessNote: scratch.rreadinessNote?.trim() || null,
           lifemodType: scratch.rlifemodType || null,
           integrateChoice: scratch.rintegrateChoice || null,
           reviewDate: scratch.rintegrateDate || null,
           sourceItemId: scratch._sourceItemId || null,
           sourceStarId: scratch._sourceStarId || null,
         });
+        clearResetDraft();
         if (setScratch) {
           setScratch((s) => ({ ...s, savedResetId: entry.id }));
         }
@@ -1137,6 +1253,16 @@ function ReadinessChips({ scratch, setScratch }) {
           );
         })}
       </div>
+      <Field
+        value={scratch.rreadinessNote || ""}
+        onChange={(e) =>
+          setScratch((s) => ({ ...s, rreadinessNote: e.target.value }))
+        }
+        placeholder="Note on your readiness (optional) — what's missing, what would resupply it"
+        maxLength={200}
+        aria-label="Note on your readiness"
+        className="mt-3 text-[14px]"
+      />
     </div>
   );
 }
@@ -1472,6 +1598,14 @@ function ResetActionCard({ resetId, onBack, onRestart, allowDelete = false }) {
                         .join(", ")}
                     </span>
                     .
+                    {reset.readinessNote ? (
+                      <>
+                        {" "}
+                        <span className="text-white/60">
+                          — {reset.readinessNote}
+                        </span>
+                      </>
+                    ) : null}
                   </li>
                 )}
               {reset.lifemodType && (

@@ -2765,6 +2765,7 @@ export function AxzioProvider({ children }) {
                 connection: fields.readiness.connection === true,
               }
             : null,
+        readinessNote: String(fields?.readinessNote ?? "").trim() || null,
         lifemodType: LIFEMOD_PLAIN_TYPES.some(
           (t) => t.key === fields?.lifemodType
         )
