@@ -144,6 +144,18 @@ export const PRIMITIVES = [
   },
 ];
 
+/** A commitment's life domain, or null while unplaced. Optional by
+   design: capture stays frictionless, placement happens on reflection. */
+export function normalizePrimitive(v) {
+  return PRIMITIVES.some((p) => p.key === v) ? v : null;
+}
+
+/** Label for a primitive key. */
+export function primitiveLabel(key) {
+  const p = PRIMITIVES.find((p) => p.key === key);
+  return p ? p.label : "";
+}
+
 /* The Human Battery (WE ARE ALCHEMY, ch. TUNING): five dimensions of
    available capacity. State is not identity. */
 export const BATTERY = [
@@ -995,7 +1007,12 @@ function normalizeCommitments(raw) {
     if (!text) return;
     if (!id) id = `cmt-${Date.now().toString(36)}-${i}`;
     if (!textToId.has(text)) textToId.set(text, id);
-    list.push({ id, text: text.slice(0, 120), order });
+    list.push({
+      id,
+      text: text.slice(0, 120),
+      order,
+      primitive: normalizePrimitive(c && c.primitive),
+    });
   });
   list.sort((a, b) => a.order - b.order);
   list.forEach((c, i) => {
@@ -1687,10 +1704,15 @@ export function AxzioProvider({ children }) {
        New commitments append at the lowest priority; deleting
        re-numbers. Focus items link by id, so reordering never breaks
        their links. */
-    addCommitment(text) {
+    addCommitment(text, opts = {}) {
       const t = text.trim();
       if (!t) return null;
-      const entry = { id: uid(), text: t.slice(0, 120), order: 0 };
+      const entry = {
+        id: uid(),
+        text: t.slice(0, 120),
+        order: 0,
+        primitive: normalizePrimitive(opts && opts.primitive),
+      };
       update((d) => {
         if (!Array.isArray(d.identity.commitments)) {
           d.identity.commitments = [];
@@ -1700,6 +1722,19 @@ export function AxzioProvider({ children }) {
       });
       logEvent("commitment.created", { id: entry.id });
       return entry;
+    },
+    updateCommitment(id, patch) {
+      let ok = false;
+      update((d) => {
+        const c = (d.identity.commitments || []).find((x) => x && x.id === id);
+        if (!c) return;
+        if (patch && Object.prototype.hasOwnProperty.call(patch, "primitive")) {
+          c.primitive = normalizePrimitive(patch.primitive);
+          ok = true;
+        }
+      });
+      if (ok) logEvent("commitment.placed", { id, primitive: normalizePrimitive(patch && patch.primitive) });
+      return ok;
     },
     removeCommitment(id) {
       update((d) => {

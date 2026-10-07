@@ -279,7 +279,7 @@ function ListEditor({ label, items, placeholder, onAdd, onRemove }) {
    priority; deleting re-numbers. Focus items link by commitment id,
    so reordering never breaks their links. */
 function CommitmentList() {
-  const { state, addCommitment, removeCommitment, moveCommitment } =
+  const { state, addCommitment, updateCommitment, removeCommitment, moveCommitment } =
     useAxzio();
   const [draft, setDraft] = useState("");
   const commitments = sortedCommitments(state);
@@ -300,7 +300,7 @@ function CommitmentList() {
           <HelpText
             what="Standing promises, not finish lines: ongoing allegiances like your marriage, your work, your health. A commitment isn't finished, it's kept — the allegiances persist even as the goals inside them complete."
             why="Tasks tell you what's next; commitments tell you what it's all for. Linking actions to commitments keeps the doing aligned with the being."
-            how="Name a few in your own words — areas of life, key relationships, major projects. Order them with 1 as the highest allegiance. Focus items can then “serve” a commitment."
+            how="Name a few in your own words — areas of life, key relationships, major projects. Order them with 1 as the highest allegiance. Focus items can then “serve” a commitment. The domain picker places a commitment in its life domain (Money, Engagement, Building, Being) — optional, but it threads the commitment into your assessments and readings."
             example="“My marriage. Building AXZIO. My physical health. Being a present father.” Not “File taxes” — that's a task. A commitment is bigger and more general: the thing the tasks are for."
           />
         </HelpBubble>
@@ -319,6 +319,24 @@ function CommitmentList() {
                 {i + 1}
               </span>
               <span className="min-w-0 flex-1 text-[15px]">{c.text}</span>
+              {/* life domain placement: optional thread into the primitives */}
+              <select
+                value={c.primitive || ""}
+                onChange={(e) =>
+                  updateCommitment(c.id, {
+                    primitive: e.target.value || null,
+                  })
+                }
+                aria-label={`Life domain for “${c.text}”`}
+                className="shrink-0 cursor-pointer appearance-none rounded-full border border-white/10 bg-black px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-white/45 outline-none transition-colors hover:border-white/30 hover:text-white/75 focus:border-white/40"
+              >
+                <option value="">Unplaced</option>
+                {PRIMITIVES.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
               <span className="flex shrink-0 items-center gap-1">
                 <button
                   onClick={() => moveCommitment(c.id, -1)}
