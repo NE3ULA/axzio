@@ -1602,7 +1602,7 @@ export function AxzioProvider({ children }) {
         if (!ok) return;
         entry = {
           id: uid(),
-          text: t.slice(0, 140),
+          text: t.slice(0, 80),
           commitmentId,
           horizon:
             typeof opts.horizon === "string" && opts.horizon
@@ -1639,7 +1639,7 @@ export function AxzioProvider({ children }) {
         const g = (d.goals || []).find((x) => x.id === id);
         if (!g) return;
         if (typeof patch.text === "string" && patch.text.trim()) {
-          g.text = patch.text.trim().slice(0, 140);
+          g.text = patch.text.trim().slice(0, 80);
         }
         if ("horizon" in patch) {
           g.horizon =

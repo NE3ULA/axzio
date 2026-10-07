@@ -983,18 +983,29 @@ function LifeModEditor({ lifemod }) {
             <HelpText
               what="Crystallizes this LifeMod's desired state into a goal — a defined outcome with a horizon, serving one of your commitments."
               why="A LifeMod changes conditions; a goal names the destination those conditions serve. They stay linked: the condition and the outcome, each visible from the other."
-              how="The desired state pre-fills the goal text — edit it into an outcome, choose the commitment, set an optional horizon. The LifeMod keeps living here; the goal lives under its commitment on Identity."
+              how="Read your desired state above, then distill it into a crisp outcome — name it in a breath, choose the commitment, set an optional horizon. The LifeMod keeps living here; the goal lives under its commitment on Identity."
             />
           </HelpBubble>
         </div>
         <GrownGoalsList sourceLifeModId={m.id} />
+        {m.desiredState?.trim() && (
+          <blockquote className="mb-3 border-l-2 border-white/20 pl-3 text-[13px] italic leading-relaxed text-white/55">
+            “{m.desiredState.trim().length > 220
+              ? m.desiredState.trim().slice(0, 220) + "…"
+              : m.desiredState.trim()}”
+          </blockquote>
+        )}
         <div className="mt-3">
           <GoalCapture
-            initialText={(m.desiredState || m.name || "").slice(0, 140)}
+            ctaLabel="Set a goal"
             sourceLifeModId={m.id}
             compact
           />
         </div>
+        <p className="mt-2 text-[12px] leading-relaxed text-white/40">
+          Distill the desired state above into one crisp outcome — a LifeMod
+          may grow several goals over its life.
+        </p>
       </div>
 
       {/* archive / delete */}

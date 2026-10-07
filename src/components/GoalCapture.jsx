@@ -10,6 +10,7 @@ import { MicroLabel, Field, Btn, HelpBubble, HelpText } from "./ui.jsx";
 export default function GoalCapture({
   commitmentId = null,
   initialText = "",
+  ctaLabel = null,
   onCreated = null,
   compact = false,
   sourceLifeModId = null,
@@ -63,7 +64,7 @@ export default function GoalCapture({
         }}
         className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
       >
-        {initialText ? "Set as goal" : "Add goal"}
+        {ctaLabel || (initialText ? "Set as goal" : "Add goal")}
       </button>
     );
   }
@@ -89,9 +90,12 @@ export default function GoalCapture({
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="The outcome, plainly stated"
-        maxLength={140}
+        maxLength={80}
         aria-label="Goal text"
       />
+      <p className="mt-1.5 text-[11px] leading-relaxed text-white/35">
+        Keep it crisp — if it needs paragraphs, it needs refining.
+      </p>
       <div className={`mt-3 grid gap-3 ${locked ? "" : "sm:grid-cols-2"}`}>
         {!locked && (
           <div>
@@ -202,7 +206,7 @@ export default function GoalCapture({
             <Field
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
-              maxLength={140}
+              maxLength={80}
               aria-label="Goal text"
             />
             <div className="mt-2 flex flex-wrap items-center gap-2">
