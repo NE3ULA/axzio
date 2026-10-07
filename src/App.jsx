@@ -75,6 +75,10 @@ export default function App() {
 
   const onboardingDone = useCallback(() => {
     window.location.hash = "#/deck";
+    // The walkthrough is a fixed overlay: the window keeps its scroll
+    // position underneath, so without this the Deck would land mid-page
+    // (e.g. down at Capture) after a replay.
+    window.scrollTo(0, 0);
   }, []);
 
   if (phase === "boot") {
