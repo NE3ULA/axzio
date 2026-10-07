@@ -534,6 +534,12 @@ export function priorityLabel(rank) {
   return r.note ? `${r.label} — ${r.note}` : r.label;
 }
 
+/** Short rank label ("1st"/"2nd"/"3rd") for compact controls. */
+export function priorityShortLabel(rank) {
+  const r = PRIORITY_RANKS.find((r) => r.rank === rank);
+  return r ? r.label : null;
+}
+
 /* Quest help kinds — the shapes help can take. A quest is opt-in:
    only a quested action can ever be picked up by the tribe (consent
    by design); the brief lives behind "Make Quest" as progressive

@@ -5,6 +5,7 @@ import {
   TIMEFRAMES,
   PRIORITY_RANKS,
   priorityLabel,
+  priorityShortLabel,
   timeframeLabel,
   modeLabel,
   pillarLabel,
@@ -37,6 +38,7 @@ import {
   HelpText,
 } from "../components/ui.jsx";
 import GoalCapture, { GoalsList } from "../components/GoalCapture.jsx";
+import PriorityPicker from "../components/PriorityPicker.jsx";
 import HabitCapture, { HabitsList } from "../components/HabitCapture.jsx";
 import { LogActionSection } from "../components/ActionLog.jsx";
 
@@ -318,6 +320,12 @@ export default function Focus() {
     [items, timeframe]
   );
 
+  /** Open, unranked top-level items — the candidate list for empty slots. */
+  const rankCandidates = useMemo(
+    () => visible.filter((f) => !f.done && !f.priority),
+    [visible]
+  );
+
   return (
     <div className="mx-auto w-full max-w-5xl px-5 pb-24 pt-8">
       <header className="axzio-rise mb-10">
@@ -350,15 +358,15 @@ export default function Focus() {
               <HelpText
                 what="Three ranked priorities per timeframe — 1st is the one thing to focus on. Day, week, month, and year each hold their own independent 1/2/3."
                 why="Ranking forces the trade: if everything is priority one, nothing is. The rank makes the choice visible."
-                how="Set a rank from any item's editor or its priority control. Each rank holds exactly one item per timeframe — setting it moves the rank here."
+                how="Tap an empty slot to choose from your open items, or set a rank from any item's editor or its priority control. Each rank holds exactly one item per timeframe — setting it moves the rank here."
               />
             </HelpBubble>
           </div>
           <div className="space-y-3">
-            <PrioritySlotHero slot={priorities[0]} />
+            <PrioritySlotHero slot={priorities[0]} candidates={rankCandidates} />
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {priorities.slice(1).map((p) => (
-                <PrioritySlot key={p.rank} slot={p} />
+                <PrioritySlot key={p.rank} slot={p} candidates={rankCandidates} />
               ))}
             </div>
           </div>
@@ -463,8 +471,13 @@ export default function Focus() {
  * Rank 1, large: the one thing to focus on takes roughly the space of
  * ranks 2 and 3 combined — the hierarchy is visual, not just ordinal.
  */
-function PrioritySlotHero({ slot }) {
+function PrioritySlotHero({ slot, candidates }) {
   const { setPriority } = useAxzio();
+  const [picking, setPicking] = useState(false);
+  const pick = (id) => {
+    setPriority(id, slot.rank);
+    setPicking(false);
+  };
   return (
     <div
       className={`rounded-xl border p-6 ${
@@ -489,17 +502,36 @@ function PrioritySlotHero({ slot }) {
         <p className="mt-3 line-clamp-3 text-xl font-light leading-snug text-white md:text-2xl">
           {slot.item.text}
         </p>
+      ) : picking ? (
+        <PriorityPicker
+          rankLabel={priorityShortLabel(slot.rank)}
+          candidates={candidates}
+          onPick={pick}
+          onClose={() => setPicking(false)}
+        />
       ) : (
-        <p className="mt-3 text-[15px] tracking-wide text-white/30">
-          Not set — rank an item 1st to name the one thing to focus on.
-        </p>
+        <button
+          onClick={() => setPicking(true)}
+          aria-expanded={picking}
+          aria-label={`Choose ${priorityShortLabel(slot.rank)} from your list`}
+          className="mt-3 block w-full text-left text-[15px] tracking-wide text-white/30 transition-colors hover:text-white/60"
+        >
+          Not set —{" "}
+          <span className="underline underline-offset-4">tap to choose</span>{" "}
+          the one thing to focus on.
+        </button>
       )}
     </div>
   );
 }
 
-function PrioritySlot({ slot }) {
+function PrioritySlot({ slot, candidates }) {
   const { setPriority } = useAxzio();
+  const [picking, setPicking] = useState(false);
+  const pick = (id) => {
+    setPriority(id, slot.rank);
+    setPicking(false);
+  };
   return (
     <div
       className={`rounded-xl border p-4 ${
@@ -526,10 +558,22 @@ function PrioritySlot({ slot }) {
         <p className="mt-2 line-clamp-2 text-[15px] leading-snug text-white">
           {slot.item.text}
         </p>
+      ) : picking ? (
+        <PriorityPicker
+          rankLabel={priorityShortLabel(slot.rank)}
+          candidates={candidates}
+          onPick={pick}
+          onClose={() => setPicking(false)}
+        />
       ) : (
-        <p className="mt-2 text-[13px] tracking-wide text-white/30">
-          Not set
-        </p>
+        <button
+          onClick={() => setPicking(true)}
+          aria-expanded={picking}
+          aria-label={`Choose ${priorityShortLabel(slot.rank)} from your list`}
+          className="mt-2 block w-full text-left text-[13px] tracking-wide text-white/30 transition-colors hover:text-white/60"
+        >
+          Not set — <span className="underline underline-offset-4">tap to choose</span>
+        </button>
       )}
     </div>
   );

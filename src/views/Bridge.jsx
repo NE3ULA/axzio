@@ -4,6 +4,7 @@ import {
   ORIENTATION_PRACTICES,
   PRIORITY_RANKS,
   priorityLabel,
+  priorityShortLabel,
   TAGS,
   BATTERY,
   BATTERY_PRIORITIES,
@@ -39,6 +40,7 @@ import {
   HelpText,
 } from "../components/ui.jsx";
 import ModePicker from "../components/ModePicker.jsx";
+import PriorityPicker from "../components/PriorityPicker.jsx";
 
 /* ------------------------------------------------------------------ */
 /* COMMAND DECK — overview dashboard: live summaries across modules,   */
@@ -1166,13 +1168,19 @@ function BecomingCard() {
 }
 
 function TodayCard() {
-  const { state } = useAxzio();
+  const { state, setPriority } = useAxzio();
+  const [picking, setPicking] = useState(null);
   const openDay = state.focusItems.filter(
     (f) => !f.done && f.timeframe === "day" && !f.parentId
   );
   const ranks = PRIORITY_RANKS.map(
     (r) => openDay.find((f) => f.priority === r.rank) || null
   );
+  const candidates = openDay.filter((f) => !f.priority);
+  const pick = (rank) => (id) => {
+    setPriority(id, rank);
+    setPicking(null);
+  };
   return (
     <Card className="axzio-rise axzio-rise-2 flex flex-col p-6">
       <SectionHead
@@ -1182,7 +1190,7 @@ function TodayCard() {
             <HelpText
               what="Today's ranked priorities — 1st is the one thing."
               why="Ranking forces the trade: if everything is priority one, nothing is."
-              how="Rank items in Focus; this snapshot updates live."
+              how="Tap an empty slot to choose from today's list, or rank items in Focus; this snapshot updates live."
             />
           </HelpBubble>
         }
@@ -1192,21 +1200,64 @@ function TodayCard() {
           <p className="line-clamp-2 text-lg font-light leading-snug text-white">
             {ranks[0].text}
           </p>
+        ) : picking === 1 ? (
+          <PriorityPicker
+            rankLabel={priorityShortLabel(1)}
+            candidates={candidates}
+            onPick={pick(1)}
+            onClose={() => setPicking(null)}
+          />
         ) : (
-          <p className="text-[14px] text-white/35">No 1st priority set.</p>
+          <button
+            onClick={() => setPicking(1)}
+            aria-label="Choose 1st from today's list"
+            className="block text-left text-[14px] text-white/35 transition-colors hover:text-white/60"
+          >
+            No 1st priority set —{" "}
+            <span className="underline underline-offset-4">tap to choose</span>
+          </button>
         )}
         <div className="mt-2 space-y-1">
-          {ranks.slice(1).map(
-            (item, i) =>
-              item && (
-                <p key={item.id} className="line-clamp-1 text-[13px] text-white/55">
+          {ranks.slice(1).map((item, i) => {
+            const rank = i + 2;
+            if (item) {
+              return (
+                <p
+                  key={item.id}
+                  className="line-clamp-1 text-[13px] text-white/55"
+                >
                   <span className="mr-2 text-[10px] uppercase tracking-[0.16em] text-white/30">
-                    {priorityLabel(i + 2)}
+                    {priorityLabel(rank)}
                   </span>
                   {item.text}
                 </p>
-              )
-          )}
+              );
+            }
+            if (picking === rank) {
+              return (
+                <PriorityPicker
+                  key={rank}
+                  rankLabel={priorityShortLabel(rank)}
+                  candidates={candidates}
+                  onPick={pick(rank)}
+                  onClose={() => setPicking(null)}
+                />
+              );
+            }
+            return (
+              <button
+                key={rank}
+                onClick={() => setPicking(rank)}
+                aria-label={`Choose ${priorityShortLabel(rank)} from today's list`}
+                className="block text-left text-[13px] text-white/30 transition-colors hover:text-white/60"
+              >
+                <span className="mr-2 text-[10px] uppercase tracking-[0.16em] text-white/30">
+                  {priorityLabel(rank)}
+                </span>
+                Tap to choose
+              </button>
+            );
+          })}
         </div>
       </div>
       <a
