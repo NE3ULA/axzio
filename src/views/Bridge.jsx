@@ -1157,12 +1157,20 @@ function BecomingCard() {
           </ul>
         )}
       </div>
-      <a
-        href="#/core"
-        className="mt-3 text-[11px] uppercase tracking-[0.14em] text-white/40 transition-colors hover:text-white"
-      >
-        Open Core →
-      </a>
+      <div className="mt-3 flex items-center gap-5">
+        <a
+          href="#/core"
+          className="text-[11px] uppercase tracking-[0.14em] text-white/40 transition-colors hover:text-white"
+        >
+          Open Core →
+        </a>
+        <a
+          href="#/identity-map"
+          className="text-[11px] uppercase tracking-[0.14em] text-white/40 transition-colors hover:text-white"
+        >
+          See the journey →
+        </a>
+      </div>
     </Card>
   );
 }

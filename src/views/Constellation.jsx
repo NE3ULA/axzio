@@ -167,6 +167,15 @@ export default function Constellation() {
         ))}
       </div>
 
+      <div className="mb-5">
+        <a
+          href="#/identity-map"
+          className="text-[11px] uppercase tracking-[0.16em] text-white/40 transition-colors hover:text-white"
+        >
+          See the journey →
+        </a>
+      </div>
+
       {view === "sky" ? (
         <SkyView
           stars={stars}

@@ -90,6 +90,12 @@ export default function Identity() {
                 />
               </div>
             ))}
+            <a
+              href="#/identity-map"
+              className="inline-block text-[11px] uppercase tracking-[0.16em] text-white/40 transition-colors hover:text-white"
+            >
+              Is it working? See the journey →
+            </a>
             <ListEditor
               label="Values"
               items={state.identity.values}
