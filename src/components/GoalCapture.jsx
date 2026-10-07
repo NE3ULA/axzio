@@ -30,8 +30,8 @@ export default function GoalCapture({
   const [text, setText] = useState(initialText);
   const [cid, setCid] = useState(commitmentId);
   const [newCommitment, setNewCommitment] = useState("");
-  const [horizon, setHorizon] = useState("");
-  const [schedule, setSchedule] = useState(null);
+  const linked = useLinkedHorizon();
+  const { horizon, schedule } = linked;
   const [quadrant, setQuadrant] = useState("q2");
 
   const locked = commitmentId != null;
@@ -54,9 +54,8 @@ export default function GoalCapture({
     });
     if (g) {
       setText("");
-      setHorizon("");
+      linked.reset();
       setNewCommitment("");
-      setSchedule(null);
       setQuadrant("q2");
       if (!locked) setCid(null);
       setOpen(false);
@@ -114,7 +113,7 @@ export default function GoalCapture({
       <p className="mt-1.5 text-[11px] leading-relaxed text-white/35">
         Keep it crisp — if it needs paragraphs, it needs refining.
       </p>
-      <GoalScheduleEditor value={schedule} onChange={setSchedule} />
+      <GoalScheduleEditor value={schedule} onChange={linked.setSchedule} />
       <div className={`mt-3 grid gap-3 ${locked ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
         {!locked && (
           <div>
@@ -150,10 +149,14 @@ export default function GoalCapture({
           <input
             type="date"
             value={horizon}
-            onChange={(e) => setHorizon(e.target.value)}
+            onChange={(e) => linked.setHorizon(e.target.value)}
             aria-label="Goal horizon"
             className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30 [color-scheme:dark]"
           />
+          <p className="mt-1.5 text-[12px] leading-relaxed text-white/35">
+            The done-by date — it mirrors your work rhythm; change either
+            and the other follows.
+          </p>
         </div>
         <div>
           <MicroLabel className="mb-1.5">Quadrant</MicroLabel>
@@ -206,8 +209,9 @@ export default function GoalCapture({
   const [confirmId, setConfirmId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
-  const [editHorizon, setEditHorizon] = useState("");
-  const [editSchedule, setEditSchedule] = useState(null);
+  const editLinked = useLinkedHorizon();
+  const editHorizon = editLinked.horizon;
+  const editSchedule = editLinked.schedule;
   const [editCommitmentId, setEditCommitmentId] = useState(null);
   const [editNewCommitment, setEditNewCommitment] = useState("");
   const [editQuadrant, setEditQuadrant] = useState("q2");
@@ -217,8 +221,7 @@ export default function GoalCapture({
     setConfirmId(null);
     setEditingId(g.id);
     setEditText(g.text || "");
-    setEditHorizon(g.horizon || "");
-    setEditSchedule(g.schedule || null);
+    editLinked.seed(g.horizon || "", g.schedule || null);
     setEditCommitmentId(g.commitmentId || null);
     setEditNewCommitment("");
     setEditQuadrant(g.quadrant || "q2");
@@ -226,8 +229,7 @@ export default function GoalCapture({
   const cancelEdit = () => {
     setEditingId(null);
     setEditText("");
-    setEditHorizon("");
-    setEditSchedule(null);
+    editLinked.reset();
     setEditCommitmentId(null);
     setEditNewCommitment("");
     setEditQuadrant("q2");
@@ -316,8 +318,9 @@ export default function GoalCapture({
               <input
                 type="date"
                 value={editHorizon}
-                onChange={(e) => setEditHorizon(e.target.value)}
+                onChange={(e) => editLinked.setHorizon(e.target.value)}
                 aria-label="Goal horizon"
+                title="Done-by date — mirrors the work rhythm; change either and the other follows."
                 className="rounded-lg border border-white/15 bg-black px-3 py-2 text-[13px] text-white outline-none transition-colors hover:border-white/30 [color-scheme:dark]"
               />
               <span className="flex-1" />
@@ -337,7 +340,7 @@ export default function GoalCapture({
                 Cancel
               </button>
             </div>
-            <GoalScheduleEditor value={editSchedule} onChange={setEditSchedule} />
+            <GoalScheduleEditor value={editSchedule} onChange={editLinked.setSchedule} />
           </li>
         ) : (
         <li
@@ -478,6 +481,80 @@ const WEEKDAY_PICKER = [
   { d: 6, label: "S" },
   { d: 0, label: "S" },
 ];
+
+/* Local-date helpers (yyyy-mm-dd keys). */
+function parseKey(key) {
+  const [y, m, d] = String(key).split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
+function toKey(dt) {
+  const p2 = (n) => String(n).padStart(2, "0");
+  return `${dt.getFullYear()}-${p2(dt.getMonth() + 1)}-${p2(dt.getDate())}`;
+}
+function addDays(key, n) {
+  const dt = parseKey(key);
+  dt.setDate(dt.getDate() + n);
+  return toKey(dt);
+}
+function diffDays(aKey, bKey) {
+  return Math.round((parseKey(aKey) - parseKey(bKey)) / 86400000);
+}
+
+/* The done-by date a schedule implies: one-day → its date;
+   weekly → start + weeks. Null when the schedule can't imply one. */
+function scheduleEndDate(sched) {
+  if (!sched) return null;
+  if (sched.kind === "once" && sched.date) return sched.date;
+  if (
+    sched.kind === "weekly" &&
+    sched.start &&
+    Number.isFinite(Number(sched.weeks)) &&
+    Number(sched.weeks) > 0
+  )
+    return addDays(sched.start, Math.round(Number(sched.weeks)) * 7);
+  return null;
+}
+
+/* Bidirectional horizon ⇄ schedule link. Editing the schedule mirrors its
+   implied end date into the horizon (this is the autofill); editing the
+   horizon mirrors back — into the one-day date, or into weekly weeks
+   measured from the start (rounded, minimum 1). Clearing the horizon
+   leaves the schedule standing (no deadline, rhythm intact). */
+function useLinkedHorizon() {
+  const [horizon, setHorizonState] = useState("");
+  const [schedule, setScheduleState] = useState(null);
+
+  const setSchedule = (next) => {
+    setScheduleState(next);
+    const end = scheduleEndDate(next);
+    if (end) setHorizonState(end);
+  };
+  const setHorizon = (dateStr) => {
+    setHorizonState(dateStr);
+    if (!dateStr) return;
+    setScheduleState((prev) => {
+      if (!prev) return prev;
+      if (prev.kind === "once") return { ...prev, date: dateStr };
+      if (prev.kind === "weekly") {
+        const start = prev.start || localDateKey();
+        const weeks = Math.max(1, Math.round(diffDays(dateStr, start) / 7));
+        return { ...prev, start, weeks };
+      }
+      return prev;
+    });
+  };
+  // Seed both without a mirror cascade (loading existing data, which may
+  // predate the link and legitimately disagree).
+  const seed = (h, sched) => {
+    setHorizonState(h || "");
+    setScheduleState(sched || null);
+  };
+  const reset = () => {
+    setHorizonState("");
+    setScheduleState(null);
+  };
+  return { horizon, schedule, setHorizon, setSchedule, seed, reset };
+}
 
 /* GoalScheduleEditor — when the goal gets worked on and for how long.
    value: a schedule object or null. onChange receives the edited
