@@ -9,6 +9,12 @@ import {
   legendFunctionLabel,
   becomingStageLabel,
   lifeModById,
+  SPINE_STAGES,
+  threadOffspring,
+  threadReviewDue,
+  threadSpine,
+  threadMassTier,
+  threadAttention,
 } from "../store.jsx";
 import {
   Card,
@@ -25,72 +31,63 @@ import GoalCapture, { GrownGoalsList } from "../components/GoalCapture.jsx";
 import HabitCapture, { GrownHabitsList } from "../components/HabitCapture.jsx";
 
 /* ------------------------------------------------------------------ */
-/* CONSTELLATION — the journey of a seed through the E3 practice loop   */
-/* Reveal → Interpret → Align → Act → Integrate, with a Released branch */
-/* for seeds that don't grow. Ignite a star from the Deck; it lands in  */
-/* Reveal. Placement is manual: declare, don't guess.                  */
+/* CONSTELLATION — the night sky of your becoming. Every star is a      */
+/* THREAD: one thought walking the Becoming spine (Capture → Evaluate  */
+/* → Execute → Review → Evolve). The E3 loop is the engine inside      */
+/* Evaluate — each orbit adds mass, and mass is brightness.            */
 /* ------------------------------------------------------------------ */
 
-const W = 1000;
-const H = 640;
+const SKY_W = 1000;
+const SKY_H = 430;
 
-/** The five loop waypoints along a gentle arc. */
-function stagePos(i) {
-  const x = 110 + i * 195;
-  const y = 300 - Math.sin((i / 4) * Math.PI) * 90;
-  return [x, y];
+/** X-centers of the spine zones along the arc. */
+const SPINE_X = {
+  capture: 130,
+  evaluate: 370,
+  execute: 600,
+  review: 790,
+  evolve: 920,
+};
+/** Star radius per mass tier 0–4. */
+const TIER_R = [3.5, 5, 6.5, 9, 12];
+
+/** Deterministic 0–1 hash so the sky is stable between renders. */
+function hash01(str) {
+  let h = 0;
+  const s = String(str);
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return (h % 1000) / 1000;
 }
-const RELEASED_POS = [500, 540];
-
-/** Cluster offsets for the seeds gathered at one waypoint. */
-const SEED_OFFS = [
-  [-44, -40],
-  [0, -48],
-  [44, -40],
-  [-44, 42],
-  [0, 50],
-  [44, 42],
-  [-76, -32],
-  [76, -32],
-  [-76, 38],
-  [76, 38],
-];
-const SEED_SHOW_MAX = 10;
+/** The journey arc's height at x. */
+function arcY(x) {
+  const t = Math.min(1, Math.max(0, (x - 60) / 890));
+  return 335 - Math.sin(t * Math.PI) * 115 - t * 185;
+}
+/** Where a thread's star sits: zone center + stable jitter. */
+function threadPos(star, spine) {
+  if (spine === "released")
+    return [
+      80 + hash01(star.id + ":x") * 840,
+      392 + hash01(star.id + ":y") * 26,
+    ];
+  const cx = SPINE_X[spine] ?? SPINE_X.capture;
+  const x = cx + (hash01(star.id + ":x") - 0.5) * 150;
+  const y = arcY(x) + (hash01(star.id + ":y") - 0.5) * 100;
+  return [Math.min(975, Math.max(25, x)), Math.min(380, Math.max(30, y))];
+}
 
 const ALL_STAGES = [...LOOP_STAGES, RELEASED_STAGE];
 
 export default function Constellation() {
   const axzio = useAxzio();
   const { state } = axzio;
-  const [selected, setSelected] = useState(null); // {type:'stage',key} | {type:'star',id}
+  const [view, setView] = useState("sky"); // 'sky' | 'threads'
+  const [selectedId, setSelectedId] = useState(null);
+  const stars = Array.isArray(state.stars) ? state.stars : [];
+  const selectedStar = stars.find((s) => s.id === selectedId) || null;
 
-  const stagePoints = useMemo(() => LOOP_STAGES.map((_, i) => stagePos(i)), []);
-  const pathD = useMemo(() => {
-    const pts = stagePoints.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`);
-    return `M${pts.join(" L")}`;
-  }, [stagePoints]);
-
-  const starsByStage = useMemo(() => {
-    const map = {};
-    for (const s of ALL_STAGES) map[s.key] = [];
-    for (const star of state.stars) {
-      const k = map[star.loopStage] ? star.loopStage : "reveal";
-      map[k].push(star);
-    }
-    return map;
-  }, [state.stars]);
-
-  const inLoop = state.stars.filter((s) => s.loopStage !== "released").length;
-  const released = state.stars.filter((s) => s.loopStage === "released").length;
-
-  const selectedStage =
-    selected?.type === "stage"
-      ? ALL_STAGES.find((s) => s.key === selected.key)
-      : null;
-  const selectedStar =
-    selected?.type === "star"
-      ? state.stars.find((s) => s.id === selected.id)
-      : null;
+  const inThread = stars.filter((s) => s.loopStage !== "released").length;
+  const releasedCount = stars.length - inThread;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-5 pb-24 pt-8">
@@ -99,220 +96,76 @@ export default function Constellation() {
           <MicroLabel className="mb-2">Constellation</MicroLabel>
           <HelpBubble title="Constellation" className="mb-2">
             <HelpText
-              what="The journey of a seed through the E3 practice loop: Reveal → Interpret → Align → Act → Integrate, with a Released branch for seeds that don't grow."
-              why="A seed you can locate is a seed you can tend. The map shows where each one stands — growing, stalled, or released."
-              how="Ignite stars from the Command Deck — they land in Reveal. Select a seed to move it along the loop, release it, or explore it in a Guided Reset."
+              what="The night sky of your becoming. Every star is a thread — one thought walking the spine from spark to legend. Brightness is mass: the more orbits and offspring, the more light."
+              why="A thread you can locate is a thread you can tend. The sky shows where each one stands; the threads list shows what needs you next."
+              how="Ignite stars from the Command Deck — they land in Capture. Select one to read its chain, move it along the loop, rename it as it evolves, or work it with Reset and Grow."
             />
           </HelpBubble>
         </div>
         <h2 className="text-3xl font-light tracking-wide md:text-4xl">
-          The Seed Journey
+          The Night Sky of Your Becoming
         </h2>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/50">
-          Follow the seeds you ignite — from spark to understanding,
-          placement, planning, and action — until each one roots into your
-          legend or is released.
+          Every star is a thread — one thought walking from spark to legend.
+          Brightness is mass: each orbit and hatching makes it shine brighter.
         </p>
-        {(inLoop > 0 || released > 0) && (
+        {(inThread > 0 || releasedCount > 0) && (
           <p className="mt-3 text-[11px] uppercase tracking-[0.2em] text-white/40">
-            {inLoop} in the loop{released > 0 ? ` · ${released} released` : ""}
+            {inThread} in the sky
+            {releasedCount > 0 ? ` · ${releasedCount} released` : ""}
           </p>
         )}
       </header>
 
-      <div className="flex flex-col gap-5 lg:flex-row">
-        {/* the map */}
-        <Card className="axzio-rise axzio-rise-1 relative flex-1 overflow-hidden p-2 md:p-4">
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            className="h-auto w-full select-none"
-            role="img"
-            aria-label="Constellation map of the practice loop"
+      {/* Sky | Threads toggle */}
+      <div className="axzio-rise axzio-rise-1 mb-5 inline-flex rounded-full border border-white/12 p-1">
+        {[
+          { key: "sky", label: "Sky" },
+          { key: "threads", label: "Threads" },
+        ].map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setView(t.key)}
+            aria-pressed={view === t.key}
+            className={`rounded-full px-5 py-1.5 text-[11px] uppercase tracking-[0.16em] transition-colors ${
+              view === t.key
+                ? "bg-white/10 text-white"
+                : "text-white/40 hover:text-white/70"
+            }`}
           >
-            {/* the loop's path */}
-            <path
-              d={pathD}
-              fill="none"
-              stroke="rgba(255,255,255,0.22)"
-              strokeWidth="1.2"
-            />
-            {/* the released branch */}
-            <line
-              x1={stagePoints[2][0]}
-              y1={stagePoints[2][1]}
-              x2={RELEASED_POS[0]}
-              y2={RELEASED_POS[1]}
-              stroke="rgba(255,255,255,0.14)"
-              strokeWidth="1"
-              strokeDasharray="4 7"
-            />
-            {/* loop waypoints */}
-            {LOOP_STAGES.map((st, i) => {
-              const [x, y] = stagePoints[i];
-              const isSel = selectedStage?.key === st.key;
-              const seeds = starsByStage[st.key];
-              return (
-                <g key={st.key}>
-                  <g
-                    onClick={() => setSelected({ type: "stage", key: st.key })}
-                    className="cursor-pointer"
-                  >
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r={isSel ? 28 : 20}
-                      fill="rgba(255,255,255,0.06)"
-                    />
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r={isSel ? 12 : 9}
-                      fill="#fff"
-                      style={{
-                        animation: `axzio-twinkle ${3 + (i % 4)}s ease-in-out ${i * 0.4}s infinite`,
-                        filter:
-                          "drop-shadow(0 0 10px rgba(255,255,255,0.7))",
-                      }}
-                    />
-                    {isSel && (
-                      <circle
-                        cx={x}
-                        cy={y}
-                        r={20}
-                        fill="none"
-                        stroke="rgba(255,255,255,0.7)"
-                        strokeWidth="1"
-                      />
-                    )}
-                    <text
-                      x={x}
-                      y={y - 34}
-                      textAnchor="middle"
-                      fill={isSel ? "#fff" : "rgba(255,255,255,0.62)"}
-                      fontSize="15"
-                      letterSpacing="3"
-                      style={{ textTransform: "uppercase" }}
-                    >
-                      {st.label.toUpperCase()}
-                    </text>
-                  </g>
-                  {seeds.slice(0, SEED_SHOW_MAX).map((s, j) => (
-                    <SeedDiamond
-                      key={s.id}
-                      star={s}
-                      x={x + SEED_OFFS[j][0]}
-                      y={y + SEED_OFFS[j][1]}
-                      selected={selectedStar?.id === s.id}
-                      onSelect={() => setSelected({ type: "star", id: s.id })}
-                    />
-                  ))}
-                  {seeds.length > SEED_SHOW_MAX && (
-                    <text
-                      x={x}
-                      y={y + 78}
-                      textAnchor="middle"
-                      fill="rgba(255,255,255,0.4)"
-                      fontSize="12"
-                      letterSpacing="2"
-                    >
-                      +{seeds.length - SEED_SHOW_MAX} MORE
-                    </text>
-                  )}
-                </g>
-              );
-            })}
-            {/* released waypoint */}
-            <g>
-              <g
-                onClick={() => setSelected({ type: "stage", key: "released" })}
-                className="cursor-pointer"
-              >
-                <circle
-                  cx={RELEASED_POS[0]}
-                  cy={RELEASED_POS[1]}
-                  r={selectedStage?.key === "released" ? 24 : 17}
-                  fill="rgba(255,255,255,0.03)"
-                />
-                <circle
-                  cx={RELEASED_POS[0]}
-                  cy={RELEASED_POS[1]}
-                  r={7}
-                  fill="rgba(255,255,255,0.45)"
-                />
-                {selectedStage?.key === "released" && (
-                  <circle
-                    cx={RELEASED_POS[0]}
-                    cy={RELEASED_POS[1]}
-                    r={17}
-                    fill="none"
-                    stroke="rgba(255,255,255,0.5)"
-                    strokeWidth="1"
-                  />
-                )}
-                <text
-                  x={RELEASED_POS[0]}
-                  y={RELEASED_POS[1] - 30}
-                  textAnchor="middle"
-                  fill={
-                    selectedStage?.key === "released"
-                      ? "#fff"
-                      : "rgba(255,255,255,0.5)"
-                  }
-                  fontSize="14"
-                  letterSpacing="3"
-                  style={{ textTransform: "uppercase" }}
-                >
-                  RELEASED
-                </text>
-              </g>
-              {starsByStage.released.slice(0, SEED_SHOW_MAX).map((s, j) => (
-                <SeedDiamond
-                  key={s.id}
-                  star={s}
-                  x={RELEASED_POS[0] + SEED_OFFS[j][0]}
-                  y={RELEASED_POS[1] + SEED_OFFS[j][1]}
-                  dim
-                  selected={selectedStar?.id === s.id}
-                  onSelect={() => setSelected({ type: "star", id: s.id })}
-                />
-              ))}
-            </g>
-          </svg>
-          <p className="px-3 pb-2 text-[10px] uppercase tracking-[0.24em] text-white/30">
-            Diamonds are seeds you ignited — select one to place it, or
-            release it
-          </p>
-        </Card>
-
-        {/* detail panel */}
-        <div className="w-full shrink-0 lg:w-96">
-          <Card className="axzio-rise axzio-rise-2 min-h-[320px] p-6">
-            {!selectedStage && !selectedStar && (
-              <div className="flex h-full min-h-[280px] flex-col items-center justify-center text-center">
-                <MicroLabel className="mb-3">Reading</MicroLabel>
-                <p className="max-w-[240px] text-sm leading-relaxed text-white/50">
-                  Select a stage — or one of your seeds — to read it.
-                </p>
-              </div>
-            )}
-            {selectedStage && (
-              <StageDetail
-                stage={selectedStage}
-                seeds={starsByStage[selectedStage.key]}
-                onSelectStar={(id) => setSelected({ type: "star", id })}
-                onClose={() => setSelected(null)}
-              />
-            )}
-            {selectedStar && (
-              <StarDetail
-                star={selectedStar}
-                axzio={axzio}
-                onClose={() => setSelected(null)}
-              />
-            )}
-          </Card>
-        </div>
+            {t.label}
+          </button>
+        ))}
       </div>
+
+      {view === "sky" ? (
+        <SkyView
+          stars={stars}
+          state={state}
+          selectedId={selectedId}
+          onSelect={(id) => setSelectedId(id)}
+        />
+      ) : (
+        <ThreadsView
+          stars={stars}
+          state={state}
+          axzio={axzio}
+          onOpen={(id) => setSelectedId(id)}
+        />
+      )}
+
+      {selectedStar && (
+        <section className="mt-6">
+          <Card className="p-6 md:p-8">
+            <ThreadDetail
+              star={selectedStar}
+              axzio={axzio}
+              onClose={() => setSelectedId(null)}
+            />
+          </Card>
+        </section>
+      )}
 
       {/* lifemods — designed life changes */}
       <section className="mt-12">
@@ -320,9 +173,9 @@ export default function Constellation() {
           <MicroLabel>LifeMods</MicroLabel>
           <HelpBubble title="LifeMods">
             <HelpText
-              what="A LifeMod is a designed life change — a seed that matured, or a friction named directly."
+              what="A LifeMod is a designed life change — a thread's answer when the conditions need to change. It is the Execute-phase view of a thread."
               why="A LifeMod does not ask 'How do I force myself to comply?' It asks 'What could I change so the next aligned action becomes clearer?'"
-              how="Grow one from a seed (its detail card), or name a friction below. Give it a legend function, work its Becoming Cycle, archive it when it is installed — or delete it when it no longer serves."
+              how="Grow one from a thread (its detail card), or name a friction below. Give it a legend function, work its Becoming Cycle, archive it when it is installed — or delete it when it no longer serves."
             />
           </HelpBubble>
           <div className="h-px flex-1 bg-white/10" />
@@ -333,78 +186,472 @@ export default function Constellation() {
   );
 }
 
-/** One seed rendered as a small diamond on the map. */
-function SeedDiamond({ star, x, y, dim, selected, onSelect }) {
+/* ------------------------------------------------------------------ */
+/* Thread views — the sky and the threads list                          */
+/* ------------------------------------------------------------------ */
+
+/** The six spine positions as dots; current lit gold. */
+function SpineDots({ spine }) {
+  if (spine === "released")
+    return (
+      <span className="text-[10px] uppercase tracking-[0.2em] text-white/30">
+        Released
+      </span>
+    );
+  const idx = SPINE_STAGES.findIndex((s) => s.key === spine);
+  const label = SPINE_STAGES[idx]?.label ?? spine;
   return (
-    <g onClick={onSelect} className="cursor-pointer">
-      <path
-        d={`M${x},${y - 8} L${x + 2.4},${y - 2.4} L${x + 8},${y} L${x + 2.4},${y + 2.4} L${x},${y + 8} L${x - 2.4},${y + 2.4} L${x - 8},${y} L${x - 2.4},${y - 2.4} Z`}
-        fill={selected ? "#fff" : dim ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.85)"}
-        style={{
-          animation: `axzio-twinkle 4s ease-in-out ${(x % 3).toFixed(1)}s infinite`,
-          filter: dim
-            ? "none"
-            : "drop-shadow(0 0 8px rgba(255,255,255,0.6))",
-        }}
-      />
-      <text
-        x={x}
-        y={y + 24}
-        textAnchor="middle"
-        fill={selected ? "#fff" : "rgba(255,255,255,0.55)"}
-        fontSize="12"
-        letterSpacing="1.5"
-      >
-        {star.name.toUpperCase().slice(0, 20)}
-      </text>
-    </g>
+    <span className="inline-flex items-center gap-1.5">
+      {SPINE_STAGES.map((s, i) => (
+        <span
+          key={s.key}
+          title={s.label}
+          className={`h-[9px] w-[9px] rounded-full ${
+            i < idx
+              ? "bg-white/40"
+              : i === idx
+                ? "bg-[#d8a94e] shadow-[0_0_10px_rgba(216,169,78,0.8)]"
+                : "border border-white/25"
+          }`}
+        />
+      ))}
+      <span className="ml-1 text-[10px] uppercase tracking-[0.2em] text-white/40">
+        {label}
+      </span>
+    </span>
   );
 }
 
-function StageDetail({ stage, seeds, onSelectStar, onClose }) {
+/** The thread's lineage: seed → hatchings → offspring, each tagged with
+ *  the stage that produced it. Provenance is kept, never merged. */
+function ThreadChain({ star, state }) {
+  const off = threadOffspring(state, star);
+  const lifemodGoals = (state.goals || []).filter(
+    (g) => g && star.lifemodId && g.sourceLifeModId === star.lifemodId
+  );
+  const lifemodHabits = (state.habits || []).filter(
+    (h) => h && star.lifemodId && h.sourceLifeModId === star.lifemodId
+  );
+  const loopLabel =
+    (LOOP_STAGES.find((l) => l.key === star.loopStage) || {}).label ||
+    star.loopStage;
+  const rows = [
+    {
+      k: "Seed",
+      v: star.name,
+      sub: `captured ${new Date(star.created).toLocaleDateString()} · ${star.orbits} orbit${star.orbits === 1 ? "" : "s"} · ${loopLabel}`,
+    },
+  ];
+  if (off.lifemod)
+    rows.push({ k: "LifeMod", v: off.lifemod.name, sub: "hatched at Execute" });
+  if (off.commitment)
+    rows.push({
+      k: "Identity",
+      v: commitmentText(state, off.commitment.id),
+      sub: "the thread became a commitment",
+    });
+  const kids = [];
+  for (const g of off.goals)
+    kids.push({ kind: "goal", text: g.text, from: "from seed" });
+  for (const g of lifemodGoals)
+    if (!off.goals.some((x) => x.id === g.id))
+      kids.push({ kind: "goal", text: g.text, from: "from LifeMod" });
+  for (const h of off.habits)
+    kids.push({ kind: "habit", text: h.text, from: "from seed" });
+  for (const h of lifemodHabits)
+    if (!off.habits.some((x) => x.id === h.id))
+      kids.push({ kind: "habit", text: h.text, from: "from LifeMod" });
   return (
     <div>
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <MicroLabel className="mb-2">Stage</MicroLabel>
-          <h3 className="text-2xl font-light uppercase tracking-[0.12em]">
-            {stage.label}
-          </h3>
+      {rows.map((r, i) => (
+        <div
+          key={i}
+          className="flex items-baseline gap-3 border-t border-dashed border-white/10 py-2 first:border-t-0 first:pt-0"
+        >
+          <span className="w-[86px] shrink-0 text-[10px] uppercase tracking-[0.18em] text-[#d8a94e]">
+            {r.k}
+          </span>
+          <span className="text-[14px] text-white/90">
+            {r.v}{" "}
+            <span className="text-[12px] text-white/35">· {r.sub}</span>
+          </span>
         </div>
-        <CloseBtn onClose={onClose} />
-      </div>
-      <p className="text-[15px] leading-relaxed text-white/65">{stage.copy}</p>
-      <div className="mt-6 border-t border-white/10 pt-5">
-        <MicroLabel className="mb-3">
-          Seeds here · {seeds.length}
-        </MicroLabel>
-        {seeds.length === 0 ? (
-          <Empty>
-            No seeds here yet — ignite one from the Deck, or move one here.
-          </Empty>
-        ) : (
-          <ul className="space-y-2">
-            {seeds.map((s) => (
-              <li key={s.id}>
-                <button
-                  onClick={() => onSelectStar(s.id)}
-                  className="w-full truncate rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-left text-[15px] text-white/85 transition-colors hover:border-white/35"
-                >
-                  {s.name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      ))}
+      {kids.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-2">
+          {kids.map((k, i) => (
+            <span
+              key={i}
+              className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[12px] text-white/85"
+            >
+              <span className="mr-1.5 text-[10px] uppercase tracking-[0.1em] text-white/35">
+                {k.kind}
+              </span>
+              {k.text}{" "}
+              <span className="text-white/35">· {k.from}</span>
+            </span>
+          ))}
+        </div>
+      )}
+      {rows.length === 1 && kids.length === 0 && (
+        <p className="pt-1 text-[13px] text-white/35">
+          Nothing hatched yet — the thread is still becoming.
+        </p>
+      )}
     </div>
   );
 }
 
-function StarDetail({ star, axzio, onClose }) {
+/* ------------------------------ SKY ------------------------------ */
+
+function SkyView({ stars, state, selectedId, onSelect }) {
+  const pts = stars.map((s) => {
+    const spine = threadSpine(state, s);
+    const off = threadOffspring(state, s);
+    const tier = threadMassTier(s, off);
+    const [x, y] = threadPos(s, spine);
+    return { star: s, spine, tier, x, y };
+  });
+  const spineLabel = (sp) =>
+    sp === "released"
+      ? "Released"
+      : (SPINE_STAGES.find((s) => s.key === sp) || {}).label || sp;
+  return (
+    <Card className="axzio-rise axzio-rise-2 relative overflow-hidden p-2 md:p-4">
+      <div className="flex justify-between px-4 pt-3 text-[10px] uppercase tracking-[0.24em] text-white/30">
+        <span>Capture</span>
+        <span>Evaluate</span>
+        <span>Execute</span>
+        <span>Review · Evolve</span>
+      </div>
+      <svg
+        viewBox={`0 0 ${SKY_W} ${SKY_H}`}
+        className="h-auto w-full select-none"
+        role="img"
+        aria-label="Thread sky: one star per thread along the spine"
+      >
+        <defs>
+          <radialGradient id="skyGlow">
+            <stop offset="0%" stopColor="#d8a94e" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="#d8a94e" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        {/* the journey arc */}
+        <path
+          d="M60,335 Q300,90 520,205 T950,150"
+          fill="none"
+          stroke="rgba(255,255,255,0.10)"
+          strokeWidth="1.5"
+          strokeDasharray="4 7"
+        />
+        {pts.map((p) => {
+          const r = TIER_R[p.tier];
+          const isSel = selectedId === p.star.id;
+          const dim = p.spine === "released";
+          const legend = p.spine === "evolve";
+          const core = dim
+            ? "rgba(255,255,255,0.3)"
+            : legend
+              ? "#f2ede2"
+              : "#d8a94e";
+          const labelBelow = p.y < 300;
+          return (
+            <g
+              key={p.star.id}
+              onClick={() => onSelect(p.star.id)}
+              className="cursor-pointer"
+            >
+              {p.tier >= 2 && !dim && (
+                <circle cx={p.x} cy={p.y} r={r * 2.8} fill="url(#skyGlow)" />
+              )}
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={r}
+                fill={core}
+                opacity={dim ? 0.6 : 0.95}
+                style={{
+                  animation: `axzio-twinkle ${3 + (p.tier % 3)}s ease-in-out ${(p.x % 3).toFixed(1)}s infinite`,
+                  filter: dim
+                    ? "none"
+                    : `drop-shadow(0 0 ${6 + p.tier * 3}px rgba(216,169,78,0.65))`,
+                }}
+              />
+              {isSel && (
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={r + 7}
+                  fill="none"
+                  stroke="rgba(255,255,255,0.7)"
+                  strokeWidth="1"
+                />
+              )}
+              {!dim && (
+                <g>
+                  <text
+                    x={p.x}
+                    y={labelBelow ? p.y + r + 16 : p.y - r - 20}
+                    textAnchor="middle"
+                    fill={isSel ? "#fff" : "rgba(255,255,255,0.72)"}
+                    fontSize="12"
+                    letterSpacing="1"
+                  >
+                    {p.star.name.slice(0, 20)}
+                  </text>
+                  <text
+                    x={p.x}
+                    y={labelBelow ? p.y + r + 30 : p.y - r - 6}
+                    textAnchor="middle"
+                    fill="rgba(255,255,255,0.35)"
+                    fontSize="9"
+                    letterSpacing="2"
+                    style={{ textTransform: "uppercase" }}
+                  >
+                    {spineLabel(p.spine).toUpperCase()}
+                    {p.tier >= 3 ? " · LEGEND" : ""}
+                  </text>
+                </g>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      <p className="px-3 pb-2 text-[10px] uppercase tracking-[0.24em] text-white/30">
+        One star per thread — brightness is mass · select a star to read its
+        thread
+      </p>
+    </Card>
+  );
+}
+
+/* ---------------------------- THREADS ---------------------------- */
+
+function ThreadsView({ stars, state, axzio, onOpen }) {
+  const enriched = stars.map((s) => ({
+    star: s,
+    spine: threadSpine(state, s),
+    attn: threadAttention(state, s),
+    off: threadOffspring(state, s),
+  }));
+  const byMass = (a, b) =>
+    threadMassTier(b.star, b.off) - threadMassTier(a.star, a.off) ||
+    b.star.created - a.star.created;
+  const attn = enriched.filter((e) => e.attn);
+  const legends = enriched.filter((e) => !e.attn && e.spine === "evolve");
+  const motion = enriched
+    .filter((e) => !e.attn && e.spine !== "evolve" && e.spine !== "released")
+    .sort(byMass);
+  const released = enriched.filter((e) => e.spine === "released");
+  const [showReleased, setShowReleased] = useState(false);
+
+  return (
+    <div className="axzio-rise axzio-rise-2">
+      {stars.length === 0 && (
+        <Card className="p-8 text-center">
+          <MicroLabel className="mb-3">No threads yet</MicroLabel>
+          <p className="mx-auto max-w-sm text-sm leading-relaxed text-white/50">
+            Ignite a star from the Command Deck — every thread begins as a
+            captured spark.
+          </p>
+        </Card>
+      )}
+      {attn.length > 0 && (
+        <ThreadSection label="Needs attention">
+          {attn.map((e) => (
+            <ThreadCard key={e.star.id} e={e} state={state} axzio={axzio} onOpen={onOpen} />
+          ))}
+        </ThreadSection>
+      )}
+      {motion.length > 0 && (
+        <ThreadSection label="In motion">
+          {motion.map((e) => (
+            <ThreadCard key={e.star.id} e={e} state={state} axzio={axzio} onOpen={onOpen} />
+          ))}
+        </ThreadSection>
+      )}
+      {legends.length > 0 && (
+        <ThreadSection label="Legends">
+          {legends.map((e) => (
+            <ThreadCard key={e.star.id} e={e} state={state} axzio={axzio} onOpen={onOpen} />
+          ))}
+        </ThreadSection>
+      )}
+      {released.length > 0 && (
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={() => setShowReleased((v) => !v)}
+            className="text-[11px] uppercase tracking-[0.2em] text-white/35 transition-colors hover:text-white/60"
+          >
+            Released · {released.length} {showReleased ? "↑" : "↓"}
+          </button>
+          {showReleased && (
+            <div className="mt-3 space-y-2">
+              {released.map((e) => (
+                <button
+                  key={e.star.id}
+                  type="button"
+                  onClick={() => onOpen(e.star.id)}
+                  className="w-full truncate rounded-xl border border-dashed border-white/10 px-4 py-3 text-left text-[14px] text-white/45 transition-colors hover:border-white/30 hover:text-white/70"
+                >
+                  {e.star.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ThreadSection({ label, children }) {
+  return (
+    <div className="mb-7">
+      <div className="mb-3 flex items-center gap-3">
+        <span className="text-[10px] uppercase tracking-[0.26em] text-white/35">
+          {label}
+        </span>
+        <div className="h-px flex-1 bg-white/10" />
+      </div>
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+
+function ThreadCard({ e, state, axzio, onOpen }) {
+  const { star, spine, attn, off } = e;
+  const [showChain, setShowChain] = useState(false);
+  const tier = threadMassTier(star, off);
+  const dotSize = [6, 8, 11, 14, 16][tier];
+  const legend = spine === "evolve";
+
+  const goReview = () => {
+    const t = attn.target;
+    window.location.hash =
+      t.kind === "growth" ? `#/journeys?growth=${t.id}` : `#/journeys?reset=${t.id}`;
+  };
+  const goReset = () => {
+    if (axzio.requestResetFromStar(star.id)) window.location.hash = "#/journeys";
+  };
+  const beginOrbit = () => axzio.setStarLoopStage(star.id, "interpret");
+
+  let action = null;
+  if (attn?.type === "review")
+    action = { label: "Review →", primary: true, fn: goReview };
+  else if (attn?.type === "fog")
+    action = { label: "Reset →", fn: goReset };
+  else if (spine === "capture")
+    action = { label: "Begin orbit →", fn: beginOrbit };
+  else action = { label: spine === "evolve" ? "Revisit →" : "Open thread →", fn: () => onOpen(star.id) };
+
+  const kids = [...off.goals, ...off.habits];
+  return (
+    <Card className={`p-5 ${attn ? "border-[#d8a94e]/40 bg-[#d8a94e]/[0.04]" : ""}`}>
+      <div className="flex items-start gap-4">
+        <span
+          className="mt-1.5 shrink-0 rounded-full"
+          style={{
+            width: dotSize,
+            height: dotSize,
+            background: legend ? "#f2ede2" : "#d8a94e",
+            boxShadow: legend
+              ? "0 0 18px rgba(242,237,226,0.8)"
+              : `0 0 ${6 + tier * 3}px rgba(216,169,78,0.65)`,
+            opacity: 0.55 + tier * 0.11,
+          }}
+        />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[16px] text-white/90">{star.name}</p>
+          {star.previousNames.length > 0 && (
+            <p className="truncate text-[11.5px] text-white/35">
+              formerly “{star.previousNames[star.previousNames.length - 1].text}”
+            </p>
+          )}
+          <p className="mt-1 text-[12.5px] leading-relaxed text-white/50">
+            {attn ? (
+              <span className="text-[#d8a94e]">{attn.label}</span>
+            ) : spine === "capture" ? (
+              "Captured — not yet orbited"
+            ) : spine === "evaluate" ? (
+              `${star.orbits} orbit${star.orbits === 1 ? "" : "s"} · gaining mass`
+            ) : spine === "execute" ? (
+              "Building — the pursuit takes form"
+            ) : (
+              "Became identity — it still orbits, quietly"
+            )}
+            {kids.length > 0 || off.lifemod
+              ? ` · ${kids.length + (off.lifemod ? 1 : 0)} hatched`
+              : ""}
+          </p>
+          <div className="mt-2.5">
+            <SpineDots spine={spine} />
+          </div>
+          {(kids.length > 0 || off.lifemod) && (
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {off.lifemod && (
+                <span className="rounded-full border border-[#d8a94e]/30 bg-[#d8a94e]/10 px-2.5 py-0.5 text-[11px] text-white/75">
+                  <span className="mr-1 text-[9px] uppercase tracking-[0.1em] text-white/35">lifemod</span>
+                  {off.lifemod.name}
+                </span>
+              )}
+              {kids.slice(0, 4).map((k) => (
+                <span
+                  key={k.id}
+                  className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[11px] text-white/70"
+                >
+                  {k.text}
+                </span>
+              ))}
+              {kids.length > 4 && (
+                <span className="px-1 py-0.5 text-[11px] text-white/35">
+                  +{kids.length - 4} more
+                </span>
+              )}
+            </div>
+          )}
+          {showChain && (
+            <div className="mt-3 border-t border-dashed border-white/10 pt-3">
+              <ThreadChain star={star} state={state} />
+            </div>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <button
+            type="button"
+            onClick={action.fn}
+            className={`whitespace-nowrap rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.12em] transition-colors ${
+              action.primary
+                ? "border-[#d8a94e] bg-[#d8a94e] font-semibold text-black hover:bg-[#e5b95e]"
+                : action.label.startsWith("Reset")
+                  ? "border-[#d8a94e]/50 text-[#d8a94e] hover:border-[#d8a94e] hover:text-[#e5b95e]"
+                  : "border-white/15 text-white/60 hover:border-white/50 hover:text-white"
+            }`}
+          >
+            {action.label}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowChain((v) => !v)}
+            className="px-1 py-1 text-[11px] uppercase tracking-[0.14em] text-white/35 transition-colors hover:text-white/60"
+          >
+            Chain {showChain ? "↑" : "↓"}
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function ThreadDetail({ star, axzio, onClose }) {
   const [confirm, setConfirm] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(star.name);
   const current =
     ALL_STAGES.find((s) => s.key === star.loopStage) || LOOP_STAGES[0];
+  const spine = threadSpine(axzio.state, star);
+  const spineInfo = SPINE_STAGES.find((x) => x.key === spine);
   const rootedText = commitmentText(axzio.state, star.commitmentId);
   const grownLifeMod = lifeModById(axzio.state, star.lifemodId);
   const grownGoalsCount = (axzio.state.goals || []).filter(
@@ -438,14 +685,101 @@ function StarDetail({ star, axzio, onClose }) {
     });
   };
 
+  const saveName = () => {
+    const n = nameDraft.trim();
+    if (n && n !== star.name) axzio.renameStar(star.id, n);
+    setEditingName(false);
+    setNameDraft(star.name);
+  };
+
   return (
     <div>
       <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <MicroLabel className="mb-2">Your seed</MicroLabel>
-          <h3 className="text-2xl font-light tracking-wide">{star.name}</h3>
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex items-center gap-2">
+            <MicroLabel>Thread</MicroLabel>
+            <HelpBubble title="Threads evolve — names too">
+              <HelpText
+                what="A thread's name can change as the thread itself changes. An ambition ('call mom more') becomes an identity statement ('Mommas Boy')."
+                why="The name you gave a spark described what you wanted. The name it earns describes who you're becoming. Keeping the history honors the arc."
+                how="Rename anytime with the pencil. Every former name is kept below with its date — the thread's naming history."
+              />
+            </HelpBubble>
+          </div>
+          {editingName ? (
+            <div className="flex items-center gap-2">
+              <Field
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveName();
+                  if (e.key === "Escape") {
+                    setEditingName(false);
+                    setNameDraft(star.name);
+                  }
+                }}
+                autoFocus
+                className="max-w-sm"
+              />
+              <Btn variant="quiet" onClick={saveName}>
+                Save
+              </Btn>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <h3 className="truncate text-2xl font-light tracking-wide">
+                {star.name}
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setNameDraft(star.name);
+                  setEditingName(true);
+                }}
+                aria-label="Rename thread"
+                title="Rename — names evolve as threads become identity"
+                className="shrink-0 rounded-full border border-white/15 p-1.5 text-white/45 transition-colors hover:border-white/40 hover:text-white"
+              >
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                  <path
+                    d="M8.5 1.5l2 2L4 10l-2.6.6L2 8l6.5-6.5z"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            </div>
+          )}
+          {star.previousNames.length > 0 && (
+            <p className="mt-1.5 text-[12px] leading-relaxed text-white/35">
+              Formerly{" "}
+              {star.previousNames
+                .slice()
+                .reverse()
+                .map((pn, i) => (
+                  <span key={i}>
+                    {i > 0 && ", "}
+                    <span className="text-white/55">“{pn.text}”</span>
+                    {pn.at
+                      ? ` · ${new Date(pn.at).toLocaleDateString()}`
+                      : ""}
+                  </span>
+                ))}
+            </p>
+          )}
         </div>
         <CloseBtn onClose={onClose} />
+      </div>
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <SpineDots spine={spine} />
+        {spineInfo && (
+          <span className="text-[12.5px] text-white/45">{spineInfo.copy}</span>
+        )}
+      </div>
+      <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+        <MicroLabel className="mb-2">The chain</MicroLabel>
+        <ThreadChain star={star} state={axzio.state} />
       </div>
       {star.note ? (
         <p className="text-[15px] leading-relaxed text-white/65">{star.note}</p>

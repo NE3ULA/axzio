@@ -857,6 +857,111 @@ const LOOP_STAGE_KEYS = new Set([
   RELEASED_STAGE.key,
 ]);
 
+/* ------------------------------------------------------------------ */
+/* THREADS — one thought's life, seed to legend. A star IS a thread:   */
+/* the Becoming Cycle is its spine (Detect→Capture→Evaluate→Execute→   */
+/* Review→Evolve), the E3 loop is the engine inside Evaluate, and      */
+/* "LifeMod" names the thread after Execute when the answer is         */
+/* "change the conditions". The spine stage below is DERIVED from the  */
+/* thread's state — never stored, never declared.                      */
+/* ------------------------------------------------------------------ */
+export const SPINE_STAGES = [
+  { key: "capture", label: "Capture", copy: "The spark, ignited. Potential — nothing decided." },
+  { key: "evaluate", label: "Evaluate", copy: "Worked through E3 orbits. Each pass gains mass." },
+  { key: "execute", label: "Execute", copy: "Hatched into system assets — the pursuit takes form." },
+  { key: "review", label: "Review", copy: "The return. Confirm, revise, or release." },
+  { key: "evolve", label: "Evolve", copy: "Became identity. The thread is now who you are." },
+];
+export const SPINE_KEYS = SPINE_STAGES.map((s) => s.key);
+
+/** Everything a thread has hatched into: goals, habits, LifeMod, commitment. */
+export function threadOffspring(state, star) {
+  if (!star) return { goals: [], habits: [], lifemod: null, commitment: null };
+  const goals = (state.goals || []).filter((g) => g && g.sourceStarId === star.id);
+  const habits = (state.habits || []).filter((h) => h && h.sourceStarId === star.id);
+  const lifemod = star.lifemodId ? lifeModById(state, star.lifemodId) : null;
+  const commitment = star.commitmentId
+    ? (state.commitments || []).find((c) => c && c.id === star.commitmentId) || null
+    : null;
+  return { goals, habits, lifemod, commitment };
+}
+
+/** A pending review owed by this thread (growth session or reset), if any.
+ *  Growth sessions are linked through their subject: the session grows a
+ *  goal/habit, and that offspring carries the thread's sourceStarId. */
+export function threadReviewDue(state, star) {
+  if (!star) return null;
+  const today = localDateKey();
+  const linkedGoalIds = new Set(
+    (state.goals || [])
+      .filter((g) => g && g.sourceStarId === star.id)
+      .map((g) => g.id)
+  );
+  const linkedHabitIds = new Set(
+    (state.habits || [])
+      .filter((h) => h && h.sourceStarId === star.id)
+      .map((h) => h.id)
+  );
+  const gs = (state.growthSessions || []).find(
+    (x) =>
+      x && x.reviewDate && !x.reviewedAt && x.reviewDate <= today &&
+      ((x.subjectKind === "goal" && linkedGoalIds.has(x.subjectId)) ||
+        (x.subjectKind === "habit" && linkedHabitIds.has(x.subjectId)))
+  );
+  if (gs) return { kind: "growth", id: gs.id, date: gs.reviewDate };
+  const r = (state.resets || []).find(
+    (x) =>
+      x && x.sourceStarId === star.id &&
+      x.reviewDate && !x.reviewedAt && x.reviewDate <= today
+  );
+  if (r) return { kind: "reset", id: r.id, date: r.reviewDate };
+  return null;
+}
+
+/** Where the thread stands on its spine — derived, in priority order:
+ *  released → evolve (became identity) → review (owed) → execute
+ *  (hatched) → evaluate (being worked) → capture (fresh spark). */
+export function threadSpine(state, star) {
+  if (!star || star.loopStage === "released") return "released";
+  if (star.commitmentId) return "evolve";
+  if (threadReviewDue(state, star)) return "review";
+  const off = threadOffspring(state, star);
+  if (star.lifemodId || off.goals.length > 0 || off.habits.length > 0) return "execute";
+  if ((star.orbits || 1) > 1 || star.loopStage !== "reveal") return "evaluate";
+  return "capture";
+}
+
+/** Brightness tier 0–4 from the thread's mass: orbits + offspring. */
+export function threadMassTier(star, offspring) {
+  const off = offspring || { goals: [], habits: [], lifemod: null, commitment: null };
+  const score =
+    (star.orbits || 1) +
+    off.goals.length + off.habits.length +
+    (off.lifemod ? 2 : 0) +
+    (off.commitment ? 3 : 0);
+  if (score >= 10) return 4;
+  if (score >= 7) return 3;
+  if (score >= 4) return 2;
+  if (score >= 2) return 1;
+  return 0;
+}
+
+const THREAD_FOG_MS = 7 * 24 * 3600 * 1000;
+/** What needs the user's attention on this thread, if anything. */
+export function threadAttention(state, star) {
+  if (!star || star.loopStage === "released") return null;
+  const due = threadReviewDue(state, star);
+  if (due) return { type: "review", label: "Review due", target: due };
+  const spine = threadSpine(state, star);
+  if (
+    spine === "evaluate" &&
+    (star.orbits || 1) <= 1 &&
+    Date.now() - (star.created || 0) > THREAD_FOG_MS
+  )
+    return { type: "fog", label: "Fog forming — a Reset would clear this" };
+  return null;
+}
+
 /* LifeMods (WE ARE ALCHEMY, ch. BECOMING): designed life changes. Two
    entry doors: a seed that matured through E3 orbits (origin 'seed',
    sourceStarId set) or a directly-named friction — a preexisting
@@ -1002,6 +1107,13 @@ function normalizeStar(s) {
     commitmentId: typeof s.commitmentId === "string" ? s.commitmentId : null,
     // A seed grown into a LifeMod (designed life change).
     lifemodId: typeof s.lifemodId === "string" ? s.lifemodId : null,
+    // Name history: threads are renamed as they evolve ("call mom more"
+    // → "Mommas Boy"). Each entry is { text, at }.
+    previousNames: Array.isArray(s.previousNames)
+      ? s.previousNames
+          .filter((x) => x && typeof x.text === "string" && x.text.trim())
+          .map((x) => ({ text: x.text.slice(0, 80), at: Number(x.at) || 0 }))
+      : [],
   };
 }
 /** Normalize one focus item's subtasks; malformed entries are dropped. */
@@ -1768,7 +1880,9 @@ function normalizeGrowthSessions(raw) {
       ts: Number(r.ts) || 0,
       date: typeof r.date === "string" ? r.date : "",
       subjectKind:
-        r.subjectKind === "goal" || r.subjectKind === "habit"
+        ["goal", "habit", "lifemod", "star", "focus", "general"].includes(
+          r.subjectKind
+        )
           ? r.subjectKind
           : null,
       subjectId:
@@ -2628,6 +2742,25 @@ export function AxzioProvider({ children }) {
         const s = d.stars.find((x) => x.id === starId);
         if (s) s.lifemodId = lifemodId || null;
       });
+    },
+    /** Rename a thread as it evolves ("call mom more" → "Mommas Boy").
+     *  The old name is kept in previousNames — the thread's naming history.
+     *  Names evolve as ambitions become identity statements. */
+    renameStar(starId, newName) {
+      const n = String(newName || "").trim().slice(0, 80);
+      let renamed = null;
+      update((d) => {
+        const s = d.stars.find((x) => x.id === starId);
+        if (!s || !n || s.name === n) return;
+        const prev = Array.isArray(s.previousNames) ? s.previousNames : [];
+        prev.push({ text: s.name, at: Date.now() });
+        s.previousNames = prev;
+        renamed = { from: s.name, to: n };
+        s.name = n;
+      });
+      if (renamed)
+        logEvent("seed.renamed", { id: starId, from: renamed.from, to: renamed.to });
+      return renamed;
     },
     deleteStar(id) {
       update((d) => {
