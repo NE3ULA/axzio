@@ -672,6 +672,9 @@ function defaultState() {
     // Guided Reset completions (private, local only):
     // { id, ts, date, situation, reveal, interpret, align, act, lifemod, integrate }
     resets: [],
+    // In-progress Guided Reset draft (synced): { v, savedAt, step, subject, scratch } | null.
+    // One slot — opening the reset offers Resume / Start over.
+    resetDraft: null,
   };
 }
 
@@ -1531,6 +1534,21 @@ function wouldCreateCycle(items, itemId, newParentId) {
  * into a valid state object. Never throws on bad input — repairs or
  * falls back to defaults. Exported so cloud pulls can reuse it.
  */
+/* In-progress Guided Reset draft: validated shape, or null. The scratch
+   itself is free-form (step components tolerate missing keys). */
+function normalizeResetDraft(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  if (!raw.scratch || typeof raw.scratch !== "object" || Array.isArray(raw.scratch))
+    return null;
+  return {
+    v: 1,
+    savedAt: Number.isFinite(raw.savedAt) ? raw.savedAt : 0,
+    step: Number.isInteger(raw.step) && raw.step >= 0 ? raw.step : 0,
+    subject: typeof raw.subject === "string" ? raw.subject.slice(0, 90) : "",
+    scratch: raw.scratch,
+  };
+}
+
 export function normalizeState(parsed) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     return defaultState();
@@ -1670,6 +1688,7 @@ export function normalizeState(parsed) {
           : null,
       modes: normalizeModes(parsed.modes),
       resets: normalizeResets(parsed.resets),
+      resetDraft: normalizeResetDraft(parsed.resetDraft),
       // Settings: merge so future keys default cleanly on old states.
       settings: {
         aiEnabled: !!(parsed.settings && parsed.settings.aiEnabled),
@@ -2864,6 +2883,20 @@ export function AxzioProvider({ children }) {
     },
     clearResetPrefill() {
       setResetPrefill(null);
+    },
+    /* In-progress Guided Reset draft (synced — this is what makes resume
+       work across devices). Saved on every step/scratch change while the
+       reset is open; cleared on completion or explicit restart. */
+    saveResetDraft(draft) {
+      update((d) => {
+        d.resetDraft = normalizeResetDraft(draft);
+      });
+    },
+    clearResetDraft() {
+      if (!state.resetDraft) return;
+      update((d) => {
+        d.resetDraft = null;
+      });
     },
 
     /* nuclear option */

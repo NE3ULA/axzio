@@ -38,11 +38,12 @@ import {
 /* JOURNEYS — guided step-through flows that write into the state        */
 /* ------------------------------------------------------------------ */
 
-/* In-progress Guided Reset draft: localStorage only (a draft is
-   per-device working state, not synced journal data). One slot; the
-   Journeys view offers Resume / Start over when the reset is opened. */
+/* In-progress Guided Reset draft: lives in the synced state (this is
+   what makes resume work across devices). The localStorage key below is
+   only the one-time migration source for drafts saved before the sync
+   move — once migrated it is deleted and never written again. */
 const RESET_DRAFT_KEY = "axzio-reset-draft-v1";
-function loadResetDraft() {
+function loadLocalDraft() {
   try {
     const raw = localStorage.getItem(RESET_DRAFT_KEY);
     if (!raw) return null;
@@ -52,14 +53,7 @@ function loadResetDraft() {
     return null;
   }
 }
-function saveResetDraft(draft) {
-  try {
-    localStorage.setItem(RESET_DRAFT_KEY, JSON.stringify(draft));
-  } catch {
-    /* storage full or unavailable — the reset still works in memory */
-  }
-}
-function clearResetDraft() {
+function clearLocalDraft() {
   try {
     localStorage.removeItem(RESET_DRAFT_KEY);
   } catch {
@@ -93,7 +87,7 @@ export default function Journeys() {
           }
         : {};
     if (prefill) axzio.clearResetPrefill();
-    clearResetDraft();
+    axzio.clearResetDraft();
     setDraftChoice(null);
     setResetSession({ scratch: init, step: 0 });
   };
@@ -107,10 +101,21 @@ export default function Journeys() {
   };
 
   // Reset session bootstrap: when the reset journey opens without a live
-  // session, offer a saved draft or start fresh.
+  // session, offer the synced draft (migrating any pre-sync local draft)
+  // or start fresh.
   useEffect(() => {
     if (active !== "reset" || resetSession || draftChoice) return;
-    const d = loadResetDraft();
+    let d =
+      axzio.state.resetDraft && axzio.state.resetDraft.scratch
+        ? axzio.state.resetDraft
+        : null;
+    if (!d) {
+      d = loadLocalDraft();
+      if (d) {
+        axzio.saveResetDraft(d);
+        clearLocalDraft();
+      }
+    }
     if (d) setDraftChoice(d);
     else startFreshReset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -557,6 +562,7 @@ const JOURNEYS = [
 ];
 
 function JourneyRunner({ journey, onExit, initialScratch, initialStep }) {
+  const axzio = useAxzio();
   const [step, setStep] = useState(initialStep || 0);
   const [finished, setFinished] = useState(false);
   // Per-journey transient inputs; a reset triggered from a Focus decision
@@ -564,19 +570,31 @@ function JourneyRunner({ journey, onExit, initialScratch, initialStep }) {
   const [scratch, setScratch] = useState(initialScratch || {});
   const StepView = journey.steps[step].render;
 
-  // Persist the in-progress Guided Reset (step + scratch) so an
-  // accidental navigation out can be resumed. Cleared on completion
-  // (in the rintegrate commit) or explicit restart.
+  // Persist the in-progress Guided Reset (step + scratch) into the synced
+  // state, so an accidental navigation out can be resumed — on this device
+  // or another. Cleared on completion (in the rintegrate commit) or
+  // explicit restart. A blank open (nothing entered) leaves no draft behind.
   useEffect(() => {
     if (journey.id !== "reset" || finished) return;
+    const hasContent =
+      step > 0 ||
+      Object.keys(scratch).some((k) => {
+        if (k.startsWith("_")) return false;
+        const v = scratch[k];
+        if (v == null || v === "") return false;
+        if (typeof v === "object") return Object.keys(v).length > 0;
+        return true;
+      });
+    if (!hasContent && !axzio.state.resetDraft) return;
     const subject = (scratch.rsituation || "").trim().slice(0, 90);
-    saveResetDraft({
+    axzio.saveResetDraft({
       v: 1,
       savedAt: Date.now(),
       step,
       subject,
       scratch,
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journey.id, scratch, step, finished]);
 
   // The reset's subject, carried across stages: what the user named on the
@@ -604,7 +622,7 @@ function JourneyRunner({ journey, onExit, initialScratch, initialStep }) {
     setStep(0);
     setFinished(false);
     setScratch({});
-    if (journey.id === "reset") clearResetDraft();
+    if (journey.id === "reset") axzio.clearResetDraft();
   };
 
   return (
@@ -775,7 +793,7 @@ function StepContinue({ stepId, scratch, setScratch, onNext, last }) {
           sourceItemId: scratch._sourceItemId || null,
           sourceStarId: scratch._sourceStarId || null,
         });
-        clearResetDraft();
+        axzio.clearResetDraft();
         if (setScratch) {
           setScratch((s) => ({ ...s, savedResetId: entry.id }));
         }
