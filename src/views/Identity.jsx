@@ -21,6 +21,7 @@ import {
 } from "../components/ui.jsx";
 import Recalibrate from "../components/Recalibrate.jsx";
 import GoalCapture, { GoalsList } from "../components/GoalCapture.jsx";
+import HabitCapture, { HabitsList } from "../components/HabitCapture.jsx";
 
 /* ------------------------------------------------------------------ */
 /* IDENTITY — user state systems: Identity Core + Four Primitives        */
@@ -384,9 +385,18 @@ function CommitmentList() {
             </div>
             {/* the goal stage: goals live inside their commitment */}
             <div className="mt-1 pl-8">
+              <MicroLabel>Goals</MicroLabel>
               <GoalsList commitmentId={c.id} />
               <div className="mt-2">
                 <GoalCapture commitmentId={c.id} compact />
+              </div>
+              {/* the habit stage: repeating practices, kept not finished */}
+              <div className="mt-4">
+                <MicroLabel>Habits</MicroLabel>
+                <HabitsList commitmentId={c.id} />
+                <div className="mt-2">
+                  <HabitCapture commitmentId={c.id} compact />
+                </div>
               </div>
             </div>
           </li>

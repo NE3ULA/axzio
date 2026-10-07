@@ -4,16 +4,15 @@ import {
   sortedCommitments,
   formatLongDate,
   localDateKey,
-  describeSchedule,
-  QUADRANTS,
 } from "../store.jsx";
 import { MicroLabel, Field, Btn, HelpBubble, HelpText } from "./ui.jsx";
 
-/* GoalCapture — compact goal entry. A goal always serves exactly one
-   commitment (no orphan goals, per the identity-first rule): pass
-   `commitmentId` to lock it, or omit it to show the commitment picker.
-   `initialText` pre-fills from a seed or LifeMod; `onCreated` fires
-   with the new goal. */
+/* GoalCapture — compact goal entry. A goal is a finishable outcome with
+   an optional horizon (done-by date); the work rhythm lives on habits.
+   A goal always serves exactly one commitment (no orphan goals, per the
+   identity-first rule): pass `commitmentId` to lock it, or omit it to show
+   the commitment picker. `initialText` pre-fills from a seed or LifeMod;
+   `onCreated` fires with the new goal. */
 export default function GoalCapture({
   commitmentId = null,
   initialText = "",
@@ -30,9 +29,7 @@ export default function GoalCapture({
   const [text, setText] = useState(initialText);
   const [cid, setCid] = useState(commitmentId);
   const [newCommitment, setNewCommitment] = useState("");
-  const linked = useLinkedHorizon();
-  const { horizon, schedule } = linked;
-  const [quadrant, setQuadrant] = useState("q2");
+  const [horizon, setHorizon] = useState("");
 
   const locked = commitmentId != null;
   const creatingCommitment = !locked && cid === "__new__";
@@ -47,16 +44,13 @@ export default function GoalCapture({
     }
     const g = axzio.addGoal(text, targetCid, {
       horizon: horizon || null,
-      schedule,
-      quadrant,
       sourceLifeModId,
       sourceStarId,
     });
     if (g) {
       setText("");
-      linked.reset();
+      setHorizon("");
       setNewCommitment("");
-      setQuadrant("q2");
       if (!locked) setCid(null);
       setOpen(false);
       if (onCreated) onCreated(g);
@@ -75,8 +69,6 @@ export default function GoalCapture({
           setCid(commitmentId);
           setHorizon("");
           setNewCommitment("");
-          setSchedule(null);
-          setQuadrant("q2");
           setOpen(true);
         }}
         className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
@@ -113,8 +105,7 @@ export default function GoalCapture({
       <p className="mt-1.5 text-[11px] leading-relaxed text-white/35">
         Keep it crisp — if it needs paragraphs, it needs refining.
       </p>
-      <GoalScheduleEditor value={schedule} onChange={linked.setSchedule} />
-      <div className={`mt-3 grid gap-3 ${locked ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+      <div className={`mt-3 grid gap-3 ${locked ? "" : "sm:grid-cols-2"}`}>
         {!locked && (
           <div>
             <MicroLabel className="mb-1.5">Serves commitment</MicroLabel>
@@ -149,29 +140,13 @@ export default function GoalCapture({
           <input
             type="date"
             value={horizon}
-            onChange={(e) => linked.setHorizon(e.target.value)}
+            onChange={(e) => setHorizon(e.target.value)}
             aria-label="Goal horizon"
             className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30 [color-scheme:dark]"
           />
           <p className="mt-1.5 text-[12px] leading-relaxed text-white/35">
-            The done-by date — it mirrors your work rhythm; change either
-            and the other follows.
+            The done-by date. The work rhythm lives on habits, below.
           </p>
-        </div>
-        <div>
-          <MicroLabel className="mb-1.5">Quadrant</MicroLabel>
-          <select
-            value={quadrant}
-            onChange={(e) => setQuadrant(e.target.value)}
-            aria-label="Matrix quadrant for scheduled sessions"
-            className="w-full appearance-none rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white/85 outline-none transition-colors hover:border-white/30"
-          >
-            {QUADRANTS.map((q) => (
-              <option key={q.key} value={q.key}>
-                Q{q.key.slice(1)} — {q.label}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
       <div className="mt-3 flex items-center gap-3">
@@ -209,30 +184,28 @@ export default function GoalCapture({
   const [confirmId, setConfirmId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
-  const editLinked = useLinkedHorizon();
-  const editHorizon = editLinked.horizon;
-  const editSchedule = editLinked.schedule;
+  const [editHorizon, setEditHorizon] = useState("");
   const [editCommitmentId, setEditCommitmentId] = useState(null);
   const [editNewCommitment, setEditNewCommitment] = useState("");
-  const [editQuadrant, setEditQuadrant] = useState("q2");
+
   const editCommitments = sortedCommitments(state);
 
   const startEdit = (g) => {
     setConfirmId(null);
     setEditingId(g.id);
     setEditText(g.text || "");
-    editLinked.seed(g.horizon || "", g.schedule || null);
+    setEditHorizon(g.horizon || "");
     setEditCommitmentId(g.commitmentId || null);
     setEditNewCommitment("");
-    setEditQuadrant(g.quadrant || "q2");
+
   };
   const cancelEdit = () => {
     setEditingId(null);
     setEditText("");
-    editLinked.reset();
+    setEditHorizon("");
     setEditCommitmentId(null);
     setEditNewCommitment("");
-    setEditQuadrant("q2");
+
   };
   const editCreatingCommitment = editCommitmentId === "__new__";
   const canSaveEdit =
@@ -249,9 +222,7 @@ export default function GoalCapture({
     axzio.updateGoal(editingId, {
       text: editText,
       horizon: editHorizon || null,
-      schedule: editSchedule,
       commitmentId: targetCid,
-      quadrant: editQuadrant,
     });
     cancelEdit();
   };
@@ -271,7 +242,7 @@ export default function GoalCapture({
               maxLength={80}
               aria-label="Goal text"
             />
-            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <div className="mt-2">
               <div>
                 <MicroLabel className="mb-1.5">Serves commitment</MicroLabel>
                 <select
@@ -298,29 +269,13 @@ export default function GoalCapture({
                   />
                 )}
               </div>
-              <div>
-                <MicroLabel className="mb-1.5">Quadrant</MicroLabel>
-                <select
-                  value={editQuadrant}
-                  onChange={(e) => setEditQuadrant(e.target.value)}
-                  aria-label="Matrix quadrant for scheduled sessions"
-                  className="w-full appearance-none rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white/85 outline-none transition-colors hover:border-white/30"
-                >
-                  {QUADRANTS.map((q) => (
-                    <option key={q.key} value={q.key}>
-                      Q{q.key.slice(1)} — {q.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <input
                 type="date"
                 value={editHorizon}
-                onChange={(e) => editLinked.setHorizon(e.target.value)}
+                onChange={(e) => setEditHorizon(e.target.value)}
                 aria-label="Goal horizon"
-                title="Done-by date — mirrors the work rhythm; change either and the other follows."
                 className="rounded-lg border border-white/15 bg-black px-3 py-2 text-[13px] text-white outline-none transition-colors hover:border-white/30 [color-scheme:dark]"
               />
               <span className="flex-1" />
@@ -340,7 +295,6 @@ export default function GoalCapture({
                 Cancel
               </button>
             </div>
-            <GoalScheduleEditor value={editSchedule} onChange={editLinked.setSchedule} />
           </li>
         ) : (
         <li
@@ -381,11 +335,6 @@ export default function GoalCapture({
             >
               {g.text}
             </span>
-            {g.schedule && (
-              <span className="mt-0.5 block text-[11px] tracking-[0.08em] text-white/40">
-                {describeSchedule(g.schedule)}
-              </span>
-            )}
           </button>
           {g.horizon && (
             <span className="shrink-0 text-[11px] tracking-[0.14em] text-white/35">
@@ -482,81 +431,7 @@ const WEEKDAY_PICKER = [
   { d: 0, label: "S" },
 ];
 
-/* Local-date helpers (yyyy-mm-dd keys). */
-function parseKey(key) {
-  const [y, m, d] = String(key).split("-").map(Number);
-  return new Date(y, (m || 1) - 1, d || 1);
-}
-function toKey(dt) {
-  const p2 = (n) => String(n).padStart(2, "0");
-  return `${dt.getFullYear()}-${p2(dt.getMonth() + 1)}-${p2(dt.getDate())}`;
-}
-function addDays(key, n) {
-  const dt = parseKey(key);
-  dt.setDate(dt.getDate() + n);
-  return toKey(dt);
-}
-function diffDays(aKey, bKey) {
-  return Math.round((parseKey(aKey) - parseKey(bKey)) / 86400000);
-}
-
-/* The done-by date a schedule implies: one-day → its date;
-   weekly → start + weeks. Null when the schedule can't imply one. */
-function scheduleEndDate(sched) {
-  if (!sched) return null;
-  if (sched.kind === "once" && sched.date) return sched.date;
-  if (
-    sched.kind === "weekly" &&
-    sched.start &&
-    Number.isFinite(Number(sched.weeks)) &&
-    Number(sched.weeks) > 0
-  )
-    return addDays(sched.start, Math.round(Number(sched.weeks)) * 7);
-  return null;
-}
-
-/* Bidirectional horizon ⇄ schedule link. Editing the schedule mirrors its
-   implied end date into the horizon (this is the autofill); editing the
-   horizon mirrors back — into the one-day date, or into weekly weeks
-   measured from the start (rounded, minimum 1). Clearing the horizon
-   leaves the schedule standing (no deadline, rhythm intact). */
-function useLinkedHorizon() {
-  const [horizon, setHorizonState] = useState("");
-  const [schedule, setScheduleState] = useState(null);
-
-  const setSchedule = (next) => {
-    setScheduleState(next);
-    const end = scheduleEndDate(next);
-    if (end) setHorizonState(end);
-  };
-  const setHorizon = (dateStr) => {
-    setHorizonState(dateStr);
-    if (!dateStr) return;
-    setScheduleState((prev) => {
-      if (!prev) return prev;
-      if (prev.kind === "once") return { ...prev, date: dateStr };
-      if (prev.kind === "weekly") {
-        const start = prev.start || localDateKey();
-        const weeks = Math.max(1, Math.round(diffDays(dateStr, start) / 7));
-        return { ...prev, start, weeks };
-      }
-      return prev;
-    });
-  };
-  // Seed both without a mirror cascade (loading existing data, which may
-  // predate the link and legitimately disagree).
-  const seed = (h, sched) => {
-    setHorizonState(h || "");
-    setScheduleState(sched || null);
-  };
-  const reset = () => {
-    setHorizonState("");
-    setScheduleState(null);
-  };
-  return { horizon, schedule, setHorizon, setSchedule, seed, reset };
-}
-
-/* GoalScheduleEditor — when the goal gets worked on and for how long.
+/* GoalScheduleEditor — when the habit gets practiced and for how long.
    value: a schedule object or null. onChange receives the edited
    schedule (or null). The store normalizes on write. */
 export function GoalScheduleEditor({ value, onChange }) {
@@ -585,8 +460,8 @@ export function GoalScheduleEditor({ value, onChange }) {
         <MicroLabel>Work sessions</MicroLabel>
         <HelpBubble title="Work sessions">
           <HelpText
-            what="When this goal gets worked on, and for how long each time."
-            why="A goal with a horizon but no work plan is a wish. Scheduling the sessions turns the outcome into a rhythm — and Focus pre-fills from it, so the days start populated instead of blank."
+            what="When this habit gets practiced, and for how long each time."
+            why="A habit with no rhythm is a wish. Scheduling the sessions turns the practice into a rhythm — and Focus pre-fills from it, so the days start populated instead of blank."
             how="One day: a single dated session. Weekly: pick weekdays, minutes per session, a start date and how many weeks it runs. Sessions appear in Focus's day, week and month views, ready to be worked and checked off."
           />
         </HelpBubble>

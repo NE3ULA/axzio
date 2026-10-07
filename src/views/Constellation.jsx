@@ -22,6 +22,7 @@ import {
   HelpText,
 } from "../components/ui.jsx";
 import GoalCapture, { GrownGoalsList } from "../components/GoalCapture.jsx";
+import HabitCapture, { GrownHabitsList } from "../components/HabitCapture.jsx";
 
 /* ------------------------------------------------------------------ */
 /* CONSTELLATION — the journey of a seed through the E3 practice loop   */
@@ -586,6 +587,28 @@ function StarDetail({ star, axzio, onClose }) {
       </div>
 
       <div className="mt-5">
+        <div className="mb-3 flex items-center gap-2">
+          <MicroLabel>Become a habit</MicroLabel>
+          <HelpBubble title="Seed becomes a habit">
+            <HelpText
+              what="Turns a matured seed into a habit — a repeating practice with a rhythm, serving one of your commitments."
+              why="Some seeds aren't destinations; they're practices. A habit gives the seed a schedule instead of a finish line."
+              how="Name the practice, set when it happens and for how long, choose the commitment it serves. The habit then lives under that commitment on the Identity page, and its sessions appear in Focus."
+            />
+          </HelpBubble>
+        </div>
+        <GrownHabitsList sourceStarId={star.id} />
+        <HabitCapture
+          initialText={(star.text || "").slice(0, 140)}
+          sourceStarId={star.id}
+          compact
+        />
+        <p className="mt-2 text-[12px] leading-relaxed text-white/35">
+          A seed with a rhythm becomes a habit — practiced, not finished.
+        </p>
+      </div>
+
+      <div className="mt-5">
         <button
           type="button"
           onClick={exploreInReset}
@@ -1005,6 +1028,32 @@ function LifeModEditor({ lifemod }) {
         <p className="mt-2 text-[12px] leading-relaxed text-white/40">
           Distill the desired state above into one crisp outcome — a LifeMod
           may grow several goals over its life.
+        </p>
+      </div>
+
+      {/* grow the desired state into a habit */}
+      <div className="mt-6">
+        <div className="mb-3 flex items-center gap-2">
+          <MicroLabel>Habits grown from this LifeMod</MicroLabel>
+          <HelpBubble title="LifeMod grows a habit">
+            <HelpText
+              what="Turns this LifeMod's desired state into a habit — a repeating practice with a rhythm, serving one of your commitments."
+              why="A LifeMod changes conditions; a habit rehearses the new condition until it holds. They stay linked: the condition and the practice, each visible from the other."
+              how="Read your desired state above, then name the practice that would grow it — set when it happens and for how long, choose the commitment. The LifeMod keeps living here; the habit lives under its commitment on Identity."
+            />
+          </HelpBubble>
+        </div>
+        <GrownHabitsList sourceLifeModId={m.id} />
+        <div className="mt-3">
+          <HabitCapture
+            ctaLabel="Start a habit"
+            sourceLifeModId={m.id}
+            compact
+          />
+        </div>
+        <p className="mt-2 text-[12px] leading-relaxed text-white/40">
+          Name the practice that would grow this condition — a LifeMod may
+          grow several habits over its life.
         </p>
       </div>
 

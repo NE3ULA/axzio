@@ -17,6 +17,7 @@ import {
   becomingStageLabel,
   integrateChoiceLabel,
   goalsForCommitment,
+  habitsForCommitment,
   localDateKey,
   formatLongDate,
   formatTime,
@@ -339,6 +340,9 @@ function WhoAmICard() {
               const openGoals = goalsForCommitment(state, c.id).filter(
                 (g) => !g.done
               ).length;
+              const activeHabits = habitsForCommitment(state, c.id).filter(
+                (h) => h.active !== false
+              ).length;
               return (
                 <li key={c.id} className="flex items-baseline gap-3">
                   <span className="shrink-0 text-[11px] tabular-nums tracking-[0.2em] text-white/40">
@@ -347,9 +351,18 @@ function WhoAmICard() {
                   <span className="min-w-0 flex-1 line-clamp-1 text-[14px] leading-snug text-white/85">
                     {c.text}
                   </span>
-                  {openGoals > 0 && (
+                  {(openGoals > 0 || activeHabits > 0) && (
                     <span className="shrink-0 text-[11px] tracking-[0.14em] text-white/40">
-                      {openGoals} goal{openGoals === 1 ? "" : "s"}
+                      {[
+                        openGoals > 0
+                          ? `${openGoals} goal${openGoals === 1 ? "" : "s"}`
+                          : null,
+                        activeHabits > 0
+                          ? `${activeHabits} habit${activeHabits === 1 ? "" : "s"}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                   )}
                 </li>

@@ -18,7 +18,7 @@ import {
   goalsForCommitment,
   effectiveServes,
   descendantIds,
-  goalOccurrences,
+  habitOccurrences,
   timeframeRange,
   localDateKey,
   QUEST_KINDS,
@@ -46,11 +46,11 @@ const QUAD_KEYS = ["q1", "q2", "q3", "q4"];
 const VALID_MODES = MODES.map((m) => m.key);
 const VALID_PILLARS = PILLARS.map((p) => p.key);
 
-/* SessionRow — one scheduled work session, derived live from a goal's
-   schedule. Renders inside the goal's matrix quadrant; done state is
-   toggled per date against the goal itself. */
+/* SessionRow — one scheduled practice session, derived live from a
+   habit's schedule. Renders inside the habit's matrix quadrant; done
+   state is toggled per date against the habit itself. */
 function SessionRow({ session, showDate }) {
-  const { state, toggleGoalSession } = useAxzio();
+  const { state, toggleHabitSession } = useAxzio();
   const s = session;
   const minsLabel = (m) =>
     m >= 60 && m % 60 === 0 ? `${m / 60} h` : `${m} min`;
@@ -65,7 +65,7 @@ function SessionRow({ session, showDate }) {
     <li className="flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2.5">
       <button
         type="button"
-        onClick={() => toggleGoalSession(s.goal.id, s.date)}
+        onClick={() => toggleHabitSession(s.habit.id, s.date)}
         aria-pressed={s.done}
         aria-label={s.done ? "Reopen session" : "Complete session"}
         className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
@@ -90,10 +90,10 @@ function SessionRow({ session, showDate }) {
             s.done ? "text-white/40 line-through" : "text-white/85"
           }`}
         >
-          {s.goal.text}
+          {s.habit.text}
         </p>
         <p className="mt-0.5 truncate text-[11px] tracking-[0.08em] text-white/40">
-          {commitmentText(state, s.goal.commitmentId)} · {minsLabel(s.minutes)}
+          {commitmentText(state, s.habit.commitmentId)} · {minsLabel(s.minutes)}
         </p>
       </div>
       {showDate && (
@@ -101,28 +101,30 @@ function SessionRow({ session, showDate }) {
           {dayLabel(s.date)}
         </span>
       )}
-      <Pill>Goal</Pill>
+      <Pill>Habit</Pill>
     </li>
   );
 }
 
-/* ScheduledYearSummary — per-goal session progress for the year tab,
+/* ScheduledYearSummary — per-habit session progress for the year tab,
    where individual session rows would be noise. */
 function ScheduledYearSummary() {
   const { state } = useAxzio();
   const { fromKey, toKey } = timeframeRange("year");
-  const goals = (state.goals || []).filter((g) => g && !g.done && g.schedule);
+  const habits = (state.habits || []).filter(
+    (h) => h && h.active !== false && h.schedule
+  );
 
-  const byGoal = new Map();
-  for (const g of goals) {
-    for (const occ of goalOccurrences(g, fromKey, toKey)) {
-      if (!byGoal.has(g.id)) byGoal.set(g.id, { goal: g, total: 0, done: 0 });
-      const agg = byGoal.get(g.id);
+  const byHabit = new Map();
+  for (const h of habits) {
+    for (const occ of habitOccurrences(h, fromKey, toKey)) {
+      if (!byHabit.has(h.id)) byHabit.set(h.id, { habit: h, total: 0, done: 0 });
+      const agg = byHabit.get(h.id);
       agg.total += 1;
-      if (g.sessions && g.sessions[occ.date]) agg.done += 1;
+      if (h.sessions && h.sessions[occ.date]) agg.done += 1;
     }
   }
-  if (byGoal.size === 0) return null;
+  if (byHabit.size === 0) return null;
   return (
     <section className="mb-8">
       <Card className="p-6">
@@ -130,18 +132,18 @@ function ScheduledYearSummary() {
           <MicroLabel>Scheduled — Year</MicroLabel>
           <HelpBubble title="Scheduled sessions">
             <HelpText
-              what="The year's scheduled work, per goal — sessions your goals placed on the calendar."
-              why="The year view reads the load your goals committed to: what's scheduled, what's done, what's drifting."
-              how="Set work sessions on any goal — from Identity or the goal's editor. Sessions land in their quadrant on the day, week and month tabs."
+              what="The year's scheduled practice, per habit — sessions your habits placed on the calendar."
+              why="The year view reads the load your habits committed to: what's scheduled, what's done, what's drifting."
+              how="Set a work schedule on any habit, under its commitment on the Identity page. Sessions land in their quadrant on the day, week and month tabs."
             />
           </HelpBubble>
         </div>
         <ul className="space-y-4">
-          {[...byGoal.values()].map(({ goal, total, done }) => (
-            <li key={goal.id}>
+          {[...byHabit.values()].map(({ habit, total, done }) => (
+            <li key={habit.id}>
               <div className="mb-1.5 flex items-baseline gap-3">
                 <span className="min-w-0 flex-1 truncate text-[14px] text-white/85">
-                  {goal.text}
+                  {habit.text}
                 </span>
                 <span className="shrink-0 text-[11px] tabular-nums tracking-[0.14em] text-white/40">
                   {done}/{total} sessions
@@ -212,16 +214,18 @@ export default function Focus() {
     const map = { q1: [], q2: [], q3: [], q4: [] };
     if (timeframe === "year") return map;
     const { fromKey, toKey } = timeframeRange(timeframe);
-    const goals = (state.goals || []).filter((g) => g && !g.done && g.schedule);
-    for (const g of goals) {
-      const q = map[g.quadrant] ? g.quadrant : "q2";
-      for (const occ of goalOccurrences(g, fromKey, toKey)) {
+    const habits = (state.habits || []).filter(
+      (h) => h && h.active !== false && h.schedule
+    );
+    for (const h of habits) {
+      const q = map[h.quadrant] ? h.quadrant : "q2";
+      for (const occ of habitOccurrences(h, fromKey, toKey)) {
         map[q].push({
-          key: `${g.id}:${occ.date}`,
-          goal: g,
+          key: `${h.id}:${occ.date}`,
+          habit: h,
           date: occ.date,
           minutes: occ.minutes,
-          done: !!(g.sessions && g.sessions[occ.date]),
+          done: !!(h.sessions && h.sessions[occ.date]),
         });
       }
     }
@@ -231,7 +235,7 @@ export default function Focus() {
       );
     }
     return map;
-  }, [state.goals, timeframe]);
+  }, [state.habits, timeframe]);
 
   const openSessionCount = QUAD_KEYS.reduce(
     (n, k) => n + sessionsByQuadrant[k].filter((s) => !s.done).length,

@@ -648,6 +648,7 @@ function defaultState() {
     // commitment (no orphan goals, per the identity-first rule).
     // { id, text, commitmentId, horizon: date-string|null, done, created }
     goals: [],
+    habits: [],
     // Tribe v1 — people directory: [{ id, name, circle, notes, createdAt }].
     // Give Love entries tag a personId; local-only for now.
     people: [],
@@ -1069,9 +1070,6 @@ function normalizeGoals(raw, validCommitmentIds) {
         typeof g.horizon === "string" && g.horizon ? g.horizon : null,
       done: g.done === true,
       created: Number(g.created) || 0,
-      schedule: normalizeSchedule(g.schedule),
-      sessions: normalizeSessions(g.sessions),
-      quadrant: normalizeGoalQuadrant(g.quadrant),
       // Origin threads: what this goal grew from (seed or LifeMod).
       sourceLifeModId:
         typeof g.sourceLifeModId === "string" && g.sourceLifeModId
@@ -1092,6 +1090,61 @@ export function goalById(state, id) {
   return list.find((g) => g && g.id === id) || null;
 }
 
+/* Habits — repeating practices that serve a commitment. A habit is kept,
+   not finished: it has a work schedule (not a horizon) and per-date session
+   completion. The no-orphan rule applies: a habit always serves a real
+   commitment. */
+function normalizeHabits(raw, validCommitmentIds) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((h) => h && typeof h === "object")
+    .map((h) => ({
+      id: String(h.id ?? ""),
+      text: String(h.text ?? ""),
+      commitmentId:
+        typeof h.commitmentId === "string" &&
+        validCommitmentIds.has(h.commitmentId)
+          ? h.commitmentId
+          : null,
+      schedule: normalizeSchedule(h.schedule),
+      sessions: normalizeSessions(h.sessions),
+      quadrant: normalizeQuadrant(h.quadrant),
+      active: h.active !== false,
+      created: Number(h.created) || 0,
+      // Origin threads: what this habit grew from (seed or LifeMod).
+      sourceLifeModId:
+        typeof h.sourceLifeModId === "string" && h.sourceLifeModId
+          ? h.sourceLifeModId
+          : null,
+      sourceStarId:
+        typeof h.sourceStarId === "string" && h.sourceStarId
+          ? h.sourceStarId
+          : null,
+    }))
+    .filter((h) => h.id && h.text.trim() && h.commitmentId && h.schedule);
+}
+
+/** Read-only lookup of a habit by id. */
+export function habitById(state, id) {
+  const list = state?.habits;
+  if (!Array.isArray(list) || !id) return null;
+  return list.find((h) => h && h.id === id) || null;
+}
+
+/** Habits serving one commitment, active first, oldest first. */
+export function habitsForCommitment(state, commitmentId) {
+  const list = state?.habits;
+  if (!Array.isArray(list) || !commitmentId) return [];
+  return list
+    .filter((h) => h && h.commitmentId === commitmentId)
+    .slice()
+    .sort(
+      (a, b) =>
+        Number(b.active !== false) - Number(a.active !== false) ||
+        (a.created || 0) - (b.created || 0)
+    );
+}
+
 /** Goals serving one commitment, open first then done, oldest first. */
 export function goalsForCommitment(state, commitmentId) {
   const list = state?.goals;
@@ -1108,9 +1161,9 @@ export function goalsForCommitment(state, commitmentId) {
 const SCHEDULE_KINDS = ["once", "weekly"];
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-/** Quadrant for a goal's sessions on the matrix. Defaults to Q2 —
-   goal work is important by definition; urgency is the exception. */
-export function normalizeGoalQuadrant(v) {
+/** Quadrant for scheduled sessions on the matrix. Defaults to Q2 —
+   committed work is important by definition; urgency is the exception. */
+export function normalizeQuadrant(v) {
   return QUADRANTS.some((q) => q.key === v) ? v : "q2";
 }
 
@@ -1168,13 +1221,13 @@ function parseDateKey(key) {
 }
 
 /**
- * Work sessions a goal's schedule generates between two date keys
- * (inclusive). Returns [{ date, minutes }]. Done goals generate none —
- * a completed goal stops populating Focus.
+ * Work sessions a habit's schedule generates between two date keys
+ * (inclusive). Returns [{ date, minutes }]. Inactive habits generate
+ * none — a paused habit stops populating Focus.
  */
-export function goalOccurrences(goal, fromKey, toKey) {
-  const s = goal?.schedule;
-  if (!s || goal.done) return [];
+export function habitOccurrences(habit, fromKey, toKey) {
+  const s = habit?.schedule;
+  if (!s || habit.active === false) return [];
   const out = [];
   const minutes = s.minutes || 30;
   if (s.kind === "once") {
@@ -1304,6 +1357,7 @@ export function isEmptyState(s) {
     nonEmpty(id.values) ||
     nonEmpty(s.focusItems) ||
     nonEmpty(s.goals) ||
+    nonEmpty(s.habits) ||
     nonEmpty(s.stars) ||
     nonEmpty(s.lifemods) ||
     nonEmpty(s.actions) ||
@@ -1509,9 +1563,38 @@ export function normalizeState(parsed) {
     } = normalizeCommitments(oldIdentity.commitments);
     identity.commitments = commitments;
 
+    /* Goals → Habits split: a goal that carries a work schedule was
+       really a practice, so it migrates to a habit (new id; linked focus
+       items keep their denormalized commitment and drop the goal thread).
+       Runs once — after migration, goals no longer carry schedules. */
+    const rawGoals = Array.isArray(parsed.goals) ? parsed.goals : [];
+    const migratedHabits = [];
+    const remainingGoals = [];
+    for (const g of rawGoals) {
+      if (g && typeof g === "object" && normalizeSchedule(g.schedule)) {
+        migratedHabits.push({
+          id: uid(),
+          text: g.text,
+          commitmentId: g.commitmentId,
+          schedule: g.schedule,
+          sessions: g.sessions,
+          quadrant: g.quadrant,
+          active: true,
+          created: g.created,
+          sourceLifeModId: g.sourceLifeModId,
+          sourceStarId: g.sourceStarId,
+        });
+      } else {
+        remainingGoals.push(g);
+      }
+    }
     /* Goals: old states predate them entirely → empty list. Orphans
        (no matching commitment) are dropped by normalizeGoals. */
-    const goals = normalizeGoals(parsed.goals, commitmentValidIds);
+    const goals = normalizeGoals(remainingGoals, commitmentValidIds);
+    const habits = [
+      ...normalizeHabits(parsed.habits, commitmentValidIds),
+      ...normalizeHabits(migratedHabits, commitmentValidIds),
+    ];
 
     /* Normalize saved days: older entries predate the battery check. */
     const blank = blankDay();
@@ -1555,6 +1638,7 @@ export function normalizeState(parsed) {
       // LifeMods: old states predate them entirely → empty list.
       lifemods: normalizeLifeMods(parsed.lifemods),
       goals,
+      habits,
       focusItems: focusItems.map((f) => {
         const n = normalizeFocusItem(f, validQuadrants);
         // Old links hold commitment text; remap to the migrated id.
@@ -1817,9 +1901,6 @@ export function AxzioProvider({ children }) {
               : null,
           done: false,
           created: Date.now(),
-          schedule: normalizeSchedule(opts.schedule),
-          sessions: {},
-          quadrant: normalizeGoalQuadrant(opts.quadrant),
           sourceLifeModId:
             typeof opts.sourceLifeModId === "string"
               ? opts.sourceLifeModId
@@ -1857,12 +1938,6 @@ export function AxzioProvider({ children }) {
               ? patch.horizon
               : null;
         }
-        if ("schedule" in patch) {
-          g.schedule = normalizeSchedule(patch.schedule);
-        }
-        if ("quadrant" in patch) {
-          g.quadrant = normalizeGoalQuadrant(patch.quadrant);
-        }
         if ("commitmentId" in patch && typeof patch.commitmentId === "string") {
           // The no-orphan rule: a goal always serves a real commitment.
           const valid = new Set(
@@ -1879,17 +1954,6 @@ export function AxzioProvider({ children }) {
         }
       });
     },
-    /** Flip one scheduled work session (by date key) on a goal. */
-    toggleGoalSession(goalId, dateKey) {
-      update((d) => {
-        const g = (d.goals || []).find((x) => x.id === goalId);
-        if (!g) return;
-        if (!g.sessions || typeof g.sessions !== "object") g.sessions = {};
-        if (g.sessions[dateKey]) delete g.sessions[dateKey];
-        else g.sessions[dateKey] = true;
-      });
-      logEvent("goal.session", { id: goalId, date: dateKey });
-    },
     deleteGoal(id) {
       update((d) => {
         d.goals = (d.goals || []).filter((g) => g && g.id !== id);
@@ -1900,6 +1964,97 @@ export function AxzioProvider({ children }) {
         }
       });
       logEvent("goal.deleted", { id });
+    },
+
+    /* habits */
+    /** A habit needs a commitment (no orphans) AND a schedule (a rhythm
+       is what makes it a habit, not an outcome). */
+    addHabit(text, commitmentId, opts = {}) {
+      const t = String(text ?? "").trim();
+      const schedule = normalizeSchedule(opts.schedule);
+      if (!t || !schedule) return null;
+      let entry = null;
+      update((d) => {
+        const ok = (d.identity.commitments || []).some(
+          (c) => c && c.id === commitmentId
+        );
+        if (!ok) return;
+        entry = {
+          id: uid(),
+          text: t.slice(0, 80),
+          commitmentId,
+          schedule,
+          sessions: {},
+          quadrant: normalizeQuadrant(opts.quadrant),
+          active: true,
+          created: Date.now(),
+          sourceLifeModId:
+            typeof opts.sourceLifeModId === "string"
+              ? opts.sourceLifeModId
+              : null,
+          sourceStarId:
+            typeof opts.sourceStarId === "string" ? opts.sourceStarId : null,
+        };
+        if (!Array.isArray(d.habits)) d.habits = [];
+        d.habits.push(entry);
+      });
+      if (entry) logEvent("habit.created", { id: entry.id, commitmentId });
+      return entry;
+    },
+    updateHabit(id, patch = {}) {
+      update((d) => {
+        const h = (d.habits || []).find((x) => x.id === id);
+        if (!h) return;
+        if (typeof patch.text === "string" && patch.text.trim()) {
+          h.text = patch.text.trim().slice(0, 80);
+        }
+        if ("schedule" in patch) {
+          const sched = normalizeSchedule(patch.schedule);
+          if (sched) h.schedule = sched;
+        }
+        if ("quadrant" in patch) {
+          h.quadrant = normalizeQuadrant(patch.quadrant);
+        }
+        if ("commitmentId" in patch && typeof patch.commitmentId === "string") {
+          // The no-orphan rule: a habit always serves a real commitment.
+          const valid = new Set(
+            (d.identity?.commitments || []).map((c) => c && c.id)
+          );
+          if (valid.has(patch.commitmentId) && patch.commitmentId !== h.commitmentId) {
+            h.commitmentId = patch.commitmentId;
+            logEvent("habit.rehomed", { id, commitmentId: patch.commitmentId });
+          }
+        }
+      });
+    },
+    /** Pause or resume a habit without deleting its history. */
+    setHabitActive(id, active) {
+      let now = null;
+      update((d) => {
+        const h = (d.habits || []).find((x) => x.id === id);
+        if (!h) return;
+        h.active = active !== false;
+        now = h.active;
+      });
+      if (now === true) logEvent("habit.resumed", { id });
+      else if (now === false) logEvent("habit.paused", { id });
+    },
+    /** Flip one practice session (by date key) on a habit. */
+    toggleHabitSession(habitId, dateKey) {
+      update((d) => {
+        const h = (d.habits || []).find((x) => x.id === habitId);
+        if (!h) return;
+        if (!h.sessions || typeof h.sessions !== "object") h.sessions = {};
+        if (h.sessions[dateKey]) delete h.sessions[dateKey];
+        else h.sessions[dateKey] = true;
+      });
+      logEvent("habit.session", { id: habitId, date: dateKey });
+    },
+    deleteHabit(id) {
+      update((d) => {
+        d.habits = (d.habits || []).filter((h) => h && h.id !== id);
+      });
+      logEvent("habit.deleted", { id });
     },
 
     /* daily */
