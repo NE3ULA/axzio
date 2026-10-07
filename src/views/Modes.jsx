@@ -119,7 +119,7 @@ export default function Modes() {
           Where you're directing attention — even if that's not where you are
           right now.
         </p>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {MODE_INTERVALS.map((iv) => {
             const sel =
               (state.modes && state.modes[iv.key]) || {
@@ -171,7 +171,7 @@ export default function Modes() {
             />
           </HelpBubble>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {MODES.map((m, i) => {
             const isDayPrimary = dayModes.primary === m.key;
             return (

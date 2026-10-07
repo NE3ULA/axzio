@@ -802,7 +802,7 @@ function LifeModEditor({ lifemod }) {
       </div>
 
       {/* the book's five elements */}
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div>
           <MicroLabel className="mb-2">Friction</MicroLabel>
           <TextArea
@@ -904,7 +904,7 @@ function LifeModEditor({ lifemod }) {
             />
           </HelpBubble>
         </div>
-        <div className="grid gap-2 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           {LEGEND_FUNCTIONS.map((f) => {
             const sel = m.legendFunction === f.key;
             return (

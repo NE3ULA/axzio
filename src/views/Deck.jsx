@@ -122,7 +122,7 @@ export default function Deck() {
         <MicroLabel>Overview</MicroLabel>
         <div className="h-px flex-1 bg-white/10" />
       </div>
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <WhoAmICard />
         <WhatsImportantCard />
         <ModeCard />
@@ -1475,7 +1475,7 @@ function BatteryCheck({ day, today }) {
 
   return (
     <div>
-      <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
         {entries.map((b) => (
           <div key={b.key}>
             <div className="mb-1.5 flex items-baseline justify-between">

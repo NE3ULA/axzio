@@ -124,7 +124,7 @@ export default function Journeys() {
           <div className="mb-6 mt-10">
             <MicroLabel>Guided passages</MicroLabel>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {JOURNEYS.map((j, i) => (
               <button
                 key={j.id}

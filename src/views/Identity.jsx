@@ -133,7 +133,7 @@ export default function Identity() {
             <span className="text-white/80">you</span>: the four dimensions
             every experience moves through.
           </p>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {PILLARS.map((p) => (
               <div
                 key={p.key}
@@ -433,7 +433,7 @@ function PrimitivesAssessment() {
 
   return (
     <div>
-      <div className="grid gap-8 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
         <div className="space-y-7">
           {PRIMITIVES.map((p) => (
             <div key={p.key}>

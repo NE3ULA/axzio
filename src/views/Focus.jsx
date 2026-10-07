@@ -290,7 +290,7 @@ export default function Focus() {
           </div>
           <div className="space-y-3">
             <PrioritySlotHero slot={priorities[0]} />
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {priorities.slice(1).map((p) => (
                 <PrioritySlot key={p.rank} slot={p} />
               ))}
@@ -369,7 +369,7 @@ export default function Focus() {
             );
           })}
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {QUADRANTS.map((q, i) => (
             <QuadrantCard
               key={q.key}
@@ -1152,7 +1152,7 @@ function FocusItemEditor({
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <MicroLabel className="mb-2">Quadrant</MicroLabel>
           <select
@@ -1256,7 +1256,7 @@ function FocusItemEditor({
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <div className="mb-2 flex items-center gap-2">
             <MicroLabel>Serves</MicroLabel>
