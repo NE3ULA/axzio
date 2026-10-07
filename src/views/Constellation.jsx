@@ -407,9 +407,20 @@ function StarDetail({ star, axzio, onClose }) {
     ALL_STAGES.find((s) => s.key === star.loopStage) || LOOP_STAGES[0];
   const rootedText = commitmentText(axzio.state, star.commitmentId);
   const grownLifeMod = lifeModById(axzio.state, star.lifemodId);
+  const grownGoalsCount = (axzio.state.goals || []).filter(
+    (g) => g && g.sourceStarId === star.id
+  ).length;
+  const grownHabitsCount = (axzio.state.habits || []).filter(
+    (h) => h && h.sourceStarId === star.id
+  ).length;
 
   const exploreInReset = () => {
     if (axzio.requestResetFromStar(star.id)) {
+      window.location.hash = "#/journeys";
+    }
+  };
+  const growSeed = () => {
+    if (axzio.requestGrowthFrom("star", star.id)) {
       window.location.hash = "#/journeys";
     }
   };
@@ -565,7 +576,10 @@ function StarDetail({ star, axzio, onClose }) {
 
       <div className="mt-5">
         <div className="mb-3 flex items-center gap-2">
-          <MicroLabel>Become a goal</MicroLabel>
+          <MicroLabel>
+            Become a goal
+            {grownGoalsCount > 0 ? ` · ${grownGoalsCount} grown` : ""}
+          </MicroLabel>
           <HelpBubble title="Seed becomes a goal">
             <HelpText
               what="Turns a matured seed into a goal — a defined outcome with a horizon, serving one of your commitments."
@@ -588,7 +602,10 @@ function StarDetail({ star, axzio, onClose }) {
 
       <div className="mt-5">
         <div className="mb-3 flex items-center gap-2">
-          <MicroLabel>Become a habit</MicroLabel>
+          <MicroLabel>
+            Become a habit
+            {grownHabitsCount > 0 ? ` · ${grownHabitsCount} grown` : ""}
+          </MicroLabel>
           <HelpBubble title="Seed becomes a habit">
             <HelpText
               what="Turns a matured seed into a habit — a repeating practice with a rhythm, serving one of your commitments."
@@ -609,15 +626,25 @@ function StarDetail({ star, axzio, onClose }) {
       </div>
 
       <div className="mt-5">
-        <button
-          type="button"
-          onClick={exploreInReset}
-          className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
-        >
-          Explore in Guided Reset →
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={exploreInReset}
+            className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
+          >
+            Reset — clear fog →
+          </button>
+          <button
+            type="button"
+            onClick={growSeed}
+            className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
+          >
+            Grow — design pursuit →
+          </button>
+        </div>
         <p className="mt-2 text-[12px] leading-relaxed text-white/35">
-          The reset is the mechanism that moves a seed through the loop.
+          The reset clears fog on a seed; growing designs the pursuit it
+          becomes.
         </p>
       </div>
 
@@ -810,9 +837,26 @@ function LifeModEditor({ lifemod }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const m = lifemod;
   const set = (patch) => axzio.updateLifeMod(m.id, patch);
+  const growLifeMod = () => {
+    if (axzio.requestGrowthFrom("lifemod", m.id)) {
+      window.location.hash = "#/journeys";
+    }
+  };
 
   return (
     <div className="border-t border-white/10 px-4 py-5 md:px-6">
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={growLifeMod}
+          className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
+        >
+          Grow — design pursuit →
+        </button>
+        <p className="text-[12px] leading-relaxed text-white/35">
+          Design the pursuit this condition change serves.
+        </p>
+      </div>
       {/* name */}
       <div className="mb-5">
         <MicroLabel className="mb-2">Name</MicroLabel>

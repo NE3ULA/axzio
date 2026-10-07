@@ -202,6 +202,27 @@ export function HabitsList({ commitmentId }) {
     setEditNewCommitment("");
     setEditQuadrant("q2");
   };
+  const ordered = [];
+  {
+    const ids = new Set(habits.map((h) => h.id));
+    const kids = new Map();
+    for (const h of habits) {
+      if (h.parentId && ids.has(h.parentId)) {
+        if (!kids.has(h.parentId)) kids.set(h.parentId, []);
+        kids.get(h.parentId).push(h);
+      }
+    }
+    const walk = (h, depth) => {
+      ordered.push({ h, depth });
+      for (const k of kids.get(h.id) || []) walk(k, depth + 1);
+    };
+    for (const h of habits) {
+      if (!(h.parentId && ids.has(h.parentId))) walk(h, 0);
+    }
+  }
+  const growHabit = (id) => {
+    if (axzio.requestGrowthFrom("habit", id)) window.location.hash = "#/journeys";
+  };
   const editCreatingCommitment = editCommitmentId === "__new__";
   const canSaveEdit =
     editText.trim() &&
@@ -227,7 +248,7 @@ export function HabitsList({ commitmentId }) {
   if (habits.length === 0) return null;
   return (
     <ul className="mt-2 space-y-1.5">
-      {habits.map((h) =>
+      {ordered.map(({ h, depth }) =>
         editingId === h.id ? (
           <li
             key={h.id}
@@ -312,8 +333,13 @@ export function HabitsList({ commitmentId }) {
             key={h.id}
             className={`flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2 ${
               h.active === false ? "opacity-45" : ""
-            }`}
+            }${depth > 0 ? " ml-6 border-white/[0.07]" : ""}`}
           >
+            {depth > 0 && (
+              <span className="shrink-0 text-white/25" aria-hidden="true">
+                ↳
+              </span>
+            )}
             <button
               type="button"
               onClick={() => startEdit(h)}
@@ -338,6 +364,14 @@ export function HabitsList({ commitmentId }) {
               aria-label={h.active === false ? "Resume habit" : "Pause habit"}
             >
               {h.active === false ? "Resume" : "Pause"}
+            </button>
+            <button
+              type="button"
+              onClick={() => growHabit(h.id)}
+              title="Grow this habit in the Growth Practice"
+              className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-white/30 transition-colors hover:text-white/70"
+            >
+              Grow
             </button>
             {confirmId === h.id ? (
               <span className="flex shrink-0 items-center gap-2">

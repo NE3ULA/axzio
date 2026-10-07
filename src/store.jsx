@@ -677,6 +677,17 @@ function defaultState() {
     // [{ id, sourceKind: 'focus'|'goal'|'habit'|'star'|'general',
     //    sourceId, sourceName, step, subject, scratch, savedAt }]
     resetDrafts: [],
+    // In-progress Growth Practice drafts (synced): one per source, same
+    // machinery as resetDrafts.
+    // [{ id, sourceKind: 'goal'|'habit'|'lifemod'|'star'|'focus'|'general',
+    //    sourceId, sourceName, step, scratch, savedAt }]
+    growthDrafts: [],
+    // Completed Growth Practice sessions (private, local only):
+    // { id, ts, date, subjectKind, subjectId, subjectName, commitmentId,
+    //   outcome, evolutionNote, energy, capacity, capacityNotes,
+    //   children: [{kind,id,text}], lifemods: [{id,name,type}], focusItemIds,
+    //   vow, reviewDate, reviewedAt }
+    growthSessions: [],
   };
 }
 
@@ -1094,6 +1105,9 @@ function normalizeGoals(raw, validCommitmentIds) {
         typeof g.sourceStarId === "string" && g.sourceStarId
           ? g.sourceStarId
           : null,
+      // Roadmap: a goal may be a child of a larger goal/habit.
+      parentId:
+        typeof g.parentId === "string" && g.parentId ? g.parentId : null,
     }))
     .filter((g) => g.id && g.text.trim() && g.commitmentId);
 }
@@ -1135,6 +1149,14 @@ function normalizeHabits(raw, validCommitmentIds) {
         typeof h.sourceStarId === "string" && h.sourceStarId
           ? h.sourceStarId
           : null,
+      // Roadmap: a habit may be a child of a larger goal/habit.
+      parentId:
+        typeof h.parentId === "string" && h.parentId ? h.parentId : null,
+      // How the habit evolves over time (captured by the Growth Practice).
+      evolutionNote:
+        typeof h.evolutionNote === "string"
+          ? h.evolutionNote.slice(0, 500)
+          : "",
     }))
     .filter((h) => h.id && h.text.trim() && h.commitmentId && h.schedule);
 }
@@ -1633,6 +1655,175 @@ export function resetDraftIdFor(sourceKind, sourceId) {
   return `${sourceKind}:${sourceId || "general"}`;
 }
 
+/* Growth Practice drafts — same shape and machinery as reset drafts. */
+function normalizeGrowthDraft(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const step = Number(raw.step);
+  const d = {
+    id: String(raw.id ?? ""),
+    sourceKind:
+      typeof raw.sourceKind === "string" && raw.sourceKind
+        ? raw.sourceKind
+        : "general",
+    sourceId:
+      typeof raw.sourceId === "string" && raw.sourceId ? raw.sourceId : null,
+    sourceName:
+      typeof raw.sourceName === "string" ? raw.sourceName.slice(0, 120) : "",
+    step: Number.isFinite(step) && step >= 0 ? Math.floor(step) : 0,
+    scratch:
+      raw.scratch && typeof raw.scratch === "object" && !Array.isArray(raw.scratch)
+        ? raw.scratch
+        : {},
+    savedAt: Number(raw.savedAt) || 0,
+  };
+  if (!d.id) return null;
+  return d;
+}
+
+function normalizeGrowthDrafts(rawList) {
+  const list = Array.isArray(rawList) ? rawList : [];
+  const out = [];
+  const seen = new Set();
+  for (const raw of list) {
+    const d = normalizeGrowthDraft(raw);
+    if (d && !seen.has(d.id)) {
+      seen.add(d.id);
+      out.push(d);
+    }
+  }
+  return out;
+}
+
+/** Deterministic draft id: one in-progress growth practice per source. */
+export function growthDraftIdFor(sourceKind, sourceId) {
+  return `${sourceKind}:${sourceId || "general"}`;
+}
+
+/* Resolve a growth source to its display name + commitment prefill.
+   goal/habit sources carry their commitment; lifemod/star/focus carry
+   what they have; the practice asks for the rest. */
+export function growthSourceInfo(state, kind, id) {
+  if (kind === "goal") {
+    const g = (state.goals || []).find((x) => x.id === id);
+    if (!g) return null;
+    return {
+      name: g.text,
+      commitmentId: g.commitmentId,
+      subjectKind: "goal",
+      subjectId: g.id,
+    };
+  }
+  if (kind === "habit") {
+    const h = (state.habits || []).find((x) => x.id === id);
+    if (!h) return null;
+    return {
+      name: h.text,
+      commitmentId: h.commitmentId,
+      subjectKind: "habit",
+      subjectId: h.id,
+    };
+  }
+  if (kind === "lifemod") {
+    const m = lifeModById(state, id);
+    if (!m) return null;
+    return { name: m.name, commitmentId: null, subjectKind: null, subjectId: null };
+  }
+  if (kind === "star") {
+    const star = (state.stars || []).find((x) => x.id === id);
+    if (!star) return null;
+    return { name: star.name, commitmentId: star.commitmentId || null, subjectKind: null, subjectId: null };
+  }
+  if (kind === "focus") {
+    const item = (state.focusItems || []).find((x) => x.id === id);
+    if (!item) return null;
+    return {
+      name: item.text,
+      commitmentId: item.commitmentId || null,
+      subjectKind: null,
+      subjectId: null,
+    };
+  }
+  return null;
+}
+
+/** Resolve a roadmap parent id to its pursuit (goal, habit, or focus item). */
+export function parentPursuit(state, parentId) {
+  if (!parentId) return null;
+  const g = (state.goals || []).find((x) => x && x.id === parentId);
+  if (g) return { kind: "goal", item: g };
+  const h = (state.habits || []).find((x) => x && x.id === parentId);
+  if (h) return { kind: "habit", item: h };
+  const f = (state.focusItems || []).find((x) => x && x.id === parentId);
+  if (f) return { kind: "focus", item: f };
+  return null;
+}
+
+/* Completed Growth Practice sessions: the Growth Card record + review loop. */
+function normalizeGrowthSessions(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((r) => r && typeof r === "object")
+    .map((r) => ({
+      id: String(r.id ?? ""),
+      ts: Number(r.ts) || 0,
+      date: typeof r.date === "string" ? r.date : "",
+      subjectKind:
+        r.subjectKind === "goal" || r.subjectKind === "habit"
+          ? r.subjectKind
+          : null,
+      subjectId:
+        typeof r.subjectId === "string" && r.subjectId ? r.subjectId : null,
+      subjectName:
+        typeof r.subjectName === "string" ? r.subjectName.slice(0, 120) : "",
+      commitmentId:
+        typeof r.commitmentId === "string" && r.commitmentId
+          ? r.commitmentId
+          : null,
+      outcome: typeof r.outcome === "string" ? r.outcome.slice(0, 500) : "",
+      evolutionNote:
+        typeof r.evolutionNote === "string" ? r.evolutionNote.slice(0, 500) : "",
+      energy: ["low", "okay", "high"].includes(r.energy) ? r.energy : null,
+      capacity:
+        r.capacity && typeof r.capacity === "object"
+          ? {
+              time: r.capacity.time === true,
+              energy: r.capacity.energy === true,
+              skill: r.capacity.skill === true,
+              support: r.capacity.support === true,
+            }
+          : null,
+      capacityNotes:
+        typeof r.capacityNotes === "string"
+          ? r.capacityNotes.slice(0, 500)
+          : "",
+      children: Array.isArray(r.children)
+        ? r.children
+            .filter((c) => c && typeof c === "object" && c.id && c.text)
+            .map((c) => ({
+              kind: ["goal", "habit", "task"].includes(c.kind) ? c.kind : "task",
+              id: String(c.id),
+              text: String(c.text).slice(0, 80),
+            }))
+        : [],
+      lifemods: Array.isArray(r.lifemods)
+        ? r.lifemods
+            .filter((m) => m && typeof m === "object" && m.id)
+            .map((m) => ({
+              id: String(m.id),
+              name: String(m.name || "").slice(0, 120),
+              type: typeof m.type === "string" ? m.type : null,
+            }))
+        : [],
+      focusItemIds: Array.isArray(r.focusItemIds)
+        ? r.focusItemIds.filter((x) => typeof x === "string")
+        : [],
+      vow: typeof r.vow === "string" ? r.vow.slice(0, 300) : "",
+      reviewDate: typeof r.reviewDate === "string" ? r.reviewDate : null,
+      reviewedAt: Number(r.reviewedAt) || null,
+    }))
+    .filter((r) => r.id);
+}
+
 export function normalizeState(parsed) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     return defaultState();
@@ -1773,6 +1964,8 @@ export function normalizeState(parsed) {
       modes: normalizeModes(parsed.modes),
       resets: normalizeResets(parsed.resets),
       resetDrafts: normalizeResetDrafts(parsed.resetDrafts, parsed.resetDraft),
+      growthDrafts: normalizeGrowthDrafts(parsed.growthDrafts),
+      growthSessions: normalizeGrowthSessions(parsed.growthSessions),
       // Settings: merge so future keys default cleanly on old states.
       settings: {
         aiEnabled: !!(parsed.settings && parsed.settings.aiEnabled),
@@ -1830,6 +2023,10 @@ export function AxzioProvider({ children }) {
      the Journeys view, which resolves the live item for the Situation
      autofill (re-derived every time, never a stale one-shot prefill). */
   const [pendingResetSource, setPendingResetSource] = useState(null);
+  /* Transient (never persisted): the source a Growth Practice was launched
+     from — { kind: 'goal'|'habit'|'lifemod'|'star'|'focus', id }. Consumed
+     once by the Journeys view, which resolves the live item for prefill. */
+  const [pendingGrowthSource, setPendingGrowthSource] = useState(null);
 
   useEffect(() => {
     try {
@@ -2026,6 +2223,10 @@ export function AxzioProvider({ children }) {
               : null,
           sourceStarId:
             typeof opts.sourceStarId === "string" ? opts.sourceStarId : null,
+          parentId:
+            typeof opts.parentId === "string" && opts.parentId
+              ? opts.parentId
+              : null,
         };
         if (!Array.isArray(d.goals)) d.goals = [];
         d.goals.push(entry);
@@ -2057,6 +2258,12 @@ export function AxzioProvider({ children }) {
               ? patch.horizon
               : null;
         }
+        if ("parentId" in patch) {
+          g.parentId =
+            typeof patch.parentId === "string" && patch.parentId
+              ? patch.parentId
+              : null;
+        }
         if ("commitmentId" in patch && typeof patch.commitmentId === "string") {
           // The no-orphan rule: a goal always serves a real commitment.
           const valid = new Set(
@@ -2081,6 +2288,11 @@ export function AxzioProvider({ children }) {
         for (const f of d.focusItems) {
           if (f.goalId === id) f.goalId = null;
         }
+        // Children of the deleted goal become top-level pursuits.
+        for (const g of d.goals || []) if (g.parentId === id) g.parentId = null;
+        for (const h of d.habits || []) if (h.parentId === id) h.parentId = null;
+        for (const f of d.focusItems || [])
+          if (f.parentId === id) f.parentId = null;
       });
       logEvent("goal.deleted", { id });
     },
@@ -2113,6 +2325,14 @@ export function AxzioProvider({ children }) {
               : null,
           sourceStarId:
             typeof opts.sourceStarId === "string" ? opts.sourceStarId : null,
+          parentId:
+            typeof opts.parentId === "string" && opts.parentId
+              ? opts.parentId
+              : null,
+          evolutionNote:
+            typeof opts.evolutionNote === "string"
+              ? opts.evolutionNote.slice(0, 500)
+              : "",
         };
         if (!Array.isArray(d.habits)) d.habits = [];
         d.habits.push(entry);
@@ -2133,6 +2353,18 @@ export function AxzioProvider({ children }) {
         }
         if ("quadrant" in patch) {
           h.quadrant = normalizeQuadrant(patch.quadrant);
+        }
+        if ("parentId" in patch) {
+          h.parentId =
+            typeof patch.parentId === "string" && patch.parentId
+              ? patch.parentId
+              : null;
+        }
+        if ("evolutionNote" in patch) {
+          h.evolutionNote =
+            typeof patch.evolutionNote === "string"
+              ? patch.evolutionNote.slice(0, 500)
+              : "";
         }
         if ("commitmentId" in patch && typeof patch.commitmentId === "string") {
           // The no-orphan rule: a habit always serves a real commitment.
@@ -2172,6 +2404,11 @@ export function AxzioProvider({ children }) {
     deleteHabit(id) {
       update((d) => {
         d.habits = (d.habits || []).filter((h) => h && h.id !== id);
+        // Children of the deleted habit become top-level pursuits.
+        for (const g of d.goals || []) if (g.parentId === id) g.parentId = null;
+        for (const h of d.habits || []) if (h.parentId === id) h.parentId = null;
+        for (const f of d.focusItems || [])
+          if (f.parentId === id) f.parentId = null;
       });
       logEvent("habit.deleted", { id });
     },
@@ -2976,6 +3213,28 @@ export function AxzioProvider({ children }) {
     clearPendingResetSource() {
       setPendingResetSource(null);
     },
+    /* growth practice launch thread (transient, never persisted) */
+    pendingGrowthSource,
+    /**
+     * Begin a Growth Practice from a goal, habit, LifeMod, seed, or Focus
+     * item. Only the source identity is kept — the Journeys view resolves
+     * the live item for prefill. Returns false when the source is gone.
+     */
+    requestGrowthFrom(kind, id) {
+      const ok =
+        (kind === "goal" && state.goals.some((x) => x.id === id)) ||
+        (kind === "habit" && state.habits.some((x) => x.id === id)) ||
+        (kind === "lifemod" &&
+          (state.lifemods || []).some((x) => x.id === id)) ||
+        (kind === "star" && state.stars.some((x) => x.id === id)) ||
+        (kind === "focus" && state.focusItems.some((x) => x.id === id));
+      if (!ok) return false;
+      setPendingGrowthSource({ kind, id });
+      return true;
+    },
+    clearPendingGrowthSource() {
+      setPendingGrowthSource(null);
+    },
     /* In-progress Guided Reset drafts (synced — this is what makes resume
        work across devices). Saved on every step/scratch change while a
        reset is open; cleared on completion, explicit restart, or discard.
@@ -2999,6 +3258,106 @@ export function AxzioProvider({ children }) {
         const next = list.filter((x) => x && x.id !== id);
         if (next.length !== list.length) s.resetDrafts = next;
       });
+    },
+
+    /* growth practice drafts (synced, same machinery as reset drafts) */
+    saveGrowthDraft(draft) {
+      const d = normalizeGrowthDraft(draft);
+      if (!d) return;
+      update((s) => {
+        const list = Array.isArray(s.growthDrafts) ? s.growthDrafts : [];
+        const i = list.findIndex((x) => x && x.id === d.id);
+        if (i >= 0) list[i] = d;
+        else list.push(d);
+        s.growthDrafts = list;
+      });
+    },
+    clearGrowthDraft(id) {
+      if (!id) return;
+      update((s) => {
+        const list = Array.isArray(s.growthDrafts) ? s.growthDrafts : [];
+        const next = list.filter((x) => x && x.id !== id);
+        if (next.length !== list.length) s.growthDrafts = next;
+      });
+    },
+
+    /* growth practice completions (Growth Cards + review loop) */
+    /** Persist a completed Growth Practice session; returns the entry. */
+    saveGrowthSession(fields = {}) {
+      const entry = {
+        id: uid(),
+        ts: Date.now(),
+        date: localDateKey(),
+        subjectKind:
+          fields.subjectKind === "goal" || fields.subjectKind === "habit"
+            ? fields.subjectKind
+            : null,
+        subjectId:
+          typeof fields.subjectId === "string" && fields.subjectId
+            ? fields.subjectId
+            : null,
+        subjectName:
+          typeof fields.subjectName === "string"
+            ? fields.subjectName.slice(0, 120)
+            : "",
+        commitmentId:
+          typeof fields.commitmentId === "string" && fields.commitmentId
+            ? fields.commitmentId
+            : null,
+        outcome:
+          typeof fields.outcome === "string"
+            ? fields.outcome.slice(0, 500)
+            : "",
+        evolutionNote:
+          typeof fields.evolutionNote === "string"
+            ? fields.evolutionNote.slice(0, 500)
+            : "",
+        energy: ["low", "okay", "high"].includes(fields.energy)
+          ? fields.energy
+          : null,
+        capacity:
+          fields.capacity && typeof fields.capacity === "object"
+            ? {
+                time: fields.capacity.time === true,
+                energy: fields.capacity.energy === true,
+                skill: fields.capacity.skill === true,
+                support: fields.capacity.support === true,
+              }
+            : null,
+        capacityNotes:
+          typeof fields.capacityNotes === "string"
+            ? fields.capacityNotes.slice(0, 500)
+            : "",
+        children: Array.isArray(fields.children) ? fields.children : [],
+        lifemods: Array.isArray(fields.lifemods) ? fields.lifemods : [],
+        focusItemIds: Array.isArray(fields.focusItemIds)
+          ? fields.focusItemIds
+          : [],
+        vow:
+          typeof fields.vow === "string" ? fields.vow.slice(0, 300) : "",
+        reviewDate:
+          typeof fields.reviewDate === "string" && fields.reviewDate
+            ? fields.reviewDate
+            : null,
+        reviewedAt: null,
+      };
+      update((d) => {
+        if (!Array.isArray(d.growthSessions)) d.growthSessions = [];
+        d.growthSessions.push(entry);
+      });
+      logEvent("growth.completed", {
+        id: entry.id,
+        subjectKind: entry.subjectKind,
+      });
+      return entry;
+    },
+    /** Mark a growth session's review as done — clears it from "Reviews due". */
+    markGrowthReviewed(id) {
+      update((d) => {
+        const r = (d.growthSessions || []).find((x) => x.id === id);
+        if (r) r.reviewedAt = Date.now();
+      });
+      logEvent("growth.reviewed", { id });
     },
 
     /* nuclear option */

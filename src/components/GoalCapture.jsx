@@ -187,6 +187,29 @@ export default function GoalCapture({
   const [editHorizon, setEditHorizon] = useState("");
   const [editCommitmentId, setEditCommitmentId] = useState(null);
   const [editNewCommitment, setEditNewCommitment] = useState("");
+  // Roadmap order: parents first, children nested beneath (one level shown
+  // indented; deeper chains flatten under their top parent).
+  const ordered = [];
+  {
+    const ids = new Set(goals.map((g) => g.id));
+    const kids = new Map();
+    for (const g of goals) {
+      if (g.parentId && ids.has(g.parentId)) {
+        if (!kids.has(g.parentId)) kids.set(g.parentId, []);
+        kids.get(g.parentId).push(g);
+      }
+    }
+    const walk = (g, depth) => {
+      ordered.push({ g, depth });
+      for (const k of kids.get(g.id) || []) walk(k, depth + 1);
+    };
+    for (const g of goals) {
+      if (!(g.parentId && ids.has(g.parentId))) walk(g, 0);
+    }
+  }
+  const growGoal = (id) => {
+    if (axzio.requestGrowthFrom("goal", id)) window.location.hash = "#/journeys";
+  };
 
   const editCommitments = sortedCommitments(state);
 
@@ -230,7 +253,7 @@ export default function GoalCapture({
   if (goals.length === 0) return null;
   return (
     <ul className="mt-2 space-y-1.5">
-      {goals.map((g) =>
+      {ordered.map(({ g, depth }) =>
         editingId === g.id ? (
           <li
             key={g.id}
@@ -299,8 +322,15 @@ export default function GoalCapture({
         ) : (
         <li
           key={g.id}
-          className="flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2"
+          className={`flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2 ${
+            depth > 0 ? "ml-6 border-white/[0.07]" : ""
+          }`}
         >
+          {depth > 0 && (
+            <span className="shrink-0 text-white/25" aria-hidden="true">
+              ↳
+            </span>
+          )}
           <button
             type="button"
             onClick={() => axzio.toggleGoalDone(g.id)}
@@ -341,6 +371,14 @@ export default function GoalCapture({
               {formatLongDate(g.horizon)}
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => growGoal(g.id)}
+            title="Grow this goal in the Growth Practice"
+            className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-white/30 transition-colors hover:text-white/70"
+          >
+            Grow
+          </button>
           {confirmId === g.id ? (
             <span className="flex shrink-0 items-center gap-2">
               <button

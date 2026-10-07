@@ -962,6 +962,14 @@ function FocusRow({ item, depth }) {
       window.location.hash = "#/journeys";
     }
   };
+  /** Save any pending edits, then grow this action into a pursuit. */
+  const growFromItem = () => {
+    if (draft) axzio.updateFocusItem(item.id, collectPatch());
+    if (axzio.requestGrowthFrom("focus", item.id)) {
+      closeEditor();
+      window.location.hash = "#/journeys";
+    }
+  };
 
   // Quick priority bubbles on the collapsed row: tapping a rank assigns it
   // (store exclusivity switches it off whoever held it); tapping the
@@ -1601,7 +1609,14 @@ function FocusItemEditor({
           onClick={onExplore}
           className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
         >
-          Explore in Guided Reset →
+          Reset — clear fog →
+        </button>
+        <button
+          type="button"
+          onClick={growFromItem}
+          className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
+        >
+          Grow — design pursuit →
         </button>
       </div>
 

@@ -738,17 +738,47 @@ function ReviewsDueCard({ today }) {
   const { state } = axzio;
   const due = useMemo(() => {
     const resets = Array.isArray(state.resets) ? state.resets : [];
-    return resets
-      .filter(
-        (r) =>
-          r &&
-          typeof r.reviewDate === "string" &&
-          r.reviewDate &&
-          r.reviewDate <= today &&
-          !r.reviewedAt
-      )
-      .sort((a, b) => (a.reviewDate < b.reviewDate ? -1 : 1));
-  }, [state.resets, today]);
+    const growth = Array.isArray(state.growthSessions)
+      ? state.growthSessions
+      : [];
+    const items = [
+      ...resets
+        .filter(
+          (r) =>
+            r &&
+            typeof r.reviewDate === "string" &&
+            r.reviewDate &&
+            r.reviewDate <= today &&
+            !r.reviewedAt
+        )
+        .map((r) => ({
+          id: r.id,
+          title: r.situation || "Unnamed reset",
+          sub: `Revisit ${r.reviewDate === today ? "today" : r.reviewDate}${
+            r.integrateChoice ? ` · ${integrateChoiceLabel(r.integrateChoice)}` : ""
+          }`,
+          href: `#/journeys?reset=${r.id}`,
+          reviewDate: r.reviewDate,
+        })),
+      ...growth
+        .filter(
+          (g) =>
+            g &&
+            typeof g.reviewDate === "string" &&
+            g.reviewDate &&
+            g.reviewDate <= today &&
+            !g.reviewedAt
+        )
+        .map((g) => ({
+          id: g.id,
+          title: g.subjectName || "Untitled pursuit",
+          sub: `Review ${g.reviewDate === today ? "today" : g.reviewDate} · growth practice`,
+          href: `#/journeys?growth=${g.id}`,
+          reviewDate: g.reviewDate,
+        })),
+    ];
+    return items.sort((a, b) => (a.reviewDate < b.reviewDate ? -1 : 1));
+  }, [state.resets, state.growthSessions, today]);
   if (due.length === 0) return null;
   return (
     <Card className="axzio-rise axzio-rise-5 border-white/25 p-6 md:col-span-2">
@@ -757,9 +787,9 @@ function ReviewsDueCard({ today }) {
         help={
           <HelpBubble title="Reviews due">
             <HelpText
-              what="Resets whose revisit date has arrived, waiting for their review."
-              why="The Integrate step sets a return point; this is where it lands. Reviewing closes the loop — confirm, revise, or release the reset."
-              how="Open the Action Card to revisit the reset, then mark it reviewed to clear it from this list."
+              what="Resets and growth practices whose revisit date has arrived, waiting for their review."
+              why="The Integrate step — and the Growth Practice's commit step — set a return point; this is where it lands. Reviewing closes the loop."
+              how="Open the card to revisit it, then mark it reviewed to clear it from this list."
             />
           </HelpBubble>
         }
@@ -776,18 +806,11 @@ function ReviewsDueCard({ today }) {
             className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3"
           >
             <div className="min-w-0">
-              <p className="truncate text-[15px] text-white/85">
-                {r.situation || "Unnamed reset"}
-              </p>
-              <p className="mt-0.5 text-[12px] text-white/40">
-                Revisit {r.reviewDate === today ? "today" : r.reviewDate}
-                {r.integrateChoice
-                  ? ` · ${integrateChoiceLabel(r.integrateChoice)}`
-                  : ""}
-              </p>
+              <p className="truncate text-[15px] text-white/85">{r.title}</p>
+              <p className="mt-0.5 text-[12px] text-white/40">{r.sub}</p>
             </div>
             <a
-              href={`#/journeys?reset=${r.id}`}
+              href={r.href}
               className="shrink-0 text-[11px] uppercase tracking-[0.22em] text-white/55 transition-colors hover:text-white"
             >
               Open →

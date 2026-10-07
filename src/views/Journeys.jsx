@@ -4,6 +4,8 @@ import {
   uid,
   resetSourceInfo,
   resetDraftIdFor,
+  growthSourceInfo,
+  growthDraftIdFor,
   MANTRA,
   TAGS,
   LAUNCH_STAGES,
@@ -36,6 +38,12 @@ import {
   HelpBubble,
   HelpText,
 } from "../components/ui.jsx";
+import {
+  GrowthPracticeRunner,
+  GrowthPracticeHome,
+  GrowthCard,
+  prefillGrowthScratch,
+} from "./GrowthPractice.jsx";
 
 /* ------------------------------------------------------------------ */
 /* JOURNEYS — guided step-through flows that write into the state        */
@@ -54,12 +62,24 @@ export default function Journeys() {
   const [resetBooted, setResetBooted] = useState(false);
   const pendingSource = axzio.pendingResetSource;
   const drafts = axzio.state.resetDrafts || [];
+  // Growth Practice session state (mirrors the reset's).
+  const [growthSession, setGrowthSession] = useState(null);
+  const [viewingGrowth, setViewingGrowth] = useState(null);
+  const [growthPrompt, setGrowthPrompt] = useState(null);
+  const [growthBooted, setGrowthBooted] = useState(false);
+  const pendingGrowth = axzio.pendingGrowthSource;
+  const growthDrafts = axzio.state.growthDrafts || [];
+  const growthSessions = axzio.state.growthSessions || [];
 
   // A Focus item's "Explore in Guided Reset" (or a star's) lands here:
   // open the reset journey; the bootstrap below consumes the pending source.
   useEffect(() => {
     if (pendingSource && !active) setActive("reset");
   }, [pendingSource, active]);
+
+  useEffect(() => {
+    if (pendingGrowth && !active) setActive("growth");
+  }, [pendingGrowth, active]);
 
   /** Begin (or resume) a reset session for a source. */
   const startSession = ({ sourceKind, sourceId, sourceName, autofill, draft }) => {
@@ -148,19 +168,101 @@ export default function Journeys() {
     setResetBooted(false);
   };
 
+  /** Begin (or resume) a growth session for a source. */
+  const startGrowthSession = ({ sourceKind, sourceId, sourceName, draft }) => {
+    // Lazy to avoid importing prefill at module scope; resolved here.
+    const scratch = draft
+      ? { ...draft.scratch, _draftId: draft.id }
+      : (() => {
+          const sc = {};
+          // prefillGrowthScratch lives in GrowthPractice.jsx
+          Object.assign(sc, prefillGrowthScratch(axzio.state, sourceKind, sourceId));
+          sc._draftId =
+            sourceKind === "general"
+              ? `gen:${uid()}`
+              : growthDraftIdFor(sourceKind, sourceId);
+          sc._sourceKind = sourceKind;
+          sc._sourceId = sourceId || null;
+          return sc;
+        })();
+    const id = draft
+      ? draft.id
+      : scratch._draftId;
+    setGrowthSession({
+      id,
+      sourceKind,
+      sourceId: sourceId || null,
+      sourceName: sourceName || "",
+      scratch,
+      step: draft ? draft.step || 0 : 0,
+      fresh: !draft,
+    });
+    setGrowthPrompt(null);
+  };
+
+  // Growth bootstrap: a launch from an item jumps straight to that source's
+  // draft (resume or start over); the plain entry shows the home screen.
+  useEffect(() => {
+    if (active !== "growth" || growthSession || growthPrompt) return;
+    if (pendingGrowth) {
+      const { kind, id } = pendingGrowth;
+      const info = growthSourceInfo(axzio.state, kind, id);
+      const draft =
+        growthDrafts.find((d) => d.sourceKind === kind && d.sourceId === id) ||
+        null;
+      axzio.clearPendingGrowthSource();
+      setGrowthBooted(true);
+      if (draft || info) {
+        setGrowthPrompt({
+          kind,
+          id,
+          name: info ? info.name : draft ? draft.sourceName : "Unknown",
+          draft,
+        });
+        return;
+      }
+    }
+    if (growthBooted) return;
+    setGrowthBooted(true);
+    // Else: the home screen renders (drafts list + start).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, growthSession, growthPrompt, pendingGrowth, growthDrafts.length, growthBooted]);
+
+  const exitGrowth = () => {
+    if (axzio.pendingGrowthSource) axzio.clearPendingGrowthSource();
+    setActive(null);
+    setGrowthSession(null);
+    setGrowthPrompt(null);
+    setGrowthBooted(false);
+  };
+
   // Deep link: #/journeys?reset=<id> opens that reset's Action Card.
   // Used by the Focus item editor's "Guided Reset" section.
   const resetsRef = useRef([]);
   resetsRef.current = axzio.state.resets;
+  const growthSessionsRef = useRef([]);
+  growthSessionsRef.current = axzio.state.growthSessions || [];
   useEffect(() => {
     const openFromHash = () => {
       const m = window.location.hash.match(/[?&]reset=([^&]+)/);
-      if (!m) return;
-      const id = decodeURIComponent(m[1]);
-      if (resetsRef.current.some((r) => r.id === id)) {
-        setViewingReset(id);
-        if (window.location.hash !== "#/journeys") {
-          window.location.hash = "#/journeys";
+      if (m) {
+        const id = decodeURIComponent(m[1]);
+        if (resetsRef.current.some((r) => r.id === id)) {
+          setViewingReset(id);
+          if (window.location.hash !== "#/journeys") {
+            window.location.hash = "#/journeys";
+          }
+        }
+        return;
+      }
+      const g = window.location.hash.match(/[?&]growth=([^&]+)/);
+      if (g) {
+        const id = decodeURIComponent(g[1]);
+        if (growthSessionsRef.current.some((r) => r.id === id)) {
+          setViewingGrowth(id);
+          if (window.location.hash !== "#/journeys") {
+            window.location.hash = "#/journeys";
+          }
         }
       }
     };
@@ -200,6 +302,11 @@ export default function Journeys() {
           resetId={viewingReset}
           onBack={() => setViewingReset(null)}
           allowDelete
+        />
+      ) : viewingGrowth ? (
+        <GrowthCard
+          sessionId={viewingGrowth}
+          onBack={() => setViewingGrowth(null)}
         />
       ) : !active ? (
         <>
@@ -315,7 +422,92 @@ export default function Journeys() {
           }
           onBack={exitReset}
         />
-      ) : active === "reset" ? null : (
+      ) : active === "reset" ? null : active === "growth" && growthSession ? (
+        <GrowthPracticeRunner
+          key={growthSession.id}
+          initialSession={growthSession}
+          onExit={exitGrowth}
+        />
+      ) : active === "growth" && growthPrompt ? (
+        <Card className="axzio-rise p-6 md:p-10">
+          <MicroLabel className="mb-2">Growth passage</MicroLabel>
+          <h3 className="text-2xl font-light tracking-wide md:text-3xl">
+            {growthPrompt.draft ? "Resume your practice?" : "Begin growth practice"}
+          </h3>
+          <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-white/60">
+            {growthPrompt.draft ? (
+              <>
+                You have a practice in progress on{" "}
+                <span className="text-white/85">“{growthPrompt.name}”</span>{" "}
+                (step {(growthPrompt.draft.step || 0) + 1} of 8).
+              </>
+            ) : (
+              <>
+                Begin a growth practice on{" "}
+                <span className="text-white/85">“{growthPrompt.name}”</span>?
+                The pursuit will be pre-filled — you can refine it in the
+                first step.
+              </>
+            )}
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            {growthPrompt.draft && (
+              <Btn
+                onClick={() =>
+                  startGrowthSession({
+                    sourceKind: growthPrompt.kind,
+                    sourceId: growthPrompt.id,
+                    sourceName: growthPrompt.name,
+                    draft: growthPrompt.draft,
+                  })
+                }
+              >
+                Resume
+              </Btn>
+            )}
+            <Btn
+              variant={growthPrompt.draft ? "quiet" : undefined}
+              onClick={() =>
+                startGrowthSession({
+                  sourceKind: growthPrompt.kind,
+                  sourceId: growthPrompt.id,
+                  sourceName: growthPrompt.name,
+                  draft: null,
+                })
+              }
+            >
+              {growthPrompt.draft ? "Start over" : "Begin"}
+            </Btn>
+            <Btn variant="quiet" onClick={exitGrowth}>
+              Back to journeys
+            </Btn>
+          </div>
+        </Card>
+      ) : active === "growth" ? (
+        <GrowthPracticeHome
+          drafts={growthDrafts}
+          sessions={growthSessions}
+          onResume={(draft) =>
+            startGrowthSession({
+              sourceKind: draft.sourceKind,
+              sourceId: draft.sourceId,
+              sourceName: draft.sourceName,
+              draft,
+            })
+          }
+          onDiscard={(id) => axzio.clearGrowthDraft(id)}
+          onNew={() =>
+            startGrowthSession({
+              sourceKind: "general",
+              sourceId: null,
+              sourceName: "",
+              draft: null,
+            })
+          }
+          onViewSession={(id) => setViewingGrowth(id)}
+          onBack={exitGrowth}
+        />
+      ) : (
         <JourneyRunner
           key={active}
           journey={JOURNEYS.find((j) => j.id === active)}
@@ -407,25 +599,10 @@ function LaunchSequenceLocator() {
   );
 }
 
-/* The seven fields of the Guided Reset, mirroring the guided practice:
-   a Situation, then the Alchemist Path with a LifeMod before Integrate. */
+/* The eight fields of the Guided Reset: the Situation named first, then
+   the battery heard in relation to it, then the Alchemist Path with a
+   LifeMod before Integrate. */
 const RESET_STEPS = [
-  {
-    id: "rbattery",
-    field: "batteryNote",
-    title: "Hear the instrument",
-    phase: "Reveal",
-    prompt:
-      "Before forcing the performance, hear the instrument. Which dimension is asking for attention in this situation — and which remains available?",
-    placeholder: "The dimension asking for attention is… what's available is…",
-    help: {
-      title: "Hear the instrument",
-      what: "A 30-second read of your batteries before interpreting anything.",
-      why: "Interpretation from an empty battery produces different answers than from a full one — and the reading belongs in the record.",
-      example:
-        "Physical at 3/10 with high priority: this situation may be exhaustion wearing a costume.",
-    },
-  },
   {
     id: "rsituation",
     field: "situation",
@@ -439,6 +616,22 @@ const RESET_STEPS = [
       why: "A reset works on one thing. Fog lifts when the situation has edges.",
       example:
         "“I keep postponing the pricing email” — not “work stress”.",
+    },
+  },
+  {
+    id: "rbattery",
+    field: "batteryNote",
+    title: "Hear the instrument",
+    phase: "Reveal",
+    prompt:
+      "The situation is named. Now, before forcing the performance, hear the instrument: which dimension is asking for attention in this situation — and which remains available?",
+    placeholder: "The dimension asking for attention is… what's available is…",
+    help: {
+      title: "Hear the instrument",
+      what: "A 30-second read of your batteries before interpreting anything.",
+      why: "Interpretation from an empty battery produces different answers than from a full one — and the reading belongs in the record.",
+      example:
+        "Physical at 3/10 with high priority: this situation may be exhaustion wearing a costume.",
     },
   },
   {
@@ -608,10 +801,10 @@ const JOURNEYS = [
     blurb:
       "Meet one real situation with eight movements and leave with an Action Card.",
     phaseLine:
-      "Battery → Situation → Reveal → Interpret → Align → Act → LifeMod → Integrate",
+      "Situation → Battery → Reveal → Interpret → Align → Act → LifeMod → Integrate",
     help: {
       title: "Guided Reset",
-      what: "An eight-movement reset practice — battery scan, Situation, then Reveal → Interpret → Align → Act, a LifeMod, and Integrate — ending in an Action Card.",
+      what: "An eight-movement reset practice — Situation, then a battery scan heard in relation to it, then Reveal → Interpret → Align → Act, a LifeMod, and Integrate — ending in an Action Card.",
       why: "Meet one real situation with the full Alchemist Path instead of letting it stay fog.",
       how: "Answer each movement; on completion you receive an Action Card you can copy. It can also be triggered from any Focus decision via “Explore in Guided Reset”. Private by default — stored only in this browser, nothing leaves this device.",
     },
@@ -624,6 +817,22 @@ const JOURNEYS = [
     done: {
       title: "The reset is sealed.",
       body: "One situation, met fully. The Action Card holds what you decided — revisit it when you said you would.",
+    },
+  },
+  {
+    id: "growth",
+    kicker: "Growth passage",
+    title: "Growth Practice",
+    blurb:
+      "Design a pursuit — a goal or a habit — into a structure, and build it into your system.",
+    phaseLine:
+      "Pursuit → Outcome → Path → Capacity → Container → Friction → First step → Commit",
+    custom: true, // rendered by GrowthPractice.jsx, not JourneyRunner
+    help: {
+      title: "Growth Practice",
+      what: "The 'how' practice: eight movements that turn a pursuit from an intention into a structure — goals, habits, LifeMods, and focus items built into the system.",
+      why: "The Reset answers 'what is this showing me'; the Growth Practice answers 'how will this actually happen'.",
+      how: "Name the pursuit, design it movement by movement, review the build, then build it. Staged first — nothing enters the system until you say so.",
     },
   },
 ];
