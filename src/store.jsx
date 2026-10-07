@@ -1103,6 +1103,49 @@ export function effectiveServes(state, item) {
   return { goalId: null, commitmentId: null };
 }
 
+/**
+ * True when the state holds no user content at all — a blank slate.
+ * The blank-safety guard in cloud.jsx uses this to refuse uploading an
+ * empty snapshot over a cloud row that holds real data.
+ */
+export function isEmptyState(s) {
+  if (!s || typeof s !== "object") return true;
+  const id = s.identity || {};
+  const hasIdentityText = [id.name, id.becoming, id.standFor, id.practice, id.returnThrough].some(
+    (v) => typeof v === "string" && v.trim().length > 0
+  );
+  const nonEmpty = (v) => Array.isArray(v) && v.length > 0;
+  return !(
+    hasIdentityText ||
+    nonEmpty(id.commitments) ||
+    nonEmpty(id.values) ||
+    nonEmpty(s.focusItems) ||
+    nonEmpty(s.goals) ||
+    nonEmpty(s.stars) ||
+    nonEmpty(s.lifemods) ||
+    nonEmpty(s.actions) ||
+    nonEmpty(s.signals) ||
+    nonEmpty(s.assessments) ||
+    nonEmpty(s.resets) ||
+    nonEmpty(s.people) ||
+    (s.days && typeof s.days === "object" && Object.keys(s.days).length > 0)
+  );
+}
+
+/* Intentional-erase escape hatch for the blank-safety guard. resetAll()
+   arms this; the cloud layer consumes it once. Without it, the guard
+   would block the deliberate "erase everything" push and the next boot
+   would resurrect the cloud's copy. */
+let intentionalEraseArmed = false;
+export function armIntentionalErase() {
+  intentionalEraseArmed = true;
+}
+export function consumeIntentionalErase() {
+  const v = intentionalEraseArmed;
+  intentionalEraseArmed = false;
+  return v;
+}
+
 /** Commitments sorted by priority (order 0 = highest). */
 export function sortedCommitments(state) {
   const list = state?.identity?.commitments;
@@ -2426,6 +2469,7 @@ export function AxzioProvider({ children }) {
     },
     resetAll() {
       const fresh = defaultState();
+      armIntentionalErase();
       setState(fresh);
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));

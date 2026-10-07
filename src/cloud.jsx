@@ -17,7 +17,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useAxzio, STORAGE_KEY } from "./store.jsx";
+import { useAxzio, STORAGE_KEY, isEmptyState, consumeIntentionalErase } from "./store.jsx";
 import { peekOutbox, dropEvents } from "./events.js";
 import {
   CLOUD_TABLE,
@@ -119,15 +119,29 @@ export function CloudProvider({ children }) {
       if (error) throw error;
 
       const local = stateRef.current;
-      const direction = decideSyncDirection({
-        localUpdatedAt: local.updatedAt || 0,
-        hadLocal: hadLocalAtBoot.current,
-        cloudUpdatedAt: row ? Date.parse(row.updated_at) || 0 : null,
-      });
+      // An intentional "erase everything" always pushes, even when the
+      // snapshot is blank — the blank-safety guard below must not stop it.
+      const forcePush = consumeIntentionalErase();
+      const direction = forcePush
+        ? "push"
+        : decideSyncDirection({
+            localUpdatedAt: local.updatedAt || 0,
+            hadLocal: hadLocalAtBoot.current,
+            cloudUpdatedAt: row ? Date.parse(row.updated_at) || 0 : null,
+          });
       if (direction === "push") {
-        const err = await pushState(client, u.id, local);
-        if (err) throw err;
-        lastSyncedRef.current = local.updatedAt || 0;
+        const cloudHasContent = row && row.state && !isEmptyState(row.state);
+        if (!forcePush && isEmptyState(local) && cloudHasContent) {
+          // Blank-safety: this device holds a blank slate while the cloud
+          // holds real data. Never upload the blank over it — take the
+          // cloud's copy instead.
+          replaceState(row.state);
+          lastSyncedRef.current = (row.state && row.state.updatedAt) || 0;
+        } else {
+          const err = await pushState(client, u.id, local);
+          if (err) throw err;
+          lastSyncedRef.current = local.updatedAt || 0;
+        }
       } else if (direction === "pull") {
         replaceState(row.state);
         lastSyncedRef.current = (row.state && row.state.updatedAt) || 0;
@@ -194,6 +208,22 @@ export function CloudProvider({ children }) {
     if (!mergeCompletedRef.current) {
       pendingPushRef.current = true;
       setSyncStatus((s) => (s === "synced" || s === "idle" ? "syncing" : s));
+      const rt = setTimeout(() => {
+        try {
+          mergeRef.current?.();
+        } catch {
+          /* the merge fails soft on its own */
+        }
+      }, 8000);
+      return () => clearTimeout(rt);
+    }
+    // Blank-safety: never upload a blank slate over the cloud. The merge
+    // already ran, so if local is empty here while a cloud row exists, the
+    // merge would have pulled it — reaching this point with an empty local
+    // means something went wrong; hold the push and retry the merge.
+    // (An intentional "erase everything" consumes its escape hatch.)
+    if (isEmptyState(cur) && !consumeIntentionalErase()) {
+      pendingPushRef.current = true;
       const rt = setTimeout(() => {
         try {
           mergeRef.current?.();

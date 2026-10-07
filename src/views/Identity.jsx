@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   useAxzio,
   PRIMITIVES,
@@ -596,11 +596,78 @@ function RadarChart({ scores }) {
 }
 
 function ResetZone() {
-  const { resetAll } = useAxzio();
+  const { state, resetAll, replaceState } = useAxzio();
   const [armed, setArmed] = useState(false);
+  const [importError, setImportError] = useState("");
+  const fileRef = useRef(null);
+
+  const exportBackup = () => {
+    try {
+      const blob = new Blob([JSON.stringify(state, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const d = new Date();
+      const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      a.href = url;
+      a.download = `axzio-backup-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch {
+      /* download unavailable — ignore */
+    }
+  };
+
+  const importBackup = (file) => {
+    setImportError("");
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        if (!parsed || typeof parsed !== "object" || !parsed.identity) {
+          throw new Error("bad backup");
+        }
+        // Bump the clock so this copy wins the next cloud sync.
+        replaceState({ ...parsed, updatedAt: Date.now() });
+      } catch {
+        setImportError("That file isn't a valid AXZIO backup.");
+      }
+    };
+    reader.readAsText(file);
+  };
 
   return (
     <div>
+      <p className="mb-4 max-w-lg text-sm leading-relaxed text-white/55">
+        Back up everything stored in this browser — a JSON file you keep.
+        If sync ever surprises you, a backup restores it.
+      </p>
+      <div className="mb-8 flex flex-wrap items-center gap-3">
+        <Btn variant="ghost" onClick={exportBackup}>
+          Export backup
+        </Btn>
+        <Btn variant="quiet" onClick={() => fileRef.current?.click()}>
+          Import backup
+        </Btn>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          aria-label="Import backup file"
+          onChange={(e) => {
+            importBackup(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+      </div>
+      {importError && (
+        <p className="mb-6 text-[13px] text-red-200/80">{importError}</p>
+      )}
       <p className="mb-4 max-w-lg text-sm leading-relaxed text-white/55">
         Erase everything stored in this browser — identity, days, actions,
         signals, stars, and assessments. This cannot be undone.
