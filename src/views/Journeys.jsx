@@ -821,12 +821,12 @@ function JourneyRunner({ journey, onExit, initialSession, initialScratch, initia
           </h3>
           {showAsset && (
             <div className="mt-3 max-w-xl">
-              <p className="flex items-baseline gap-2 text-[13px]">
-                <span className="shrink-0 text-[10px] uppercase tracking-[0.22em] text-white/30">
+              <p className="flex items-baseline gap-2.5">
+                <span className="shrink-0 text-[10px] uppercase tracking-[0.22em] text-white/40">
                   Reset on
                 </span>
                 <span
-                  className="truncate text-white/85"
+                  className="truncate text-[17px] font-medium tracking-wide text-white"
                   title={assetLabel}
                 >
                   {assetLabel}
@@ -1014,7 +1014,7 @@ function StepContinue({ stepId, scratch, setScratch, onNext, last }) {
           frictionReading: scratch.rfriction || null,
           readiness: scratch.rreadiness || null,
           readinessNote: scratch.rreadinessNote?.trim() || null,
-          lifemodType: scratch.rlifemodType || null,
+          lifemodTypes: scratch.rlifemodTypes || null,
           integrateChoice: scratch.rintegrateChoice || null,
           reviewDate: scratch.rintegrateDate || null,
           sourceItemId:
@@ -1535,17 +1535,28 @@ function LifeModTypePills({ scratch, setScratch }) {
       </div>
       <div className="flex flex-wrap gap-2">
         {LIFEMOD_PLAIN_TYPES.map((t) => {
-          const on = scratch.rlifemodType === t.key;
+          const cur = Array.isArray(scratch.rlifemodTypes)
+            ? scratch.rlifemodTypes
+            : [];
+          const on = cur.includes(t.key);
           return (
             <button
               key={t.key}
               type="button"
               onClick={() =>
-                setScratch((s) => ({
-                  ...s,
-                  rlifemodType: on ? null : t.key,
-                }))
+                setScratch((s) => {
+                  const prev = Array.isArray(s.rlifemodTypes)
+                    ? s.rlifemodTypes
+                    : [];
+                  return {
+                    ...s,
+                    rlifemodTypes: on
+                      ? prev.filter((k) => k !== t.key)
+                      : [...prev, t.key],
+                  };
+                })
               }
+              aria-pressed={on}
               className={`rounded-lg px-4 py-2 text-[11px] font-medium uppercase tracking-[0.18em] transition-colors ${
                 on
                   ? "bg-white/10 text-white"
@@ -1668,8 +1679,19 @@ function formatResetCard(reset, sourceLine) {
     );
     if (dims.length) reading.push(`Readiness: ${dims.join(", ")}`);
   }
-  if (reset.lifemodType) {
-    reading.push(`LifeMod type: ${lifemodPlainTypeLabel(reset.lifemodType)}`);
+  {
+    const types = Array.isArray(reset.lifemodTypes)
+      ? reset.lifemodTypes
+      : reset.lifemodType
+        ? [reset.lifemodType]
+        : [];
+    if (types.length) {
+      reading.push(
+        `LifeMod type${types.length === 1 ? "" : "s"}: ${types
+          .map(lifemodPlainTypeLabel)
+          .join(", ")}`
+      );
+    }
   }
   if (reset.integrateChoice) {
     reading.push(
@@ -1825,6 +1847,7 @@ function ResetActionCard({ resetId, onBack, onRestart, allowDelete = false }) {
             and how the reset lands + its review date. */}
         {(reset.frictionReading ||
           reset.readiness ||
+          (reset.lifemodTypes && reset.lifemodTypes.length > 0) ||
           reset.lifemodType ||
           reset.integrateChoice) && (
           <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
@@ -1859,15 +1882,22 @@ function ResetActionCard({ resetId, onBack, onRestart, allowDelete = false }) {
                     ) : null}
                   </li>
                 )}
-              {reset.lifemodType && (
-                <li>
-                  LifeMod type:{" "}
-                  <span className="text-white">
-                    {lifemodPlainTypeLabel(reset.lifemodType)}
-                  </span>
-                  .
-                </li>
-              )}
+              {(() => {
+                const types = Array.isArray(reset.lifemodTypes)
+                  ? reset.lifemodTypes
+                  : reset.lifemodType
+                    ? [reset.lifemodType]
+                    : [];
+                return types.length > 0 ? (
+                  <li>
+                    LifeMod type{types.length === 1 ? "" : "s"}:{" "}
+                    <span className="text-white">
+                      {types.map(lifemodPlainTypeLabel).join(", ")}
+                    </span>
+                    .
+                  </li>
+                ) : null;
+              })()}
               {reset.integrateChoice && (
                 <li>
                   {integrateChoiceLabel(reset.integrateChoice)}

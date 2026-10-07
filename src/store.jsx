@@ -789,9 +789,19 @@ function normalizeResets(raw) {
               connection: r.readiness.connection === true,
             }
           : null,
-      lifemodType: LIFEMOD_PLAIN_TYPES.some((t) => t.key === r.lifemodType)
-        ? r.lifemodType
-        : null,
+      lifemodTypes: (() => {
+        const raw = Array.isArray(r.lifemodTypes)
+          ? r.lifemodTypes
+          : typeof r.lifemodType === "string"
+            ? [r.lifemodType]
+            : [];
+        const valid = raw.filter(
+          (k) =>
+            typeof k === "string" &&
+            LIFEMOD_PLAIN_TYPES.some((t) => t.key === k)
+        );
+        return [...new Set(valid)];
+      })(),
       lifemodId: typeof r.lifemodId === "string" ? r.lifemodId : null,
       integrateChoice: INTEGRATE_CHOICES.some((c) => c.key === r.integrateChoice)
         ? r.integrateChoice
@@ -2864,11 +2874,22 @@ export function AxzioProvider({ children }) {
               }
             : null,
         readinessNote: String(fields?.readinessNote ?? "").trim() || null,
-        lifemodType: LIFEMOD_PLAIN_TYPES.some(
-          (t) => t.key === fields?.lifemodType
-        )
-          ? fields.lifemodType
-          : null,
+        lifemodTypes: (() => {
+          const raw = Array.isArray(fields?.lifemodTypes)
+            ? fields.lifemodTypes
+            : typeof fields?.lifemodType === "string"
+              ? [fields.lifemodType]
+              : [];
+          return [
+            ...new Set(
+              raw.filter(
+                (k) =>
+                  typeof k === "string" &&
+                  LIFEMOD_PLAIN_TYPES.some((t) => t.key === k)
+              )
+            ),
+          ];
+        })(),
         lifemodId: null, // set later via linkResetLifeMod
         integrateChoice: INTEGRATE_CHOICES.some(
           (c) => c.key === fields?.integrateChoice
