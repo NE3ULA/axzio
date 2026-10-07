@@ -40,7 +40,10 @@ function SyncDot({ status }) {
   );
 }
 
-function AuthModal({ onClose }) {
+/* The sign-in / create-account form, shared by the gear-menu modal and
+   the full-page login gate. onAuthenticated fires after a successful
+   sign-in (the gate also lifts on its own via the auth subscription). */
+export function AuthForm({ onAuthenticated }) {
   const { signIn, signUp, authBusy } = useCloud();
   const [tab, setTab] = useState("signin"); // signin | signup
   const [email, setEmail] = useState("");
@@ -70,9 +73,82 @@ function AuthModal({ onClose }) {
       setTab("signin");
       return;
     }
-    onClose();
+    if (onAuthenticated) onAuthenticated();
   };
 
+  return (
+    <>
+      <div className="mb-5 flex gap-2" role="tablist" aria-label="Sign in or create account">
+        {[
+          ["signin", "Sign in"],
+          ["signup", "Create account"],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => {
+              setTab(key);
+              setError("");
+              setNotice("");
+            }}
+            className={`rounded-lg px-4 py-2 text-[11px] font-medium uppercase tracking-[0.18em] transition-colors ${
+              tab === key
+                ? "bg-white/10 text-white"
+                : "text-white/45 hover:text-white"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={submit} className="space-y-4">
+        <div>
+          <MicroLabel className="mb-1.5">Email</MicroLabel>
+          <Field
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            aria-label="Email"
+          />
+        </div>
+        <div>
+          <MicroLabel className="mb-1.5">Password</MicroLabel>
+          <Field
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete={tab === "signin" ? "current-password" : "new-password"}
+            aria-label="Password"
+          />
+        </div>
+        {error && (
+          <p role="alert" className="text-[13px] leading-relaxed text-white/80">
+            {error}
+          </p>
+        )}
+        {notice && (
+          <p className="text-[13px] leading-relaxed text-white/65">{notice}</p>
+        )}
+        <Btn type="submit" disabled={authBusy} className="w-full">
+          {authBusy
+            ? "Working…"
+            : tab === "signin"
+              ? "Sign in"
+              : "Create account"}
+        </Btn>
+      </form>
+      <p className="mt-4 text-[12px] leading-relaxed text-white/40">
+        Your entries sync to your own Supabase project. Nothing is shared.
+      </p>
+    </>
+  );
+}
+
+function AuthModal({ onClose }) {
   /* Portaled to document.body: the header carries a backdrop-blur, which
    * makes it a containing block for fixed descendants — without the portal
    * this modal would position itself relative to the header instead of the
@@ -105,72 +181,7 @@ function AuthModal({ onClose }) {
             </svg>
           </button>
         </div>
-
-        <div className="mb-5 flex gap-2" role="tablist" aria-label="Sign in or create account">
-          {[
-            ["signin", "Sign in"],
-            ["signup", "Create account"],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              role="tab"
-              aria-selected={tab === key}
-              onClick={() => {
-                setTab(key);
-                setError("");
-                setNotice("");
-              }}
-              className={`rounded-lg px-4 py-2 text-[11px] font-medium uppercase tracking-[0.18em] transition-colors ${
-                tab === key
-                  ? "bg-white/10 text-white"
-                  : "text-white/45 hover:text-white"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <form onSubmit={submit} className="space-y-4">
-          <div>
-            <MicroLabel className="mb-1.5">Email</MicroLabel>
-            <Field
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-              aria-label="Email"
-            />
-          </div>
-          <div>
-            <MicroLabel className="mb-1.5">Password</MicroLabel>
-            <Field
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={tab === "signin" ? "current-password" : "new-password"}
-              aria-label="Password"
-            />
-          </div>
-          {error && (
-            <p role="alert" className="text-[13px] leading-relaxed text-white/80">
-              {error}
-            </p>
-          )}
-          {notice && (
-            <p className="text-[13px] leading-relaxed text-white/65">{notice}</p>
-          )}
-          <Btn type="submit" disabled={authBusy} className="w-full">
-            {authBusy
-              ? "Working…"
-              : tab === "signin"
-                ? "Sign in"
-                : "Create account"}
-          </Btn>
-        </form>
-        <p className="mt-4 text-[12px] leading-relaxed text-white/40">
-          Your entries sync to your own Supabase project. Nothing is shared.
-        </p>
+        <AuthForm onAuthenticated={onClose} />
       </Card>
     </div>,
     document.body

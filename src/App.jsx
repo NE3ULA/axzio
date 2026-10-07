@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAxzio } from "./store.jsx";
+import { useCloud } from "./cloud.jsx";
+import { AuthForm } from "./components/AccountControl.jsx";
+import { Card, MicroLabel } from "./components/ui.jsx";
 import Starfield from "./components/Starfield.jsx";
 import Boot from "./views/Boot.jsx";
 import Onboarding from "./views/Onboarding.jsx";
@@ -30,9 +33,33 @@ function routeFromHash() {
   return ROUTES.some((r) => r.key === h) ? h : "deck";
 }
 
+/* Full-page login gate: when cloud sync is configured but no session
+   exists, the app's pages stay behind this screen until sign-in. Signing
+   out now feels like locking the app — and no one can poke at (or create
+   data in) an unsigned-in copy. Local-only users (sync never configured)
+   are unaffected. */
+function LoginGate() {
+  return (
+    <div className="min-h-screen bg-black text-white">
+      <Starfield />
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md flex-col items-center justify-center px-5 py-16">
+        <MicroLabel className="mb-3">Command Deck</MicroLabel>
+        <h1 className="text-4xl font-light tracking-wide">AXZIO</h1>
+        <p className="mt-3 text-center text-sm leading-relaxed text-white/50">
+          Sign in to enter your deck.
+        </p>
+        <Card className="mt-8 w-full p-7">
+          <AuthForm onAuthenticated={() => {}} />
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const axzio = useAxzio();
   const { state } = axzio;
+  const { configured, user, authReady } = useCloud();
   const [phase, setPhase] = useState("boot"); // boot | main
   const [route, setRoute] = useState(routeFromHash());
 
@@ -57,6 +84,20 @@ export default function App() {
         <Boot onDone={bootDone} />
       </div>
     );
+  }
+
+  // Signed-out gate: with sync configured, the pages stay locked behind
+  // sign-in. While the session check is still in flight, hold a blank
+  // screen rather than flashing the gate (or the app).
+  if (configured && !authReady) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <Starfield />
+      </div>
+    );
+  }
+  if (configured && authReady && !user) {
+    return <LoginGate />;
   }
 
   // First-use walkthrough: rendered as a dismissible popup over the Deck

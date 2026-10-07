@@ -50,6 +50,9 @@ export function CloudProvider({ children }) {
     () => !isSupabaseConfigured() && !supabaseSetupSkipped()
   );
   const [user, setUser] = useState(null);
+  // True once the first session check has completed — lets the app tell
+  // "signed out" apart from "haven't checked yet" (no login-screen flash).
+  const [authReady, setAuthReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState("idle");
   const [authBusy, setAuthBusy] = useState(false);
 
@@ -137,6 +140,7 @@ export function CloudProvider({ children }) {
       if (sessErr) throw sessErr;
       const u = session?.user ?? null;
       setUser(u);
+      setAuthReady(true);
       if (!u) {
         setSyncStatus("idle");
         return;
@@ -159,10 +163,25 @@ export function CloudProvider({ children }) {
       // clock-based last-write-wins silently discarded this device's
       // unsynced edits on re-login (lost focus items, placements, name).
       const base = loadBaseSnapshot();
-      const baseTs = (base && base.updatedAt) || 0;
-      const localDirty = (local.updatedAt || 0) !== baseTs;
+      // Fall back to the persisted sync clock for containers that synced
+      // under a previous protocol (timestamp but no snapshot persisted).
+      const baseTs = (base && base.updatedAt) || lastSyncedRef.current || 0;
+      // An empty local state is NEVER dirty: emptiness is the absence of
+      // information, not an edit. Without this, a container that lost its
+      // state envelope (cleared storage, corrupt JSON quarantine) but kept
+      // its old sync point would 3-way merge "reverted to empty" as a
+      // legitimate change — and the empty side wins conflicts, wiping the
+      // cloud. (The desktop web-app overwrite.)
+      const localDirty =
+        !isEmptyState(local) && (local.updatedAt || 0) !== baseTs;
       const cloudDirty = !!cloudState && (cloudState.updatedAt || 0) !== baseTs;
-      if (!cloudState) {
+      if (forcePush) {
+        // Intentional "erase everything": the blank slate pushes
+        // unconditionally — this is the one path where emptiness propagates.
+        const err = await pushState(client, u.id, local);
+        if (err) throw err;
+        markSynced(local);
+      } else if (!cloudState) {
         // No cloud row yet: seed it. Nothing exists to clobber.
         const err = await pushState(client, u.id, local);
         if (err) throw err;
@@ -229,6 +248,7 @@ export function CloudProvider({ children }) {
       setSyncStatus("synced");
     } catch {
       // Fail soft: local remains the source of truth.
+      setAuthReady(true);
       setSyncStatus("offline");
     }
   }, [pushState, replaceState]);
@@ -527,6 +547,7 @@ export function CloudProvider({ children }) {
     reopenSetup,
     closeSetup,
     user,
+    authReady,
     authBusy,
     signUp,
     signIn,
