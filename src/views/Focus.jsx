@@ -963,6 +963,16 @@ function FocusRow({ item, depth }) {
     }
   };
 
+  // Quick priority bubbles on the collapsed row: tapping a rank assigns it
+  // (store exclusivity switches it off whoever held it); tapping the
+  // active rank clears it. An open editor draft is updated too, so Save
+  // can't clobber the tap.
+  const setPriorityRank = (r) => {
+    const next = item.priority === r ? null : r;
+    axzio.setPriority(item.id, next);
+    if (draft) setDraft((d) => ({ ...d, priority: next }));
+  };
+
   return (
     <div
       className={`rounded-xl border px-4 py-3 transition-colors ${
@@ -1003,6 +1013,39 @@ function FocusRow({ item, depth }) {
             {item.text}
           </p>
         </button>
+
+        <div
+          className="flex shrink-0 items-center gap-1"
+          role="group"
+          aria-label="Priority rank"
+        >
+          {[1, 2, 3].map((r) => {
+            const on = item.priority === r;
+            return (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setPriorityRank(r)}
+                aria-pressed={on}
+                aria-label={
+                  on ? `Remove priority ${r}` : `Set priority ${r}`
+                }
+                title={
+                  on
+                    ? `Priority ${r} — tap to remove`
+                    : `Set as priority ${r}`
+                }
+                className={`flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-medium transition-colors ${
+                  on
+                    ? "border-white/70 bg-white/10 text-white"
+                    : "border-white/15 text-white/35 hover:border-white/40 hover:text-white"
+                }`}
+              >
+                {r}
+              </button>
+            );
+          })}
+        </div>
 
         <button
           onClick={() => (expanded ? closeEditor() : openEditor())}
