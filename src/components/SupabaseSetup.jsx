@@ -51,7 +51,8 @@ export default function SupabaseSetup() {
         <p className="mt-2 text-[13px] leading-relaxed text-white/55">
           Sign in with an account and your entries persist in the cloud,
           across devices. Your keys stay in this browser — they are never
-          sent anywhere but your own Supabase project.
+          sent anywhere but your own Supabase project. Enter them once per
+          browser: a new browser or device will ask again.
         </p>
 
         <form onSubmit={submit} className="mt-5 space-y-4">
