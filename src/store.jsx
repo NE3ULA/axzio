@@ -1803,6 +1803,20 @@ export function AxzioProvider({ children }) {
         if ("schedule" in patch) {
           g.schedule = normalizeSchedule(patch.schedule);
         }
+        if ("commitmentId" in patch && typeof patch.commitmentId === "string") {
+          // The no-orphan rule: a goal always serves a real commitment.
+          const valid = new Set(
+            (d.identity?.commitments || []).map((c) => c && c.id)
+          );
+          if (valid.has(patch.commitmentId) && patch.commitmentId !== g.commitmentId) {
+            g.commitmentId = patch.commitmentId;
+            // Keep the denormalized commitment on linked focus items fresh.
+            for (const f of d.focusItems || []) {
+              if (f.goalId === id) f.commitmentId = patch.commitmentId;
+            }
+            logEvent("goal.rehomed", { id, commitmentId: patch.commitmentId });
+          }
+        }
       });
     },
     /** Flip one scheduled work session (by date key) on a goal. */

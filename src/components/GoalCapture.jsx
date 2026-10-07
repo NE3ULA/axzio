@@ -188,6 +188,8 @@ export default function GoalCapture({
   const [editText, setEditText] = useState("");
   const [editHorizon, setEditHorizon] = useState("");
   const [editSchedule, setEditSchedule] = useState(null);
+  const [editCommitmentId, setEditCommitmentId] = useState(null);
+  const editCommitments = sortedCommitments(state);
 
   const startEdit = (g) => {
     setConfirmId(null);
@@ -195,19 +197,22 @@ export default function GoalCapture({
     setEditText(g.text || "");
     setEditHorizon(g.horizon || "");
     setEditSchedule(g.schedule || null);
+    setEditCommitmentId(g.commitmentId || null);
   };
   const cancelEdit = () => {
     setEditingId(null);
     setEditText("");
     setEditHorizon("");
     setEditSchedule(null);
+    setEditCommitmentId(null);
   };
   const saveEdit = () => {
-    if (!editText.trim()) return;
+    if (!editText.trim() || !editCommitmentId) return;
     axzio.updateGoal(editingId, {
       text: editText,
       horizon: editHorizon || null,
       schedule: editSchedule,
+      commitmentId: editCommitmentId,
     });
     cancelEdit();
   };
@@ -227,6 +232,21 @@ export default function GoalCapture({
               maxLength={80}
               aria-label="Goal text"
             />
+            <div className="mt-2">
+              <MicroLabel className="mb-1.5">Serves commitment</MicroLabel>
+              <select
+                value={editCommitmentId || ""}
+                onChange={(e) => setEditCommitmentId(e.target.value || null)}
+                aria-label="Commitment this goal serves"
+                className="w-full appearance-none rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white/85 outline-none transition-colors hover:border-white/30"
+              >
+                {editCommitments.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.text.length > 48 ? c.text.slice(0, 48) + "…" : c.text}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <input
                 type="date"
@@ -239,7 +259,7 @@ export default function GoalCapture({
               <button
                 type="button"
                 onClick={saveEdit}
-                disabled={!editText.trim()}
+                disabled={!editText.trim() || !editCommitmentId}
                 className="rounded-lg border border-white/25 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-white/80 transition-colors hover:border-white/60 hover:text-white disabled:opacity-40"
               >
                 Save
