@@ -722,7 +722,7 @@ const JOURNEYS = [
       title: "Guided Reset",
       what: "An eight-movement reset practice — Situation, then a battery scan heard in relation to it, then Reveal → Interpret → Align → Act, a LifeMod, and Integrate — ending in an Action Card.",
       why: "Meet one real situation with the full Alchemist Path instead of letting it stay fog.",
-      how: "Answer each movement; on completion you receive an Action Card you can copy. It can also be triggered from any Focus decision via “Explore in Guided Reset”. Private by default — stored only in this browser, nothing leaves this device.",
+      how: "Answer each movement; on completion you receive an Action Card you can copy. It can also be triggered from any Focus decision via “Explore in Guided Reset”. Private to you — stored in this browser, synced to your own Supabase project only when you're signed in.",
     },
     steps: RESET_STEPS.map((s) => ({
       id: s.id,
@@ -1911,7 +1911,7 @@ export function ResetActionCard({ resetId, onBack, onRestart, allowDelete = fals
               <HelpText
                 what="The sealed record of one Guided Reset: your seven responses, laid out cleanly."
                 why="A reset you cannot revisit is a ritual; a card you can revisit is a commitment."
-                how="Copy the card to carry it elsewhere. It is private by default — stored only in this browser, nothing leaves this device."
+                how="Copy the card to carry it elsewhere. It is private to you — stored in this browser, synced to your own Supabase project only when you're signed in."
               />
             </HelpBubble>
           </div>
@@ -2099,8 +2099,8 @@ export function ResetActionCard({ resetId, onBack, onRestart, allowDelete = fals
       </div>
 
       <p className="mt-8 border-t border-white/10 pt-4 text-[12px] leading-relaxed tracking-wide text-white/40">
-        Private by default — stored only in this browser. Nothing leaves this
-        device.
+        Private to you — stored in this browser, synced to your own Supabase
+        project only when you&apos;re signed in.
       </p>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
