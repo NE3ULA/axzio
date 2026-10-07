@@ -97,6 +97,16 @@ export default function Identity() {
               placeholder="Add a value — e.g. “Honesty over comfort”"
               onAdd={(v) => axzio.addIdentityListItem("values", v)}
               onRemove={(i) => axzio.removeIdentityListItem("values", i)}
+              help={
+                <HelpBubble title="Values">
+                  <HelpText
+                    what="The handful of non-negotiables your choices get measured against — the principles that hold when motivation doesn't."
+                    why="Commitments say what you're loyal to; values say how you act while keeping them. When a decision is hard, the values are the tiebreaker."
+                    how="Name a few as tensions resolved, not single words — “Honesty over comfort” beats “Honesty”. Five or fewer; if everything is a value, nothing is."
+                    example="“Honesty over comfort. Depth over speed. Keep promises, especially small ones.”"
+                  />
+                </HelpBubble>
+              }
             />
             <CommitmentList />
           </div>
@@ -226,7 +236,7 @@ export default function Identity() {
   );
 }
 
-function ListEditor({ label, items, placeholder, onAdd, onRemove }) {
+function ListEditor({ label, items, placeholder, onAdd, onRemove, help }) {
   const [draft, setDraft] = useState("");
   const submit = (e) => {
     e.preventDefault();
@@ -235,7 +245,10 @@ function ListEditor({ label, items, placeholder, onAdd, onRemove }) {
   };
   return (
     <div>
-      <MicroLabel className="mb-2">{label}</MicroLabel>
+      <div className="mb-2 flex items-center gap-2">
+        <MicroLabel>{label}</MicroLabel>
+        {help}
+      </div>
       <ul className="mb-3 space-y-2">
         {items.map((item, i) => (
           <li
