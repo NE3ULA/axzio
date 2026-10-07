@@ -466,6 +466,19 @@ function JourneyRunner({ journey, onExit, initialScratch }) {
   const [scratch, setScratch] = useState(initialScratch || {});
   const StepView = journey.steps[step].render;
 
+  // The reset's subject, carried across stages: what the user named on the
+  // Situation step (pre-filled when launched from a Focus item or star).
+  // Shown from every step except the Situation step itself, where it would
+  // echo the field being typed.
+  const resetSubject =
+    journey.id === "reset" ? (scratch.rsituation || "").trim() : "";
+  const showSubject =
+    resetSubject.length > 0 && journey.steps[step].id !== "rsituation";
+  const subjectShort =
+    resetSubject.length > 140
+      ? resetSubject.slice(0, 140).trimEnd() + "…"
+      : resetSubject;
+
   const go = (dir) => {
     if (dir > 0 && step === journey.steps.length - 1) {
       setFinished(true);
@@ -499,6 +512,17 @@ function JourneyRunner({ journey, onExit, initialScratch }) {
           <h3 className="text-2xl font-light tracking-wide md:text-3xl">
             {journey.title}
           </h3>
+          {showSubject && (
+            <p
+              className="mt-3 max-w-xl text-[13px] leading-relaxed"
+              title={resetSubject}
+            >
+              <span className="mr-2 text-[10px] uppercase tracking-[0.22em] text-white/30">
+                Resetting
+              </span>
+              <span className="text-white/55">{subjectShort}</span>
+            </p>
+          )}
         </div>
         <button
           onClick={onExit}
