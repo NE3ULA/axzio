@@ -18,10 +18,10 @@ import {
   useState,
 } from "react";
 import { useAxzio, STORAGE_KEY, isEmptyState, consumeIntentionalErase } from "./store.jsx";
-import { peekOutbox, dropEvents } from "./events.js";
+import { peekOutbox, dropEvents, logEvent } from "./events.js";
 import {
   CLOUD_TABLE,
-  decideSyncDirection,
+  threeWayMerge,
   getSupabaseClient,
   getClientError,
   getSupabaseConfig,
@@ -67,12 +67,28 @@ export function CloudProvider({ children }) {
       lastSyncedRef.current = null;
     }
   }
-  const markSynced = (ts) => {
+  // The last snapshot both sides agreed on, persisted across boots.
+  // The merge compares each side's content against this base instead of
+  // comparing wall clocks across devices.
+  const LAST_SNAPSHOT_KEY = "axzio-last-synced-snapshot-v1";
+  const markSynced = (snapshot) => {
+    const ts = (snapshot && snapshot.updatedAt) || 0;
     lastSyncedRef.current = ts;
     try {
       localStorage.setItem(LAST_SYNC_KEY, String(ts));
+      localStorage.setItem(LAST_SNAPSHOT_KEY, JSON.stringify(snapshot));
     } catch {
       /* storage full/blocked — the in-memory ref still guards this session */
+    }
+  };
+  const loadBaseSnapshot = () => {
+    try {
+      const raw = localStorage.getItem(LAST_SNAPSHOT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch {
+      return null;
     }
   };
   const mergeRanRef = useRef(false);
@@ -81,17 +97,6 @@ export function CloudProvider({ children }) {
   // below upload stale local state over newer cloud data.
   const mergeCompletedRef = useRef(false);
   const pendingPushRef = useRef(false);
-
-  // Whether a local envelope existed BEFORE this boot (captured at first
-  // render — before the store's persist effect can write one).
-  const hadLocalAtBoot = useRef(null);
-  if (hadLocalAtBoot.current === null) {
-    try {
-      hadLocalAtBoot.current = localStorage.getItem(STORAGE_KEY) !== null;
-    } catch {
-      hadLocalAtBoot.current = false;
-    }
-  }
 
   useEffect(() => {
     stateRef.current = state;
@@ -147,42 +152,52 @@ export function CloudProvider({ children }) {
       // An intentional "erase everything" always pushes, even when the
       // snapshot is blank — the blank-safety guard below must not stop it.
       const forcePush = consumeIntentionalErase();
-      let direction = forcePush
-        ? "push"
-        : decideSyncDirection({
-            localUpdatedAt: local.updatedAt || 0,
-            hadLocal: hadLocalAtBoot.current,
-            cloudUpdatedAt: row ? Date.parse(row.updated_at) || 0 : null,
-          });
-      if (direction === "push" && !forcePush && row) {
-        // Clock-skew guard: push only what this device hasn't already
-        // synced. If local.updatedAt matches the last agreed sync point,
-        // this device holds nothing new — a "newer" local clock is skew,
-        // not new data. Pull instead of letting a stale snapshot clobber
-        // the cloud (this is how a traveler name came back as "Traveler").
-        const unsynced =
-          hadLocalAtBoot.current &&
-          (local.updatedAt || 0) !== (lastSyncedRef.current || 0);
-        if (!unsynced) direction = "pull";
-      }
-      if (direction === "push") {
-        const cloudHasContent = row && row.state && !isEmptyState(row.state);
-        if (!forcePush && isEmptyState(local) && cloudHasContent) {
-          // Blank-safety: this device holds a blank slate while the cloud
-          // holds real data. Never upload the blank over it — take the
-          // cloud's copy instead.
-          replaceState(row.state);
-          markSynced((row.state && row.state.updatedAt) || 0);
+      const cloudState =
+        row && row.state && typeof row.state === "object" ? row.state : null;
+      // Content-based sync: compare each side against the last snapshot
+      // both sides agreed on. No wall clocks — device clocks disagree, and
+      // clock-based last-write-wins silently discarded this device's
+      // unsynced edits on re-login (lost focus items, placements, name).
+      const base = loadBaseSnapshot();
+      const baseTs = (base && base.updatedAt) || 0;
+      const localDirty = (local.updatedAt || 0) !== baseTs;
+      const cloudDirty = !!cloudState && (cloudState.updatedAt || 0) !== baseTs;
+      if (!cloudState) {
+        // No cloud row yet: seed it. Nothing exists to clobber.
+        const err = await pushState(client, u.id, local);
+        if (err) throw err;
+        markSynced(local);
+      } else if (!localDirty && !cloudDirty) {
+        // Already in agreement.
+        markSynced(local);
+      } else if (localDirty && !cloudDirty) {
+        // Only this device moved: push. Blank-safety still applies —
+        // never upload a blank slate over real cloud data.
+        if (!forcePush && isEmptyState(local) && !isEmptyState(cloudState)) {
+          replaceState(cloudState);
+          markSynced(cloudState);
         } else {
           const err = await pushState(client, u.id, local);
           if (err) throw err;
-          markSynced(local.updatedAt || 0);
+          markSynced(local);
         }
-      } else if (direction === "pull") {
-        replaceState(row.state);
-        markSynced((row.state && row.state.updatedAt) || 0);
+      } else if (!localDirty && cloudDirty) {
+        // Only the cloud moved: pull.
+        replaceState(cloudState);
+        markSynced(cloudState);
       } else {
-        markSynced(local.updatedAt || 0);
+        // Genuine conflict: both sides moved since the last agreement.
+        // Three-way merge keeps each side's non-overlapping edits; the
+        // device in the user's hand wins per-section ties. Nothing is
+        // silently discarded.
+        const { merged, conflicts } = threeWayMerge(base, local, cloudState);
+        if (conflicts.length > 0 && base) {
+          logEvent("sync.conflict", { keys: conflicts });
+        }
+        replaceState(merged);
+        const err = await pushState(client, u.id, merged);
+        if (err) throw err;
+        markSynced(merged);
       }
       // The merge finished with a signed-in user: pushes are now safe.
       // Flush anything that queued while the merge was in flight.
@@ -193,7 +208,7 @@ export function CloudProvider({ children }) {
         if ((cur.updatedAt || 0) !== lastSyncedRef.current) {
           const err = await pushState(client, u.id, cur);
           if (err) throw err;
-          markSynced(cur.updatedAt || 0);
+          markSynced(cur);
         }
       }
       setSyncStatus("synced");
@@ -255,7 +270,7 @@ export function CloudProvider({ children }) {
     try {
       const err = await pushState(client, u.id, cur);
       if (err) throw err;
-      markSynced(cur.updatedAt || 0);
+      markSynced(cur);
       setSyncStatus("synced");
     } catch {
       setSyncStatus("offline");

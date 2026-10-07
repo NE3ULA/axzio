@@ -154,3 +154,59 @@ export function decideSyncDirection({
   if (localUpdatedAt > cloudUpdatedAt) return "push";
   return "synced";
 }
+
+/* Order-stable stringify for content comparison: two snapshots with the
+   same data compare equal regardless of key insertion order. */
+function stableStringify(v) {
+  if (v === null || typeof v !== "object") return JSON.stringify(v);
+  if (Array.isArray(v)) return "[" + v.map(stableStringify).join(",") + "]";
+  const keys = Object.keys(v).sort();
+  return (
+    "{" +
+    keys.map((k) => JSON.stringify(k) + ":" + stableStringify(v[k])).join(",") +
+    "}"
+  );
+}
+
+/**
+ * Three-way merge of whole-state snapshots, section by section.
+ * `base` is the last snapshot both sides agreed on; `local` and `cloud`
+ * are the diverged copies. A top-level section changed on only one side
+ * takes that side's value; a section changed on both keeps the local copy
+ * (the device in the user's hand) and is reported in `conflicts`.
+ * Unlike clock-based last-write-wins, this never silently discards one
+ * side's edits — the failure mode that ate focus items on re-login.
+ * Returns { merged, conflicts }. merged.updatedAt is bumped so the merged
+ * result wins the next sync round on every device.
+ */
+export function threeWayMerge(base, local, cloud) {
+  const b = base && typeof base === "object" ? base : {};
+  const l = local && typeof local === "object" ? local : {};
+  const c = cloud && typeof cloud === "object" ? cloud : {};
+  const merged = {};
+  const conflicts = [];
+  const keys = new Set([
+    ...Object.keys(b),
+    ...Object.keys(l),
+    ...Object.keys(c),
+  ]);
+  for (const k of keys) {
+    if (k === "updatedAt") continue; // stamped below
+    const bv = stableStringify(b[k]);
+    const lv = stableStringify(l[k]);
+    const cv = stableStringify(c[k]);
+    if (lv === cv) {
+      if (l[k] !== undefined) merged[k] = l[k];
+      else if (c[k] !== undefined) merged[k] = c[k];
+    } else if (lv === bv) {
+      if (c[k] !== undefined) merged[k] = c[k]; // only cloud moved
+    } else if (cv === bv) {
+      if (l[k] !== undefined) merged[k] = l[k]; // only local moved
+    } else {
+      if (l[k] !== undefined) merged[k] = l[k]; // both moved: local wins
+      conflicts.push(k);
+    }
+  }
+  merged.updatedAt = Date.now();
+  return { merged, conflicts };
+}
