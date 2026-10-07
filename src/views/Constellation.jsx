@@ -14,6 +14,7 @@ import {
   threadReviewDue,
   threadSpine,
   spineWhy,
+  sortedCommitments,
   threadMassTier,
   threadAttention,
   stellarClass,
@@ -37,6 +38,7 @@ import {
 } from "../components/ui.jsx";
 import GoalCapture, { GrownGoalsList } from "../components/GoalCapture.jsx";
 import HabitCapture, { GrownHabitsList } from "../components/HabitCapture.jsx";
+import { LifeModRow, LifeModEditor } from "../components/LifeMod.jsx";
 
 /* ------------------------------------------------------------------ */
 /* CONSTELLATION — the night sky of your becoming. Every star is a      */
@@ -104,12 +106,12 @@ export default function Constellation() {
     <div className="mx-auto w-full max-w-6xl px-5 pb-24 pt-8">
       <header className="axzio-rise mb-6">
         <div className="flex items-center gap-3">
-          <MicroLabel className="mb-2">Constellation</MicroLabel>
-          <HelpBubble title="Constellation" className="mb-2">
+          <MicroLabel className="mb-2">Nebula</MicroLabel>
+          <HelpBubble title="Nebula" className="mb-2">
             <HelpText
-              what="The night sky of your becoming. Every star is a thread — one thought walking the spine from spark to legend. Brightness is mass: the more orbits and offspring, the more light."
+              what="The nebula where your stars are born. Every star is a thread — one thought walking the spine from spark to legend. Brightness is mass: the more orbits and offspring, the more light."
               why="A thread you can locate is a thread you can tend. The sky shows where each one stands; the threads list shows what needs you next."
-              how="Ignite stars from the Command Deck — they land in Capture. Select one to read its chain, move it along the loop, rename it as it evolves, or work it with Reset and Grow."
+              how="Ignite a seed above — it lands in Capture. Select a star to read its chain, move it along the loop, rename it as it evolves, or work it with Reset and Grow."
             />
           </HelpBubble>
         </div>
@@ -192,22 +194,6 @@ export default function Constellation() {
           </Card>
         </section>
       )}
-
-      {/* lifemods — designed life changes */}
-      <section className="mt-12">
-        <div className="mb-5 flex items-center gap-4">
-          <MicroLabel>LifeMods</MicroLabel>
-          <HelpBubble title="LifeMods">
-            <HelpText
-              what="A LifeMod is a designed life change — a thread's answer when the conditions need to change. It is the Execute-phase view of a thread."
-              why="A LifeMod does not ask 'How do I force myself to comply?' It asks 'What could I change so the next aligned action becomes clearer?'"
-              how="Grow one from a thread (its detail card), or name a friction below. Give it a legend function, work its Becoming Cycle, archive it when it is installed — or delete it when it no longer serves."
-            />
-          </HelpBubble>
-          <div className="h-px flex-1 bg-white/10" />
-        </div>
-        <LifeModsSection />
-      </section>
     </div>
   );
 }
@@ -255,6 +241,18 @@ function IgniteForm() {
       {flash && (
         <p className="text-sm tracking-wide text-white/70">{flash}</p>
       )}
+      <p className="text-[12px] text-white/35">
+        Want the full ignition passage — name, meaning, first action?{" "}
+        <button
+          type="button"
+          onClick={() => {
+            window.location.hash = "#/practice?passage=star";
+          }}
+          className="text-white/60 underline-offset-2 hover:text-white hover:underline"
+        >
+          Guided ignition →
+        </button>
+      </p>
       {state.stars.length > 0 && (
         <p className="text-[11px] uppercase tracking-[0.2em] text-white/35">
           {state.stars.length} star{state.stars.length === 1 ? "" : "s"} in the sky
@@ -417,12 +415,32 @@ function ThreadChain({ star, state }) {
 
 /* ------------------------------ SKY ------------------------------ */
 
+/* Anchors are commitments: every commitment renders as a gold-ringed
+   black hole, and threads rooted to it orbit nearby. No marking needed —
+   rooting into identity IS anchoring. */
+function anchorPos(commitments, id) {
+  const idx = commitments.findIndex((c) => c.id === id);
+  const n = commitments.length;
+  const x = n <= 1 ? SKY_W / 2 : 130 + (idx * (SKY_W - 260)) / (n - 1);
+  return [x, 372];
+}
+
 function SkyView({ stars, state, selectedId, onSelect }) {
+  const commitments = sortedCommitments(state);
+  const anchorById = new Map(commitments.map((c) => [c.id, anchorPos(commitments, c.id)]));
   const pts = stars.map((s) => {
     const spine = threadSpine(state, s);
     const off = threadOffspring(state, s);
     const tier = threadMassTier(s, off);
-    const [x, y] = threadPos(s, spine);
+    let [x, y] = threadPos(s, spine);
+    // rooted threads orbit their anchor
+    const ap = s.commitmentId && anchorById.get(s.commitmentId);
+    if (ap && spine !== "released") {
+      const ang = hash01(s.id + ":orbit") * Math.PI * 2;
+      const rad = 52 + hash01(s.id + ":rad") * 30;
+      x = Math.min(975, Math.max(25, ap[0] + Math.cos(ang) * rad));
+      y = Math.min(340, Math.max(40, ap[1] - 40 - Math.abs(Math.sin(ang)) * rad));
+    }
     return { star: s, spine, tier, x, y };
   });
   const spineLabel = (sp) =>
@@ -462,7 +480,7 @@ function SkyView({ stars, state, selectedId, onSelect }) {
           const isSel = selectedId === p.star.id;
           const cls = stellarClass(state, p.star, p.tier);
           const def = STELLAR_CLASSES[cls];
-          const isBH = cls === "anchor" || cls === "trap";
+          const isBH = cls === "trap";
           const dim = cls === "released";
           const labelBelow = p.y < 300;
           return (
@@ -536,10 +554,25 @@ function SkyView({ stars, state, selectedId, onSelect }) {
             </g>
           );
         })}
+        {/* anchors — commitments as black holes */}
+        {commitments.map((c) => {
+          const [ax, ay] = anchorPos(commitments, c.id);
+          return (
+            <g key={`anchor-${c.id}`}>
+              <circle cx={ax} cy={ay} r={26} fill="none" stroke="#d8a94e" strokeWidth="1" opacity="0.3" strokeDasharray="3 5" />
+              <circle cx={ax} cy={ay} r={13} fill="#050508" stroke="#d8a94e" strokeWidth="1.6" />
+              <circle cx={ax} cy={ay} r={13} fill="none" stroke="#d8a94e" strokeWidth="1" opacity="0.9"
+                style={{ filter: "drop-shadow(0 0 10px #d8a94e)" }} />
+              <text x={ax} y={ay + 32} textAnchor="middle" fill="rgba(216,169,78,0.85)" fontSize="10" letterSpacing="2">
+                {(c.text || "").slice(0, 22).toUpperCase()}
+              </text>
+            </g>
+          );
+        })}
       </svg>
       <p className="px-3 pb-2 text-[10px] uppercase tracking-[0.24em] text-white/30">
-        One star per thread — brightness is mass · select a star to read its
-        thread
+        One star per thread — brightness is mass · gold rings are your
+        commitments, anchoring what orbits them
       </p>
     </Card>
   );
@@ -647,16 +680,17 @@ function ThreadCard({ e, state, axzio, onOpen }) {
   const dotSize = [6, 8, 11, 14, 16][tier];
   const cls = stellarClass(state, star, tier);
   const cdef = STELLAR_CLASSES[cls];
-  const isBH = cls === "anchor" || cls === "trap";
+  const isBH = cls === "trap";
   const legend = spine === "evolve";
+  const anchorName = star.commitmentId ? commitmentText(state, star.commitmentId) : null;
 
   const goReview = () => {
     const t = attn.target;
     window.location.hash =
-      t.kind === "growth" ? `#/journeys?growth=${t.id}` : `#/journeys?reset=${t.id}`;
+      t.kind === "growth" ? `#/practice?growth=${t.id}` : `#/practice?reset=${t.id}`;
   };
   const goReset = () => {
-    if (axzio.requestResetFromStar(star.id)) window.location.hash = "#/journeys";
+    if (axzio.requestResetFromStar(star.id)) window.location.hash = "#/practice";
   };
   const beginOrbit = () => axzio.setStarLoopStage(star.id, "interpret");
 
@@ -700,7 +734,12 @@ function ThreadCard({ e, state, axzio, onOpen }) {
                 className="rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-[0.14em]"
                 style={{ borderColor: cdef.ring, color: cdef.ring }}
               >
-                {cls === "anchor" ? "Anchor" : "Trap"}
+                Trap
+              </span>
+            )}
+            {anchorName && !isBH && (
+              <span className="rounded-full border border-[#d8a94e]/50 px-2 py-0.5 text-[9px] uppercase tracking-[0.14em] text-[#d8a94e]/80">
+                Anchored · {anchorName.slice(0, 18)}
               </span>
             )}
           </div>
@@ -884,9 +923,9 @@ function gateForTarget(target, gates) {
   return gates[2];
 }
 
-/* The path: the E3 loop as a graduated progress bar. Gates are soft —
-   meeting one knocks (the user approves the unlock); moving early
-   offers the instrument first, with honest declaration as the bypass. */
+/* The loop: the E3 stages as a quiet stepper. Gates run in the
+   background — tapping a stage opens its popup, which says plainly what
+   the stage asks and where the thread stands. Stages are earned. */
 function GateSection({ star, axzio }) {
   const [flow, setFlow] = useState(null); // {target, gate, met}
   const [repDraft, setRepDraft] = useState("");
@@ -911,9 +950,9 @@ function GateSection({ star, axzio }) {
     const g = flow.gate;
     setFlow(null);
     if (g.key === "reset") {
-      if (axzio.requestResetFromStar(star.id)) window.location.hash = "#/journeys";
+      if (axzio.requestResetFromStar(star.id)) window.location.hash = "#/practice";
     } else if (g.key === "growth") {
-      if (axzio.requestGrowthFrom("star", star.id)) window.location.hash = "#/journeys";
+      if (axzio.requestGrowthFrom("star", star.id)) window.location.hash = "#/practice";
     }
   };
   const declareAdvance = () => {
@@ -924,52 +963,35 @@ function GateSection({ star, axzio }) {
   const intGate = gates[2];
   const habits = (intGate.detail && intGate.detail.habits) || [];
 
+  // gate state per stage, for the quiet hint under each button
+  const gateHint = (key) => {
+    const idx = E3_ORDER.indexOf(key);
+    if (idx < 0 || idx <= curIdx) return null;
+    if (idx > curIdx + 1) return null; // only the next stage shows state
+    const gate = gateForTarget(key, gates);
+    const met = gate.have >= gate.need;
+    return met ? "ready" : `${gate.have}/${gate.need}`;
+  };
+
   return (
     <div className="mt-6 border-t border-white/10 pt-5">
       <div className="mb-3 flex items-center gap-2">
-        <MicroLabel>The path</MicroLabel>
-        <HelpBubble title="The path">
+        <MicroLabel>The loop</MicroLabel>
+        <HelpBubble title="The loop">
           <HelpText
-            what="The E3 loop as a graduated path: each stage is unlocked by doing the work — a Reset, a Growth Practice, completed offspring."
+            what="The E3 loop the thread walks: Reveal → Interpret → Align → Act → Integrate."
             why="Stages you earn mean something. The gate doesn't auto-advance you; it knocks, and you decide whether the work is real."
-            how="Meet a gate's requirement and approve the unlock — or move early: the app offers the instrument first, and honest declaration ('I did this elsewhere') is always available."
+            how="Tap the next stage to see what it asks. Meet the requirement and approve — or move early: the instrument is offered first, and honest declaration is always accepted."
           />
         </HelpBubble>
       </div>
 
-      {/* E3 progress bar */}
-      <div className="mb-4 flex items-center gap-1">
-        {E3_ORDER.map((k, i) => (
-          <div key={k} className="flex flex-1 items-center gap-1 last:flex-none">
-            <div className="flex flex-col items-center gap-1">
-              <span
-                className={`h-[10px] w-[10px] rounded-full ${
-                  i < curIdx
-                    ? "bg-white/50"
-                    : i === curIdx
-                      ? "bg-[#d8a94e] shadow-[0_0_10px_rgba(216,169,78,0.8)]"
-                      : "border border-white/25"
-                }`}
-                title={stageLabel(k)}
-              />
-              <span
-                className={`text-[9px] uppercase tracking-[0.1em] ${
-                  i === curIdx ? "text-[#d8a94e]" : "text-white/30"
-                }`}
-              >
-                {stageLabel(k).slice(0, 4)}
-              </span>
-            </div>
-            {i < E3_ORDER.length - 1 && <div className="mb-4 h-px flex-1 bg-white/10" />}
-          </div>
-        ))}
-      </div>
-
-      {/* the stepper — forward moves go through the gate flow */}
+      {/* the stepper — forward moves open the gate popup */}
       <div className="flex flex-wrap gap-2">
         {ALL_STAGES.map((st) => {
           const isSel = star.loopStage === st.key;
           const isReleased = st.key === "released";
+          const hint = gateHint(st.key);
           return (
             <button
               key={st.key}
@@ -986,26 +1008,86 @@ function GateSection({ star, axzio }) {
               }`}
             >
               {st.label}
+              {hint && (
+                <span className={`ml-1.5 ${hint === "ready" ? "text-[#d8a94e]" : "text-white/35"}`}>
+                  {hint === "ready" ? "· ready" : `· ${hint}`}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
-      {/* gate flow dialog */}
+      {/* gate popup */}
       {flow && (
         <div className="mt-4 rounded-xl border border-[#d8a94e]/40 bg-[#d8a94e]/[0.06] p-5">
           {!flow.met ? (
             <>
               <p className="text-[14px] text-white/85">
-                This stage is unlocked by {flow.gate.instrument
-                  ? `a ${flow.gate.instrument}`
-                  : "completing the work"}
-                {" "}— {flow.gate.have}/{flow.gate.need} {flow.gate.unit} so far.
+                {stageLabel(flow.target)} asks for{" "}
+                {flow.gate.key === "integrate"
+                  ? `${flow.gate.need} completions — goals finished, habits integrated, or focus tasks done`
+                  : flow.gate.instrument
+                    ? `a ${flow.gate.instrument}`
+                    : "the work"}
+                . You're at {flow.gate.have} of {flow.gate.need}.
               </p>
               <p className="mt-1.5 text-[12.5px] leading-relaxed text-white/50">
                 {flow.gate.blurb} The tools are the path of least resistance —
                 but your word is always accepted.
               </p>
+              {flow.gate.key === "integrate" && habits.length > 0 && (
+                <div className="mt-3 space-y-2 border-t border-dashed border-white/10 pt-3">
+                  {habits.filter((h) => !habitIntegrated(h)).map((h) => (
+                    <div key={h.id} className="flex flex-wrap items-center gap-2">
+                      <span className="min-w-0 flex-1 text-[12.5px] text-white/70">
+                        {h.text} · {habitSessionCount(h)} session{habitSessionCount(h) === 1 ? "" : "s"}
+                        {h.repGoal ? ` / ${h.repGoal} rep goal` : " · no rep goal"}
+                      </span>
+                      {!h.repGoal && (
+                        <span className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min="1"
+                            max="365"
+                            value={repDraft}
+                            onChange={(e) => setRepDraft(e.target.value)}
+                            placeholder="#"
+                            aria-label={`Rep goal for ${h.text}`}
+                            className="w-14 rounded-lg border border-white/15 bg-black px-2 py-1 text-[12px] text-white outline-none focus:border-white/40"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const n = parseInt(repDraft, 10);
+                              if (Number.isInteger(n) && n > 0) {
+                                axzio.setHabitRepGoal(h.id, n);
+                                setRepDraft("");
+                              }
+                            }}
+                            className="rounded-lg border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:border-white/40 hover:text-white"
+                          >
+                            Set rep goal
+                          </button>
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => axzio.declareHabitIntegrated(h.id)}
+                        title="The habit is on autopilot — become, not practiced"
+                        className="rounded-lg border border-[#d8a94e]/40 px-2 py-1 text-[11px] text-[#d8a94e]/90 hover:border-[#d8a94e] hover:text-[#d8a94e]"
+                      >
+                        I feel integrated
+                      </button>
+                    </div>
+                  ))}
+                  {habits.some((h) => habitIntegrated(h)) && (
+                    <p className="text-[12px] text-white/40">
+                      Integrated: {habits.filter((h) => habitIntegrated(h)).map((h) => h.text).join(", ")}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">
                 {flow.gate.instrument && (
                   <Btn variant="primary" onClick={beginInstrument}>
@@ -1060,93 +1142,7 @@ function GateSection({ star, axzio }) {
         </div>
       )}
 
-      {/* gate rows */}
-      <div className="mt-4 space-y-2.5">
-        {gates.map((g) => {
-          const met = g.have >= g.need;
-          const pct = Math.min(100, Math.round((g.have / g.need) * 100));
-          return (
-            <div
-              key={g.key}
-              className={`rounded-xl border p-4 ${
-                met ? "border-[#d8a94e]/40 bg-[#d8a94e]/[0.05]" : "border-white/10 bg-white/[0.02]"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[13px] font-medium tracking-wide text-white/85">
-                  {g.label}
-                </p>
-                <p className="shrink-0 text-[12px] text-white/50">
-                  {g.have}/{g.need} {g.unit}
-                  {met && <span className="ml-2 text-[#d8a94e]">· Ready</span>}
-                </p>
-              </div>
-              <div className="mt-2 h-px bg-white/10">
-                <div
-                  className="h-px bg-[#d8a94e] transition-all"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <p className="mt-1.5 text-[12px] leading-relaxed text-white/40">{g.blurb}</p>
-              {g.key === "integrate" && habits.length > 0 && (
-                <div className="mt-3 space-y-2 border-t border-dashed border-white/10 pt-3">
-                  {habits.filter((h) => !habitIntegrated(h)).map((h) => (
-                    <div key={h.id} className="flex flex-wrap items-center gap-2">
-                      <span className="min-w-0 flex-1 text-[12.5px] text-white/70">
-                        {h.text} · {habitSessionCount(h)} session{habitSessionCount(h) === 1 ? "" : "s"}
-                        {h.repGoal ? ` / ${h.repGoal} rep goal` : " · no rep goal"}
-                      </span>
-                      {!h.repGoal && (
-                        <span className="flex items-center gap-1.5">
-                          <input
-                            type="number"
-                            min="1"
-                            max="365"
-                            value={repDraft}
-                            onChange={(e) => setRepDraft(e.target.value)}
-                            placeholder="#"
-                            aria-label={`Rep goal for ${h.text}`}
-                            className="w-14 rounded-lg border border-white/15 bg-black px-2 py-1 text-[12px] text-white outline-none focus:border-white/40"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const n = parseInt(repDraft, 10);
-                              if (Number.isInteger(n) && n > 0) {
-                                axzio.setHabitRepGoal(h.id, n);
-                                setRepDraft("");
-                              }
-                            }}
-                            className="rounded-lg border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:border-white/40 hover:text-white"
-                          >
-                            Set rep goal
-                          </button>
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => axzio.declareHabitIntegrated(h.id)}
-                        title="The habit is on autopilot — become, not practiced"
-                        className="rounded-lg border border-[#d8a94e]/40 px-2 py-1 text-[11px] text-[#d8a94e]/90 hover:border-[#d8a94e] hover:text-[#d8a94e]"
-                      >
-                        I feel integrated
-                      </button>
-                    </div>
-                  ))}
-                  {habits.some((h) => habitIntegrated(h)) && (
-                    <p className="text-[12px] text-white/40">
-                      Integrated: {habits.filter((h) => habitIntegrated(h)).map((h) => h.text).join(", ")}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-
-      <p className="mt-2 text-[12px] leading-relaxed text-white/35">
+      <p className="mt-3 text-[12px] leading-relaxed text-white/35">
         Moving back is always free. Release is always one tap — a thread let
         go on purpose, never a failure.
       </p>
@@ -1300,30 +1296,31 @@ function EvidenceSection({ star, axzio }) {
    to be rooted into identity; traps are declared, not earned — naming a
    drain is honesty, not achievement. Each carries a ? explaining what it is
    and how it's achieved. Already-held statuses are grandfathered. */
+/* Stellar status: EARNED, not selected. The crown unlocks when the
+   thread integrates; a draining thread can collapse into a trap. Anchors
+   are commitments — they need no marking: rooting into identity IS
+   anchoring, and the sky renders every commitment as a gold-ringed
+   black hole. */
 function StellarStatus({ star, axzio, tier }) {
   const cls = stellarClass(axzio.state, star, tier);
   const def = STELLAR_CLASSES[cls];
   const gates = threadGates(axzio.state, star);
   const integrateMet = gates[2].have >= gates[2].need;
   const canCrown = star.crowned || integrateMet;
-  const canAnchor = star.blackHole === "anchor" || star.commitmentId;
+  const isTrap = star.blackHole === "trap";
+  const anchorName = star.commitmentId
+    ? commitmentText(axzio.state, star.commitmentId)
+    : null;
 
-  const row = (
-    label,
-    help,
-    button,
-    disabledNote
-  ) => (
+  const row = (label, help, button, note) => (
     <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="text-[13.5px] text-white/80">{label}</span>
           <HelpBubble title={label}>{help}</HelpBubble>
         </div>
-        {disabledNote && (
-          <p className="mt-1 text-[12px] leading-relaxed text-white/40">
-            {disabledNote}
-          </p>
+        {note && (
+          <p className="mt-1 text-[12px] leading-relaxed text-white/40">{note}</p>
         )}
       </div>
       {button}
@@ -1338,7 +1335,7 @@ function StellarStatus({ star, axzio, tier }) {
       aria-pressed={active}
       className={`shrink-0 rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.14em] transition-colors ${
         active
-          ? "border-[#d8a94e]/60 bg-[#d8a94e]/10 text-[#d8a94e]"
+          ? "border-[#b45cff]/60 bg-[#b45cff]/10 text-[#b45cff]"
           : disabled
             ? "cursor-not-allowed border-white/10 text-white/25"
             : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
@@ -1354,9 +1351,9 @@ function StellarStatus({ star, axzio, tier }) {
         <MicroLabel>Stellar status</MicroLabel>
         <HelpBubble title="Stellar status">
           <HelpText
-            what="What kind of star this thread is. Dwarf colors follow mass automatically; the rest are earned."
-            why="A star's kind tells you how to tend it: seeds want orbiting, white dwarfs want maintaining, anchors hold the sky together, traps want watching."
-            how="Statuses are earned by the work — the crown unlocks when the thread integrates, anchors require rooting into identity. Traps are declared, not earned."
+            what="What kind of star this thread is. Dwarf colors follow mass automatically; the rest are earned or declared."
+            why="A star's kind tells you how to tend it: seeds want orbiting, white dwarfs want maintaining, traps want watching — and anchors hold the whole sky together."
+            how="The crown unlocks when the thread integrates. A draining thread can collapse into a trap. Anchors are your commitments — automatic."
           />
         </HelpBubble>
       </div>
@@ -1366,6 +1363,9 @@ function StellarStatus({ star, axzio, tier }) {
           {def.label}
         </span>
         {star.crowned && " — crowned, maintained identity"}
+        {anchorName && (
+          <span className="text-[#d8a94e]/80"> · anchored to “{anchorName}”</span>
+        )}
       </p>
       <div className="space-y-2">
         {row(
@@ -1373,57 +1373,49 @@ function StellarStatus({ star, axzio, tier }) {
           <HelpText
             what="A crowned thread: the ambition became identity, dense and enduring."
             why="Crowning honors the becoming without removing it — a white dwarf stays in the sky and still dims if untended."
-            how="Earned by integrating the thread: walk the path below (Reset → Growth → completions) and approve the integrate gate."
+            how="Earned by integrating the thread: walk the path (Reset → Growth → completions) and approve the integrate gate."
           />,
-          statusBtn(
-            star.crowned,
-            () => axzio.toggleCrowned(star.id),
-            "Crowned ✓",
-            "Crown",
-            !canCrown
-          ),
+          <button
+            type="button"
+            onClick={() => axzio.toggleCrowned(star.id)}
+            disabled={!canCrown}
+            aria-pressed={star.crowned}
+            className={`shrink-0 rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+              star.crowned
+                ? "border-white/70 bg-white/10 text-white"
+                : !canCrown
+                  ? "cursor-not-allowed border-white/10 text-white/25"
+                  : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
+            }`}
+          >
+            {star.crowned ? "Crowned ✓" : "Crown"}
+          </button>,
           !canCrown &&
             `Unlocks when this thread integrates — currently ${gates[2].have}/${gates[2].need} completions.`
         )}
         {row(
-          "Black hole · anchor",
+          "Collapse into a trap",
           <HelpText
-            what="A core identity — other threads orbit it. Its gravity is coherence."
-            why="Anchors are the load-bearing walls of the sky: marking one says 'everything bends toward this.'"
-            how="Earned by rooting the thread into identity first — only identity claims can be anchors."
-          />,
-          statusBtn(
-            star.blackHole === "anchor",
-            () => axzio.setBlackHole(star.id, star.blackHole === "anchor" ? null : "anchor"),
-            "Anchor ✓",
-            "Mark anchor",
-            !canAnchor
-          ),
-          !canAnchor && "Root this thread into identity first."
-        )}
-        {row(
-          "Black hole · trap",
-          <HelpText
-            what="A gravity well — a pattern that robs energy and focus (doomscrolling, the 2am spiral)."
+            what="A gravity well — a pattern that robs energy and focus (doomscrolling, the 2am spiral). Collapsing names it honestly: this thread is not a star, it's gravity."
             why="Named traps lose power. Checking the well honestly — steered clear or fell in — turns a drain into data."
-            how="Declared, not earned: mark any thread that drains you. Quiet wells surface in Needs attention."
+            how="Declared, not earned. A collapsed thread keeps its well log; release it to let it be a thread again."
           />,
           statusBtn(
-            star.blackHole === "trap",
-            () => axzio.setBlackHole(star.id, star.blackHole === "trap" ? null : "trap"),
+            isTrap,
+            () => axzio.setBlackHole(star.id, isTrap ? null : "trap"),
             "Trap ✓",
-            "Mark trap",
+            "Collapse",
             false
           ),
           null
         )}
       </div>
-      {star.blackHole === "trap" && (
+      {isTrap && (
         <div className="mt-3 rounded-xl border border-[#b45cff]/25 bg-[#b45cff]/[0.05] p-4">
           <p className="text-[12.5px] leading-relaxed text-white/55">
-            A trap is a gravity well — it robs energy and focus. Check the
-            well honestly: did you steer clear, or fall in? Quiet wells
-            surface in Needs attention.
+            This thread has collapsed into a gravity well. Check the well
+            honestly: did you steer clear, or fall in? Quiet wells surface in
+            Needs attention.
           </p>
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <button
@@ -1453,8 +1445,6 @@ function StellarStatus({ star, axzio, tier }) {
   );
 }
 
-/* Root into identity: link the thread to an EXISTING commitment or
-   create a new one. Unlinking is always available — mistakes undo. */
 function RootIdentity({ star, axzio }) {
   const commitments = (axzio.state.identity.commitments || []).filter(
     (c) => c && !c.archived
@@ -1533,6 +1523,91 @@ function RootIdentity({ star, axzio }) {
   );
 }
 
+/* The LifeMod grown from this thread: opens as an overlay right here,
+   in the seed view where it was added. Deleting removes the LifeMod;
+   goals and habits grown from it stay under their commitments. */
+function LifeModCard({ lifemod, axzio }) {
+  const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <>
+      <div className="rounded-xl border border-white/20 bg-white/[0.03] p-4">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+          Growing as LifeMod
+        </p>
+        <p className="mt-1.5 text-[15px] leading-relaxed text-white">
+          {lifemod.name}
+        </p>
+        <div className="mt-2 flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:text-white"
+          >
+            Open →
+          </button>
+          {confirming ? (
+            <span className="flex items-center gap-2 text-[11px] text-white/50">
+              Delete this LifeMod?
+              <button
+                type="button"
+                onClick={() => axzio.deleteLifeMod(lifemod.id)}
+                className="uppercase tracking-[0.14em] text-red-300/80 hover:text-red-200"
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="uppercase tracking-[0.14em] text-white/40 hover:text-white/70"
+              >
+                Keep
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              className="text-[11px] uppercase tracking-[0.14em] text-white/35 transition-colors hover:text-white/70"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      </div>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`LifeMod: ${lifemod.name}`}
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="mx-auto my-8 w-full max-w-2xl px-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="rounded-2xl border border-white/15 bg-black p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <MicroLabel>LifeMod</MicroLabel>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  aria-label="Close"
+                  className="text-white/40 hover:text-white"
+                >
+                  ×
+                </button>
+              </div>
+              <LifeModEditor lifemod={lifemod} />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function ThreadDetail({ star, axzio, onClose }) {
   const [confirm, setConfirm] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -1552,12 +1627,12 @@ function ThreadDetail({ star, axzio, onClose }) {
 
   const exploreInReset = () => {
     if (axzio.requestResetFromStar(star.id)) {
-      window.location.hash = "#/journeys";
+      window.location.hash = "#/practice";
     }
   };
   const growSeed = () => {
     if (axzio.requestGrowthFrom("star", star.id)) {
-      window.location.hash = "#/journeys";
+      window.location.hash = "#/practice";
     }
   };
   const growLifeMod = () => {
@@ -1716,21 +1791,7 @@ function ThreadDetail({ star, axzio, onClose }) {
           </HelpBubble>
         </div>
         {grownLifeMod ? (
-          <div className="rounded-xl border border-white/20 bg-white/[0.03] p-4">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-              Growing as LifeMod
-            </p>
-            <p className="mt-1.5 text-[15px] leading-relaxed text-white">
-              {grownLifeMod.name}
-            </p>
-            <button
-              type="button"
-              onClick={() => axzio.linkStarLifeMod(star.id, null)}
-              className="mt-2 text-[11px] uppercase tracking-[0.14em] text-white/35 transition-colors hover:text-white/70"
-            >
-              Unlink
-            </button>
-          </div>
+          <LifeModCard lifemod={grownLifeMod} axzio={axzio} />
         ) : (
           <>
             <button
@@ -1857,457 +1918,7 @@ function CloseBtn({ onClose }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* LifeMods — designed life changes. Two entry doors: grown from a     */
-/* seed (star detail's "Make LifeMod") or named directly from a        */
-/* friction (the capture below). No separate module: they live here,  */
-/* in the Constellation, summarized on the Deck.                       */
-/* ------------------------------------------------------------------ */
 
-function LifeModsSection() {
-  const axzio = useAxzio();
-  const { state } = axzio;
-  const [frictionText, setFrictionText] = useState("");
-  const [showArchived, setShowArchived] = useState(false);
-  const [expandedId, setExpandedId] = useState(null);
-
-  const lifemods = Array.isArray(state.lifemods) ? state.lifemods : [];
-  const active = lifemods.filter((m) => m.active !== false);
-  const archived = lifemods.filter((m) => m.active === false);
-
-  const create = (e) => {
-    e.preventDefault();
-    const t = frictionText.trim();
-    if (!t) return;
-    // Door B: name the friction directly — conceptually still a matured
-    // seed, just one that never went through the ignite loop.
-    const m = axzio.addLifeMod(t, { origin: "friction" });
-    if (m) {
-      setFrictionText("");
-      setExpandedId(m.id);
-    }
-  };
-
-  return (
-    <Card className="axzio-rise axzio-rise-3 p-6">
-      {/* door B: name a friction */}
-      <form onSubmit={create} className="mb-6">
-        <div className="mb-3 flex items-center gap-2">
-          <MicroLabel>Name a friction</MicroLabel>
-          <HelpBubble title="Name a friction">
-            <HelpText
-              what="The second door into a LifeMod: name a preexisting circumstance that creates drag — no seed required."
-              why="Not every LifeMod starts as inspiration. Friction-born LifeMods remove drag (repair, remove); seed-born ones build lift (unlock, expand)."
-              example="“My sleep schedule is wrecking my mornings.”"
-            />
-          </HelpBubble>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Field
-            value={frictionText}
-            onChange={(e) => setFrictionText(e.target.value)}
-            placeholder="What repeatedly creates drag?"
-            maxLength={120}
-            aria-label="Name a friction"
-            className="flex-1"
-          />
-          <Btn type="submit" disabled={!frictionText.trim()}>
-            Create LifeMod
-          </Btn>
-        </div>
-        <p className="mt-2 text-[12px] leading-relaxed text-white/35">
-          Preexisting circumstances count too — a LifeMod can start from a
-          friction, not only from a seed.
-        </p>
-      </form>
-
-      {/* active lifemods */}
-      <div className="border-t border-white/10 pt-5">
-        <MicroLabel className="mb-3">
-          Active · {active.length}
-        </MicroLabel>
-        {active.length === 0 ? (
-          <Empty>
-            No active LifeMods — grow one from a seed, or name a friction
-            above.
-          </Empty>
-        ) : (
-          <div className="space-y-2">
-            {active.map((m) => (
-              <LifeModRow
-                key={m.id}
-                lifemod={m}
-                expanded={expandedId === m.id}
-                onToggle={() =>
-                  setExpandedId(expandedId === m.id ? null : m.id)
-                }
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* archived */}
-      {archived.length > 0 && (
-        <div className="mt-6 border-t border-white/10 pt-5">
-          <button
-            type="button"
-            onClick={() => setShowArchived((s) => !s)}
-            aria-expanded={showArchived}
-            className="text-[11px] uppercase tracking-[0.2em] text-white/45 transition-colors hover:text-white"
-          >
-            {showArchived ? "Hide archived" : `Show archived · ${archived.length}`}
-          </button>
-          {showArchived && (
-            <div className="mt-3 space-y-2">
-              {archived.map((m) => (
-                <LifeModRow
-                  key={m.id}
-                  lifemod={m}
-                  expanded={expandedId === m.id}
-                  onToggle={() =>
-                    setExpandedId(expandedId === m.id ? null : m.id)
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function LifeModRow({ lifemod, expanded, onToggle }) {
-  const fnLabel = legendFunctionLabel(lifemod.legendFunction);
-  const stageLabel = becomingStageLabel(lifemod.becomingStage);
-  return (
-    <div
-      className={`rounded-xl border transition-colors ${
-        expanded ? "border-white/30 bg-white/[0.02]" : "border-white/10"
-      }`}
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={expanded}
-        className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-left"
-      >
-        <span className="min-w-0 flex-1 truncate text-[15px] text-white/90">
-          {lifemod.name || "Unnamed LifeMod"}
-        </span>
-        {fnLabel && <Pill>{fnLabel}</Pill>}
-        {stageLabel && <Pill tone="lit">{stageLabel}</Pill>}
-        <span className="text-[10px] uppercase tracking-[0.18em] text-white/35">
-          {lifemod.origin === "seed" ? "Grown from a seed" : "Named from friction"}
-        </span>
-      </button>
-      {expanded && <LifeModEditor lifemod={lifemod} />}
-    </div>
-  );
-}
-
-function LifeModEditor({ lifemod }) {
-  const axzio = useAxzio();
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const m = lifemod;
-  const set = (patch) => axzio.updateLifeMod(m.id, patch);
-  const growLifeMod = () => {
-    if (axzio.requestGrowthFrom("lifemod", m.id)) {
-      window.location.hash = "#/journeys";
-    }
-  };
-
-  return (
-    <div className="border-t border-white/10 px-4 py-5 md:px-6">
-      <div className="mb-5 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={growLifeMod}
-          className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
-        >
-          Grow — design pursuit →
-        </button>
-        <p className="text-[12px] leading-relaxed text-white/35">
-          Design the pursuit this condition change serves.
-        </p>
-      </div>
-      {/* name */}
-      <div className="mb-5">
-        <MicroLabel className="mb-2">Name</MicroLabel>
-        <Field
-          value={m.name}
-          onChange={(e) => set({ name: e.target.value })}
-          maxLength={120}
-          aria-label="LifeMod name"
-        />
-      </div>
-
-      {/* the book's five elements */}
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-        <div>
-          <MicroLabel className="mb-2">Friction</MicroLabel>
-          <TextArea
-            value={m.friction}
-            onChange={(e) => set({ friction: e.target.value })}
-            placeholder="What is creating drag?"
-            rows={2}
-            maxLength={600}
-            aria-label="Friction"
-          />
-        </div>
-        <div>
-          <div className="mb-2 flex items-center gap-2">
-            <MicroLabel>Current state</MicroLabel>
-            <HelpBubble title="Current state">
-              <HelpText
-                what="Where this is right now, honestly described — the starting point the LifeMod moves from."
-                why="A LifeMod travels from current to desired. Without an honest starting point there's nothing to measure the change against."
-                example="“I check my phone in bed for 40 minutes most nights.”"
-              />
-            </HelpBubble>
-          </div>
-          <TextArea
-            value={m.currentState}
-            onChange={(e) => set({ currentState: e.target.value })}
-            placeholder="Where it is now."
-            rows={2}
-            maxLength={600}
-            aria-label="Current state"
-          />
-        </div>
-        <div>
-          <div className="mb-2 flex items-center gap-2">
-            <MicroLabel>Desired state</MicroLabel>
-            <HelpBubble title="Desired state">
-              <HelpText
-                what="Where this wants to be — the condition you're designing toward."
-                why="The desired state is what the Becoming Cycle works toward and what Review measures against."
-                how="Describe the condition, not the action. It's a state of life, not a to-do."
-                example="“Phone charges in the kitchen; the bedroom is for sleep and reading.”"
-              />
-            </HelpBubble>
-          </div>
-          <TextArea
-            value={m.desiredState}
-            onChange={(e) => set({ desiredState: e.target.value })}
-            placeholder="Where it wants to be."
-            rows={2}
-            maxLength={600}
-            aria-label="Desired state"
-          />
-        </div>
-        <div>
-          <MicroLabel className="mb-2">Next action</MicroLabel>
-          <Field
-            value={m.nextAction}
-            onChange={(e) => set({ nextAction: e.target.value })}
-            placeholder="The smallest concrete action that begins the modification."
-            maxLength={280}
-            aria-label="Next action"
-          />
-          <div className="mt-5 grid grid-cols-2 gap-5">
-            <div>
-              <div className="mb-2 flex items-center gap-2">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                  Impact
-                </p>
-                <HelpBubble title="Impact vs effort">
-                  <HelpText
-                    what="A rough read on the LifeMod: how much it matters (impact) versus how much it costs to make (effort)."
-                    why="High impact, low effort changes are the obvious first moves. The read keeps ambition honest."
-                    how="Set each by feel — it's a compass, not a calculation."
-                  />
-                </HelpBubble>
-              </div>
-              <TriState
-                value={m.impact}
-                onChange={(v) => set({ impact: v })}
-              />
-            </div>
-            <TriState
-              label="Effort"
-              value={m.effort}
-              onChange={(v) => set({ effort: v })}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* legend function */}
-      <div className="mt-6">
-        <div className="mb-3 flex items-center gap-2">
-          <MicroLabel>Legend function</MicroLabel>
-          <HelpBubble title="Legend functions">
-            <HelpText
-              what="The eight jobs a LifeMod can do for your legend — what this change is for."
-              why="Naming the function keeps the LifeMod honest: a change meant to Simplify that keeps Expanding is off-course."
-              how="Pick the one that fits. Friction-born LifeMods usually Repair or Remove; seed-born ones usually Unlock or Expand."
-            />
-          </HelpBubble>
-        </div>
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          {LEGEND_FUNCTIONS.map((f) => {
-            const sel = m.legendFunction === f.key;
-            return (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => set({ legendFunction: sel ? null : f.key })}
-                aria-pressed={sel}
-                className={`rounded-xl border px-4 py-3 text-left transition-colors ${
-                  sel
-                    ? "border-white/60 bg-white/10"
-                    : "border-white/10 hover:border-white/35"
-                }`}
-              >
-                <p
-                  className={`text-[12px] uppercase tracking-[0.16em] ${
-                    sel ? "text-white" : "text-white/70"
-                  }`}
-                >
-                  {f.label}
-                </p>
-                <p className="mt-1 text-[13px] leading-snug text-white/45">
-                  {f.desc}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* becoming cycle stepper */}
-      <div className="mt-6">
-        <div className="mb-3 flex items-center gap-2">
-          <MicroLabel>Becoming Cycle</MicroLabel>
-          <HelpBubble title="Becoming Cycle">
-            <HelpText
-              what="The six-stage journey every LifeMod travels: Detect → Capture → Evaluate → Execute → Review → Evolve."
-              why="A LifeMod is a change to living conditions, not a task — it needs its own cycle, with Review built in before it Evolves."
-              how="Move the LifeMod along as it matures. Review asks whether it's working; Evolve carries the lesson into the next change."
-            />
-          </HelpBubble>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {BECOMING_STAGES.map((s, i) => {
-            const sel = m.becomingStage === s.key;
-            return (
-              <button
-                key={s.key}
-                type="button"
-                onClick={() => set({ becomingStage: s.key })}
-                aria-pressed={sel}
-                title={sel ? "Current stage" : `Move to ${s.label}`}
-                className={`rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.14em] transition-colors ${
-                  sel
-                    ? "border-white/70 bg-white/10 text-white"
-                    : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
-                }`}
-              >
-                <span className="mr-1.5 text-white/30">{i + 1}</span>
-                {s.label}
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-2 text-[12px] leading-relaxed text-white/35">
-          Placement is yours to declare — the cycle does not advance on its
-          own.
-        </p>
-      </div>
-
-      {/* crystallize the desired state into a goal */}
-      <div className="mt-6">
-        <div className="mb-3 flex items-center gap-2">
-          <MicroLabel>Goals grown from this LifeMod</MicroLabel>
-          <HelpBubble title="LifeMod becomes a goal">
-            <HelpText
-              what="Crystallizes this LifeMod's desired state into a goal — a defined outcome with a horizon, serving one of your commitments."
-              why="A LifeMod changes conditions; a goal names the destination those conditions serve. They stay linked: the condition and the outcome, each visible from the other."
-              how="Read your desired state above, then distill it into a crisp outcome — name it in a breath, choose the commitment, set an optional horizon. The LifeMod keeps living here; the goal lives under its commitment on Identity."
-            />
-          </HelpBubble>
-        </div>
-        <GrownGoalsList sourceLifeModId={m.id} />
-        {m.desiredState?.trim() && (
-          <blockquote className="mb-3 border-l-2 border-white/20 pl-3 text-[13px] italic leading-relaxed text-white/55">
-            “{m.desiredState.trim().length > 220
-              ? m.desiredState.trim().slice(0, 220) + "…"
-              : m.desiredState.trim()}”
-          </blockquote>
-        )}
-        <div className="mt-3">
-          <GoalCapture
-            ctaLabel="Set a goal"
-            sourceLifeModId={m.id}
-            compact
-          />
-        </div>
-        <p className="mt-2 text-[12px] leading-relaxed text-white/40">
-          Distill the desired state above into one crisp outcome — a LifeMod
-          may grow several goals over its life.
-        </p>
-      </div>
-
-      {/* grow the desired state into a habit */}
-      <div className="mt-6">
-        <div className="mb-3 flex items-center gap-2">
-          <MicroLabel>Habits grown from this LifeMod</MicroLabel>
-          <HelpBubble title="LifeMod grows a habit">
-            <HelpText
-              what="Turns this LifeMod's desired state into a habit — a repeating practice with a rhythm, serving one of your commitments."
-              why="A LifeMod changes conditions; a habit rehearses the new condition until it holds. They stay linked: the condition and the practice, each visible from the other."
-              how="Read your desired state above, then name the practice that would grow it — set when it happens and for how long, choose the commitment. The LifeMod keeps living here; the habit lives under its commitment on Identity."
-            />
-          </HelpBubble>
-        </div>
-        <GrownHabitsList sourceLifeModId={m.id} />
-        <div className="mt-3">
-          <HabitCapture
-            ctaLabel="Start a habit"
-            sourceLifeModId={m.id}
-            compact
-          />
-        </div>
-        <p className="mt-2 text-[12px] leading-relaxed text-white/40">
-          Name the practice that would grow this condition — a LifeMod may
-          grow several habits over its life.
-        </p>
-      </div>
-
-      {/* archive / delete */}
-      <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-white/10 pt-5">
-        <Btn
-          variant="ghost"
-          onClick={() => axzio.setLifeModActive(m.id, !m.active)}
-        >
-          {m.active ? "Archive" : "Restore"}
-        </Btn>
-        {!confirmDelete ? (
-          <Btn variant="quiet" onClick={() => setConfirmDelete(true)} className="px-0">
-            Delete
-          </Btn>
-        ) : (
-          <span className="flex items-center gap-3">
-            <Btn variant="ghost" onClick={() => axzio.deleteLifeMod(m.id)}>
-              Confirm delete
-            </Btn>
-            <Btn variant="quiet" onClick={() => setConfirmDelete(false)}>
-              Keep it
-            </Btn>
-          </span>
-        )}
-        <span className="text-[12px] text-white/35">
-          {m.active
-            ? "Archiving keeps the record; deleting removes it."
-            : "Archived — restore to work it again."}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/** Quiet Low / Med / High segmented control; tapping the selected clears it. */
 function TriState({ label, value, onChange }) {
   const opts = [
     { key: "low", label: "Low" },

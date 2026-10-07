@@ -8,29 +8,44 @@ import Boot from "./views/Boot.jsx";
 import Onboarding from "./views/Onboarding.jsx";
 import SupabaseSetup from "./components/SupabaseSetup.jsx";
 import AccountControl from "./components/AccountControl.jsx";
-import Deck from "./views/Deck.jsx";
+import Bridge from "./views/Bridge.jsx";
 import Constellation from "./views/Constellation.jsx";
 import Identity from "./views/Identity.jsx";
-import Journeys from "./views/Journeys.jsx";
+import Practices from "./views/Practices.jsx";
+import Atlas from "./views/Atlas.jsx";
 import Modes from "./views/Modes.jsx";
 
 import Tribe from "./views/Tribe.jsx";
 import Focus from "./views/Focus.jsx";
 
-/* Hash-based routing — no react-router, works from static files. */
+/* Hash-based routing — no react-router, works from static files.
+   Four main tabs (Bridge · Nebula · Core · Focus); everything else lives
+   in the Atlas drawer — the whiteboard for modules that are still being
+   placed. Practices (Reset, Growth, rituals) live under the hood, opened
+   contextually or from the drawer. */
 const ROUTES = [
-  { key: "deck", label: "Deck", view: Deck },
-  { key: "focus", label: "Focus", view: Focus },
+  { key: "bridge", label: "Bridge", view: Bridge, main: true },
+  { key: "nebula", label: "Nebula", view: Constellation, main: true },
+  { key: "core", label: "Core", view: Identity, main: true },
+  { key: "focus", label: "Focus", view: Focus, main: true },
+  { key: "atlas", label: "Atlas", view: Atlas },
+  { key: "practice", label: "Practice", view: Practices },
   { key: "modes", label: "Modes", view: Modes },
   { key: "tribe", label: "Tribe", view: Tribe },
-  { key: "constellation", label: "Constellation", view: Constellation },
-  { key: "identity", label: "Identity", view: Identity },
-  { key: "journeys", label: "Journeys", view: Journeys },
 ];
+const MAIN_ROUTES = ROUTES.filter((r) => r.main);
+/* Legacy hashes from before the rename. */
+const LEGACY_ROUTES = {
+  deck: "bridge",
+  constellation: "nebula",
+  identity: "core",
+  journeys: "practice",
+};
 
 function routeFromHash() {
   const h = window.location.hash.replace(/^#\/?/, "").split("?")[0];
-  return ROUTES.some((r) => r.key === h) ? h : "deck";
+  if (ROUTES.some((r) => r.key === h)) return h;
+  return LEGACY_ROUTES[h] || "bridge";
 }
 
 /* Full-page login gate: when cloud sync is configured but no session
@@ -74,7 +89,7 @@ export default function App() {
   }, []);
 
   const onboardingDone = useCallback(() => {
-    window.location.hash = "#/deck";
+    window.location.hash = "#/bridge";
     // The walkthrough is a fixed overlay: the window keeps its scroll
     // position underneath, so without this the Deck would land mid-page
     // (e.g. down at Capture) after a replay.
@@ -142,25 +157,23 @@ function TopNav({ route, name }) {
   const go = (key) => {
     window.location.hash = `#/${key}`;
   };
-  // Mobile menu: the tab strip doesn't fit on a phone, so small screens
-  // get a hamburger dropdown; Deck stays pinned on the bar as the
-  // priority page. Desktop keeps the full tab strip.
-  const [menuOpen, setMenuOpen] = useState(false);
+  // The Atlas drawer: the whiteboard. Practices, index tables, and the
+  // modules still being placed — one tap away on every screen size.
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const headerRef = useRef(null);
-  const closeMenu = () => setMenuOpen(false);
+  const closeDrawer = () => setDrawerOpen(false);
 
-  // Close the dropdown on route change, Escape, or a tap outside it.
   useEffect(() => {
-    closeMenu();
+    closeDrawer();
   }, [route]);
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!drawerOpen) return;
     const onKey = (e) => {
-      if (e.key === "Escape") closeMenu();
+      if (e.key === "Escape") closeDrawer();
     };
     const onPointer = (e) => {
       if (headerRef.current && !headerRef.current.contains(e.target)) {
-        closeMenu();
+        closeDrawer();
       }
     };
     document.addEventListener("keydown", onKey);
@@ -169,7 +182,25 @@ function TopNav({ route, name }) {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerdown", onPointer);
     };
-  }, [menuOpen]);
+  }, [drawerOpen]);
+
+  const drawerLink = (hash, label, sub) => (
+    <button
+      key={hash}
+      onClick={() => {
+        window.location.hash = hash;
+        closeDrawer();
+      }}
+      className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-white/5"
+    >
+      <span className="text-[13px] uppercase tracking-[0.2em] text-white/70">
+        {label}
+      </span>
+      {sub && (
+        <span className="text-[11px] tracking-wide text-white/30">{sub}</span>
+      )}
+    </button>
+  );
 
   return (
     <header
@@ -179,7 +210,7 @@ function TopNav({ route, name }) {
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3.5">
         <button
-          onClick={() => go("deck")}
+          onClick={() => go("bridge")}
           className="flex shrink-0 items-center gap-3"
           aria-label="AXZIO home"
         >
@@ -193,9 +224,9 @@ function TopNav({ route, name }) {
           </span>
         </button>
 
-        {/* Desktop: full tab strip */}
+        {/* Desktop: the four main tabs */}
         <nav className="hidden items-center gap-1 md:flex" aria-label="Views">
-          {ROUTES.map((r) => (
+          {MAIN_ROUTES.map((r) => (
             <button
               key={r.key}
               onClick={() => go(r.key)}
@@ -211,32 +242,32 @@ function TopNav({ route, name }) {
           ))}
         </nav>
 
-        {/* Mobile: Deck stays pinned on the bar as the priority page */}
         <div className="flex shrink-0 items-center gap-2">
+          {/* Mobile: Bridge stays pinned as the priority page */}
           <button
-            onClick={() => go("deck")}
-            aria-current={route === "deck" ? "page" : undefined}
+            onClick={() => go("bridge")}
+            aria-current={route === "bridge" ? "page" : undefined}
             className={`shrink-0 rounded-lg px-3.5 py-2 text-[11px] font-medium uppercase tracking-[0.2em] transition-colors md:hidden ${
-              route === "deck"
+              route === "bridge"
                 ? "bg-white/10 text-white"
                 : "text-white/45 hover:text-white"
             }`}
           >
-            Deck
+            Bridge
           </button>
 
           <span className="hidden max-w-[160px] truncate text-[11px] uppercase tracking-[0.22em] text-white/40 sm:block">
             {name || "Traveler"}
           </span>
 
-          {/* Mobile: hamburger, just left of settings */}
+          {/* The Atlas drawer — every screen size */}
           <button
-            onClick={() => setMenuOpen((o) => !o)}
-            aria-expanded={menuOpen}
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-white/70 transition-colors hover:border-white/40 hover:text-white md:hidden"
+            onClick={() => setDrawerOpen((o) => !o)}
+            aria-expanded={drawerOpen}
+            aria-label={drawerOpen ? "Close atlas" : "Open atlas"}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-white/70 transition-colors hover:border-white/40 hover:text-white"
           >
-            {menuOpen ? (
+            {drawerOpen ? (
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                 <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.5" />
               </svg>
@@ -251,29 +282,63 @@ function TopNav({ route, name }) {
         </div>
       </div>
 
-      {/* Mobile: hamburger dropdown */}
-      {menuOpen && (
+      {/* The Atlas drawer */}
+      {drawerOpen && (
         <nav
-          className="border-t border-white/10 bg-black/95 px-5 py-2 backdrop-blur-md md:hidden"
-          aria-label="Views"
+          className="border-t border-white/10 bg-black/95 px-5 py-4 backdrop-blur-md"
+          aria-label="Atlas"
         >
-          {ROUTES.map((r) => (
-            <button
-              key={r.key}
-              onClick={() => go(r.key)}
-              aria-current={route === r.key ? "page" : undefined}
-              className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-[13px] uppercase tracking-[0.2em] transition-colors ${
-                route === r.key
-                  ? "bg-white/10 text-white"
-                  : "text-white/55 hover:bg-white/5 hover:text-white"
-              }`}
-            >
-              {r.label}
-              {route === r.key && (
-                <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true" />
-              )}
-            </button>
-          ))}
+          <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.24em] text-white/35">
+                Views
+              </p>
+              {MAIN_ROUTES.map((r) => (
+                <button
+                  key={r.key}
+                  onClick={() => {
+                    go(r.key);
+                    closeDrawer();
+                  }}
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-white/5"
+                >
+                  <span className="text-[13px] uppercase tracking-[0.2em] text-white/70">
+                    {r.label}
+                  </span>
+                  {route === r.key && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true" />
+                  )}
+                </button>
+              ))}
+              {drawerLink("#/atlas", "Atlas", "index tables")}
+            </div>
+            <div>
+              <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.24em] text-white/35">
+                Practices
+              </p>
+              {drawerLink("#/practice?passage=reset", "Reset", "clear the fog")}
+              {drawerLink("#/practice?passage=growth", "Growth Practice", "design the pursuit")}
+              {drawerLink("#/practice?passage=morning", "Morning Alignment", "dawn")}
+              {drawerLink("#/practice?passage=evening", "Evening Review", "dusk")}
+            </div>
+            <div>
+              <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.24em] text-white/35">
+                Index
+              </p>
+              {drawerLink("#/atlas?section=lifemods", "LifeMods", "designed changes")}
+              {drawerLink("#/atlas?section=goals", "Goals", "outcomes")}
+              {drawerLink("#/atlas?section=habits", "Habits", "practices")}
+              {drawerLink("#/atlas?section=resets", "Past Resets", "action cards")}
+            </div>
+            <div>
+              <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.24em] text-white/35">
+                Whiteboard
+              </p>
+              {drawerLink("#/modes", "Modes", "being placed")}
+              {drawerLink("#/tribe", "Tribe", "being placed")}
+              {drawerLink("#/atlas?section=launch", "Launch Sequence", "placeholder")}
+            </div>
+          </div>
         </nav>
       )}
     </header>

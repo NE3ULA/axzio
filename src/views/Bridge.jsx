@@ -45,12 +45,11 @@ import ModePicker from "../components/ModePicker.jsx";
 /* each card expandable inline or routing to its module.                */
 /* ------------------------------------------------------------------ */
 
-export default function Deck() {
+export default function Bridge() {
   const axzio = useAxzio();
   const { state } = axzio;
   const today = localDateKey();
   const day = getDayState(state, today);
-  const todaysActions = actionsOn(state, today).slice().reverse();
   const todaysSignals = signalsOn(state, today).slice().reverse();
   const streak = useMemo(() => computeStreak(state), [state]);
   const [editingName, setEditingName] = useState(false);
@@ -67,7 +66,7 @@ export default function Deck() {
       {/* header */}
       <header className="axzio-rise mb-10 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <MicroLabel className="mb-2">Command Deck</MicroLabel>
+          <MicroLabel className="mb-2">Bridge</MicroLabel>
           <h2 className="flex items-center gap-3 text-3xl font-light tracking-wide md:text-4xl">
             {editingName ? (
               <input
@@ -124,12 +123,8 @@ export default function Deck() {
         <div className="h-px flex-1 bg-white/10" />
       </div>
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <WhoAmICard />
-        <WhatsImportantCard />
-        <ModeCard />
         <StateCard />
         <OrientationCard day={day} today={today} />
-        <LifeModsCard />
         <ReviewsDueCard today={today} />
       </div>
 
@@ -172,66 +167,17 @@ export default function Deck() {
         </Card>
       </section>
 
-      {/* action log */}
-      <section className="axzio-rise axzio-rise-4 mt-6">
-        <Card className="p-6">
-          <SectionHead
-            label="Action log"
-            help={
-              <HelpBubble title="Action log">
-                <HelpText
-                  what="A running log of embodied action, tagged by mantra anchor or primitive."
-                  why="Action is where identity becomes visible; the log is the evidence. Streaks count consecutive days with at least one action."
-                  how="Log what you did. Delete with the × — the log is yours to keep honest."
-                />
-              </HelpBubble>
-            }
-          />
-          <ActionForm />
-          <div className="mt-5 space-y-2">
-            {todaysActions.length === 0 && (
-              <Empty>No actions logged today yet.</Empty>
-            )}
-            {todaysActions.map((a) => (
-              <div
-                key={a.id}
-                className="group flex items-start justify-between gap-3 rounded-xl border border-white/10 px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-[15px] leading-snug">{a.text}</p>
-                  <p className="mt-1.5 flex flex-wrap items-center gap-2">
-                    <Pill>{tagLabel(a.tag)}</Pill>
-                    <span className="text-[11px] tracking-[0.14em] text-white/35">
-                      {formatTime(a.ts)}
-                    </span>
-                  </p>
-                </div>
-                <button
-                  onClick={() => axzio.deleteAction(a.id)}
-                  aria-label="Delete action"
-                  className="mt-1 shrink-0 text-white/25 transition-colors hover:text-white/80"
-                >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.4" />
-                  </svg>
-                </button>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </section>
-
-      {/* signals */}
+      {/* sparks — the rawest capture; each can ignite into a seed */}
       <section className="axzio-rise axzio-rise-5 mt-6">
         <Card className="p-6">
           <SectionHead
-            label="Signal feed"
+            label="Sparks"
             help={
-              <HelpBubble title="Signal feed">
+              <HelpBubble title="Sparks">
                 <HelpText
-                  what="Transmissions: notes, observations, vows — the unprocessed feed of a life being paid attention to."
-                  why="Signal is what the Alchemist Path begins with: what is revealed before it is interpreted."
-                  how="Transmit anything. Today's signals stay on the deck; the feed is the raw material of future reviews."
+                  what="Raw sparks: notes, observations, vows — captured before they're anything."
+                  why="Not every spark is a seed yet. Sparks are the pre-seed: the raw material that either ignites or composts."
+                  how="Capture anything. Ignite a spark to turn it into a star seed in the Nebula."
                 />
               </HelpBubble>
             }
@@ -239,15 +185,24 @@ export default function Deck() {
           <SignalForm />
           <div className="mt-5 space-y-3">
             {todaysSignals.length === 0 && (
-              <Empty>Nothing transmitted today. Send a signal.</Empty>
+              <Empty>No sparks today. Capture the raw stuff.</Empty>
             )}
-            {todaysSignals.map((s) => (
-              <div key={s.id} className="border-l border-white/20 pl-4">
+            {todaysSignals.map((sg) => (
+              <div key={sg.id} className="border-l border-white/20 pl-4">
                 <p className="text-[15px] leading-relaxed text-white/85">
-                  {s.text}
+                  {sg.text}
                 </p>
-                <p className="mt-1 text-[11px] tracking-[0.14em] text-white/35">
-                  {formatTime(s.ts)}
+                <p className="mt-1.5 flex items-center gap-3">
+                  <span className="text-[11px] tracking-[0.14em] text-white/35">
+                    {formatTime(sg.ts)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => axzio.addStar(sg.text, "")}
+                    className="text-[11px] uppercase tracking-[0.14em] text-white/45 transition-colors hover:text-[#d8a94e]"
+                  >
+                    Ignite as seed →
+                  </button>
                 </p>
               </div>
             ))}
@@ -1561,55 +1516,6 @@ function BatteryCheck({ day, today }) {
         instrument is; priority tells you how much attention it gets.
       </p>
     </div>
-  );
-}
-
-function ActionForm() {
-  const { addAction } = useAxzio();
-  const [text, setText] = useState("");
-  const [tag, setTag] = useState("action");
-
-  const submit = (e) => {
-    e.preventDefault();
-    if (addAction(text, tag)) {
-      setText("");
-    }
-  };
-
-  return (
-    <form onSubmit={submit} className="flex flex-col gap-3 md:flex-row">
-      <Field
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Log an action — what did you do?"
-        maxLength={220}
-        className="md:flex-1"
-      />
-      <select
-        value={tag}
-        onChange={(e) => setTag(e.target.value)}
-        aria-label="Action tag"
-        className="rounded-xl border border-white/15 bg-black px-4 py-3 text-[13px] tracking-wide text-white outline-none focus:border-white/50"
-      >
-        <optgroup label="Mantra">
-          {TAGS.filter((t) => t.group === "Mantra").map((t) => (
-            <option key={t.key} value={t.key}>
-              {t.label}
-            </option>
-          ))}
-        </optgroup>
-        <optgroup label="Primitive">
-          {TAGS.filter((t) => t.group === "Primitive").map((t) => (
-            <option key={t.key} value={t.key}>
-              {t.label}
-            </option>
-          ))}
-        </optgroup>
-      </select>
-      <Btn type="submit" variant="ghost" disabled={!text.trim()}>
-        Log
-      </Btn>
-    </form>
   );
 }
 

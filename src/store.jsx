@@ -923,7 +923,12 @@ export function threadReviewDue(state, star) {
  *  (hatched) → evaluate (being worked) → capture (fresh spark). */
 export function threadSpine(state, star) {
   if (!star || star.loopStage === "released") return "released";
-  if (star.commitmentId) return "evolve";
+  // Evolve is earned: rooted into identity AND the path walked (integrate
+  // gate met). A merely-rooted thread still shows where its work stands.
+  if (star.commitmentId) {
+    const gates = threadGates(state, star);
+    if (gates[2].have >= gates[2].need) return "evolve";
+  }
   if (threadReviewDue(state, star)) return "review";
   const off = threadOffspring(state, star);
   if (star.lifemodId || off.goals.length > 0 || off.habits.length > 0) return "execute";
@@ -969,7 +974,6 @@ export const STELLAR_CLASSES = {
 
 export function stellarClass(state, star, tier) {
   if (!star || star.loopStage === "released") return "released";
-  if (star.blackHole === "anchor") return "anchor";
   if (star.blackHole === "trap") return "trap";
   if (star.crowned) return "white-dwarf";
   return (
@@ -1132,34 +1136,38 @@ const SPINE_LOOP_LABEL = {
 };
 export function spineWhy(state, star) {
   const stage = threadSpine(state, star);
+  const rootedNote =
+    star.commitmentId && stage !== "evolve" && stage !== "released"
+      ? ` Rooted into \u201c${commitmentText(state, star.commitmentId) || "identity"}\u201d — finish the path to evolve.`
+      : "";
   const commitmentName = star.commitmentId
     ? commitmentText(state, star.commitmentId)
     : null;
   switch (stage) {
     case "released":
-      return {
+      return finish({
         stage,
         why: "Released — let go with intention. It stays in the sky as compost.",
         lever: null,
-      };
+      });
     case "evolve":
-      return {
+      return finish({
         stage,
         why: commitmentName
           ? `Became the commitment \u201c${commitmentName}\u201d — the ambition is now identity.`
           : "Rooted into identity — the ambition is now a standing promise.",
         lever:
           "Tend it: a maintained identity still dims if untended. Crown it once the path below is walked.",
-      };
+      });
     case "review": {
       const due = threadReviewDue(state, star);
-      return {
+      return finish({
         stage,
         why: due
           ? `A ${due.kind === "growth" ? "Growth Practice" : "Reset"} review is due${due.date ? ` (since ${due.date})` : ""}.`
           : "Worked enough to be looked at again.",
         lever: "Complete the review to move on.",
-      };
+      });
     }
     case "execute": {
       const off = threadOffspring(state, star);
@@ -1168,7 +1176,7 @@ export function spineWhy(state, star) {
         ...off.habits.map((h) => `habit \u201c${h.text}\u201d`),
         ...(off.lifemod ? [`LifeMod \u201c${off.lifemod.name}\u201d`] : []),
       ];
-      return {
+      return finish({
         stage,
         why:
           names.length > 0
@@ -1177,20 +1185,25 @@ export function spineWhy(state, star) {
               }.`
             : "Something was hatched from this thread.",
         lever: "Work the offspring — their completions move the thread.",
-      };
+      });
     }
     case "evaluate":
-      return {
+      return finish({
         stage,
         why: `${star.orbits || 0} orbit${star.orbits === 1 ? "" : "s"}; E3 loop at \u201c${SPINE_LOOP_LABEL[star.loopStage] || star.loopStage}\u201d.`,
         lever: "Advance through the E3 path below — each gate walked moves it.",
-      };
+      });
     default:
-      return {
+      return finish({
         stage: "capture",
         why: "Fresh spark — the first orbit hasn't begun.",
         lever: "Begin an orbit, or run a Reset to clear the fog.",
-      };
+      });
+  }
+
+  function finish(r) {
+    if (rootedNote) r.why += rootedNote;
+    return r;
   }
 }
 
@@ -1404,7 +1417,7 @@ function normalizeStar(s) {
     crowned: s.crowned === true,
     // Black hole marking: 'anchor' (core identity others orbit) or
     // 'trap' (a gravity well that robs energy — doomscrolling etc).
-    blackHole: s.blackHole === "anchor" || s.blackHole === "trap" ? s.blackHole : null,
+    blackHole: s.blackHole === "trap" ? "trap" : null,
     // Trap check-ins: [{ at, fell }] — "steered clear" vs "fell in".
     wellLog: Array.isArray(s.wellLog)
       ? s.wellLog
@@ -3110,10 +3123,10 @@ export function AxzioProvider({ children }) {
       logEvent(crowned ? "seed.crowned" : "seed.uncrowned", { id: starId });
       return crowned;
     },
-    /** Mark a thread as a black hole: 'anchor' (core identity) or 'trap'
-     *  (gravity well that robs energy). Null clears the marking. */
+    /** Collapse a thread into a trap (gravity well) or release it.
+     *  Anchors are commitments now — they need no marking. */
     setBlackHole(starId, kind) {
-      const k = kind === "anchor" || kind === "trap" ? kind : null;
+      const k = kind === "trap" ? "trap" : null;
       update((d) => {
         const s = d.stars.find((x) => x.id === starId);
         if (s) s.blackHole = k;
@@ -3256,7 +3269,16 @@ export function AxzioProvider({ children }) {
         for (const s of d.stars || []) {
           if (s.lifemodId === id) s.lifemodId = null;
         }
+        // Goals and habits grown from the LifeMod stay under their
+        // commitments — they're real work. Just detach the source.
+        for (const g of d.goals || []) {
+          if (g && g.sourceLifeModId === id) g.sourceLifeModId = null;
+        }
+        for (const h of d.habits || []) {
+          if (h && h.sourceLifeModId === id) h.sourceLifeModId = null;
+        }
       });
+      logEvent("lifemod.deleted", { id });
     },
 
     /* primitive assessments */

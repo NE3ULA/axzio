@@ -49,7 +49,7 @@ import {
 /* JOURNEYS — guided step-through flows that write into the state        */
 /* ------------------------------------------------------------------ */
 
-export default function Journeys() {
+export default function Practices() {
   const axzio = useAxzio();
   const [active, setActive] = useState(null); // journey id
   const [viewingReset, setViewingReset] = useState(null); // reset id -> Action Card
@@ -236,7 +236,14 @@ export default function Journeys() {
     setGrowthBooted(false);
   };
 
-  // Deep link: #/journeys?reset=<id> opens that reset's Action Card.
+  // Direct passage launch: #/practice?passage=reset|growth|morning|evening|star.
+  useEffect(() => {
+    const m = window.location.hash.match(/[?&]passage=([a-z]+)/);
+    if (m && JOURNEYS.some((j) => j.id === m[1])) {
+      setActive(m[1]);
+    }
+  }, []);
+  // Deep link: #/practice?reset=<id> opens that reset's Action Card.
   // Used by the Focus item editor's "Guided Reset" section.
   const resetsRef = useRef([]);
   resetsRef.current = axzio.state.resets;
@@ -249,8 +256,8 @@ export default function Journeys() {
         const id = decodeURIComponent(m[1]);
         if (resetsRef.current.some((r) => r.id === id)) {
           setViewingReset(id);
-          if (window.location.hash !== "#/journeys") {
-            window.location.hash = "#/journeys";
+          if (window.location.hash !== "#/practice") {
+            window.location.hash = "#/practice";
           }
         }
         return;
@@ -260,8 +267,8 @@ export default function Journeys() {
         const id = decodeURIComponent(g[1]);
         if (growthSessionsRef.current.some((r) => r.id === id)) {
           setViewingGrowth(id);
-          if (window.location.hash !== "#/journeys") {
-            window.location.hash = "#/journeys";
+          if (window.location.hash !== "#/practice") {
+            window.location.hash = "#/practice";
           }
         }
       }
@@ -275,25 +282,15 @@ export default function Journeys() {
     <div className="mx-auto w-full max-w-3xl px-5 pb-24 pt-8">
       <header className="axzio-rise mb-10">
         <div className="flex items-center gap-3">
-          <MicroLabel className="mb-2">Navigation</MicroLabel>
-          <HelpBubble
-            title="Journeys"
-            className="mb-2"
-          >
-            <HelpText
-              what="Guided passages through the interface — morning and evening rituals, ignition, and the Reset."
-              why="A journey turns a vague intention into a walked sequence; every passage writes into your log, signals, or constellation."
-              how="Choose a passage, answer each step, continue to the end. Past Resets keep their Action Cards below."
-            />
-          </HelpBubble>
+          <MicroLabel className="mb-2">Under the hood</MicroLabel>
         </div>
         <h2 className="text-3xl font-light tracking-wide md:text-4xl">
-          Journeys
+          Practice
         </h2>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/50">
-          Guided passages through the interface. Each step walks the Alchemist
-          Path — Reveal → Interpret → Align → Act → Integrate — and writes
-          into your log, your signals, or your constellation.
+          The instruments — Reset, Growth Practice, and the dawn/dusk
+          rituals. Usually opened in context, from a thread or a gate;
+          also launchable here.
         </p>
       </header>
 
@@ -309,31 +306,26 @@ export default function Journeys() {
           onBack={() => setViewingGrowth(null)}
         />
       ) : !active ? (
-        <>
-          <LaunchSequenceLocator />
-          <div className="mb-6 mt-10">
-            <MicroLabel>Guided passages</MicroLabel>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {JOURNEYS.map((j, i) => (
-              <button
-                key={j.id}
-                onClick={() => setActive(j.id)}
-                className={`axzio-rise rounded-2xl border border-white/15 bg-white/[0.02] p-6 text-left transition-all duration-300 hover:border-white/40 hover:bg-white/[0.04] axzio-rise-${(i % 4) + 1}`}
-              >
-                <MicroLabel className="mb-3">{j.kicker}</MicroLabel>
-                <h3 className="text-xl font-light tracking-wide">{j.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-white/50">
-                  {j.blurb}
-                </p>
-                <p className="mt-4 text-[11px] uppercase tracking-[0.22em] text-white/40">
-                  {j.phaseLine || j.steps.map((s) => s.phase).join(" → ")}
-                </p>
-              </button>
-            ))}
-          </div>
-          <ResetHistory onOpen={(id) => setViewingReset(id)} />
-        </>
+        <div className="space-y-2">
+          <MicroLabel className="mb-3">Begin a practice</MicroLabel>
+          {JOURNEYS.filter((j) => j.id !== "star").map((j) => (
+            <button
+              key={j.id}
+              onClick={() => setActive(j.id)}
+              className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-5 py-4 text-left transition-colors hover:border-white/30"
+            >
+              <span>
+                <span className="block text-[10px] uppercase tracking-[0.2em] text-white/40">
+                  {j.kicker}
+                </span>
+                <span className="mt-1 block text-[16px] text-white/90">
+                  {j.title}
+                </span>
+              </span>
+              <span className="text-white/35">→</span>
+            </button>
+          ))}
+        </div>
       ) : active === "reset" && resetSession ? (
         <JourneyRunner
           key={resetSession.id}
@@ -394,7 +386,7 @@ export default function Journeys() {
               {sourcePrompt.draft ? "Start over" : "Begin"}
             </Btn>
             <Btn variant="quiet" onClick={exitReset}>
-              Back to journeys
+              Back
             </Btn>
           </div>
         </Card>
@@ -479,7 +471,7 @@ export default function Journeys() {
               {growthPrompt.draft ? "Start over" : "Begin"}
             </Btn>
             <Btn variant="quiet" onClick={exitGrowth}>
-              Back to journeys
+              Back
             </Btn>
           </div>
         </Card>
@@ -522,82 +514,6 @@ export default function Journeys() {
 /* Identity Launch Sequence locator                                      */
 /* ------------------------------------------------------------------ */
 
-function LaunchSequenceLocator() {
-  const axzio = useAxzio();
-  const { state } = axzio;
-  const current = LAUNCH_STAGES.find((s) => s.key === state.launchStage) || null;
-
-  return (
-    <section className="axzio-rise mb-2">
-      <Card className="p-6 md:p-8">
-        <SectionHead
-          label="Identity Launch Sequence"
-          help={
-            <HelpBubble title="Identity Launch Sequence">
-              <HelpText
-                what="A nine-stage map of transformation: Love → Hope → Dream → Believe → Begin → Build → Become → Live Your Legend → Forge the Myth."
-                why="Transformation moves through a recognizable progression; naming your stage tells you what movement life is asking for."
-                how="Choose where life is currently inviting your participation. This is a map of movement, not a measure of rank."
-              />
-            </HelpBubble>
-          }
-          right={
-            current ? (
-              <button
-                onClick={() => axzio.setLaunchStage(null)}
-                className="text-[11px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white"
-              >
-                Clear
-              </button>
-            ) : undefined
-          }
-        />
-        <p className="mb-5 max-w-xl text-sm leading-relaxed text-white/55">
-          Transformation moves through a recognizable progression. This is a
-          map of movement, not a measure of rank — choose where life is
-          currently inviting your participation.
-        </p>
-
-        <div className="flex flex-wrap gap-2">
-          {LAUNCH_STAGES.map((s) => {
-            const isActive = state.launchStage === s.key;
-            return (
-              <button
-                key={s.key}
-                onClick={() =>
-                  axzio.setLaunchStage(isActive ? null : s.key)
-                }
-                aria-pressed={isActive}
-                className={`rounded-full border px-4 py-2 text-[12px] uppercase tracking-[0.16em] transition-all duration-200 ${
-                  isActive
-                    ? "border-white/70 bg-white/10 text-white shadow-[0_0_20px_rgba(255,255,255,0.12)]"
-                    : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
-                }`}
-              >
-                {s.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {current && (
-          <div className="axzio-rise mt-6 border-t border-white/10 pt-6">
-            <MicroLabel className="mb-2">
-              {current.label} — {current.move}
-            </MicroLabel>
-            <p className="max-w-xl text-[15px] leading-relaxed text-white/75">
-              {current.desc}
-            </p>
-            <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/55">
-              <span className="text-white/80">The movement: </span>
-              {current.suggestion}
-            </p>
-          </div>
-        )}
-      </Card>
-    </section>
-  );
-}
 
 /* The eight fields of the Guided Reset: the Situation named first, then
    the battery heard in relation to it, then the Alchemist Path with a
@@ -905,7 +821,7 @@ function ResetDraftList({ drafts, onResume, onDiscard, onNew, onBack }) {
       <div className="mt-6 flex flex-wrap gap-3">
         <Btn onClick={onNew}>Start new reset</Btn>
         <Btn variant="quiet" onClick={onBack}>
-          Back to journeys
+          Back
         </Btn>
       </div>
     </Card>
@@ -1922,7 +1838,7 @@ function formatResetCard(reset, sourceLine) {
  * copy-to-clipboard button. Used both right after completing the
  * journey and when opening a past reset from history.
  */
-function ResetActionCard({ resetId, onBack, onRestart, allowDelete = false }) {
+export function ResetActionCard({ resetId, onBack, onRestart, allowDelete = false }) {
   const axzio = useAxzio();
   const { state } = axzio;
   const reset = state.resets.find((r) => r.id === resetId);
@@ -2342,7 +2258,7 @@ function AddToFocusFromReset({ reset }) {
 }
 
 /** Past completed resets, newest first. Each opens its Action Card. */
-function ResetHistory({ onOpen }) {
+export function ResetHistory({ onOpen }) {
   const { state } = useAxzio();
   const resets = state.resets.slice().reverse();
   if (resets.length === 0) return null;

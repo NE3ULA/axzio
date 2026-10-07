@@ -36,6 +36,9 @@ import {
   HelpBubble,
   HelpText,
 } from "../components/ui.jsx";
+import GoalCapture, { GoalsList } from "../components/GoalCapture.jsx";
+import HabitCapture, { HabitsList } from "../components/HabitCapture.jsx";
+import { LogActionSection } from "../components/ActionLog.jsx";
 
 /* ------------------------------------------------------------------ */
 /* FOCUS — the Decision Engine home: name what needs doing, rank the   */
@@ -447,6 +450,11 @@ export default function Focus() {
           ))}
         </div>
       </section>
+      {/* commitments — the full view: goals and habits live here, in the action page */}
+      <CommitmentsSection />
+
+      <LogActionSection />
+
     </div>
   );
 }
@@ -1733,5 +1741,100 @@ function TogglePills({ options, selected, onToggle }) {
         );
       })}
     </div>
+  );
+}
+
+/* Commitments on the Focus page — the full working view. Identity (Core)
+   keeps the simplified ordered list; here each commitment opens into its
+   goals and habits, fully manageable where the action happens. */
+function CommitmentsSection() {
+  const axzio = useAxzio();
+  const { state } = axzio;
+  const commitments = sortedCommitments(state);
+  const [openId, setOpenId] = useState(commitments[0]?.id || null);
+  return (
+    <section className="axzio-rise mt-10">
+      <Card className="p-6">
+        <SectionHead
+          label="Commitments"
+          help={
+            <HelpBubble title="Commitments in Focus">
+              <HelpText
+                what="Your standing promises, opened into their goals and habits."
+                why="Identity names the commitments; Focus works them. Goals and habits live here because this is where action happens."
+                how="Expand a commitment to manage its goals and habits. New commitments are named in Core."
+              />
+            </HelpBubble>
+          }
+        />
+        {commitments.length === 0 ? (
+          <p className="text-sm text-white/35">
+            No commitments yet — name them in{" "}
+            <a href="#/core" className="text-white/60 underline-offset-2 hover:text-white hover:underline">
+              Core
+            </a>
+            .
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {commitments.map((c, i) => {
+              const open = openId === c.id;
+              const goalCount = (state.goals || []).filter(
+                (g) => g && g.commitmentId === c.id && !g.done
+              ).length;
+              const habitCount = (state.habits || []).filter(
+                (h) => h && h.commitmentId === c.id
+              ).length;
+              return (
+                <div
+                  key={c.id}
+                  className={`rounded-xl border transition-colors ${
+                    open ? "border-white/25 bg-white/[0.02]" : "border-white/10"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(open ? null : c.id)}
+                    aria-expanded={open}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left"
+                  >
+                    <span className="w-5 shrink-0 text-[11px] tabular-nums tracking-[0.2em] text-white/40">
+                      {i + 1}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[15px] text-white/90">
+                      {c.text}
+                    </span>
+                    <span className="shrink-0 text-[11px] tracking-[0.1em] text-white/35">
+                      {goalCount} goals · {habitCount} habits
+                    </span>
+                    <span className="shrink-0 text-white/35">{open ? "▾" : "▸"}</span>
+                  </button>
+                  {open && (
+                    <div className="border-t border-white/10 px-4 py-4">
+                      <MicroLabel>Goals</MicroLabel>
+                      <div className="mt-2">
+                        <GoalsList commitmentId={c.id} />
+                      </div>
+                      <div className="mt-2">
+                        <GoalCapture commitmentId={c.id} compact />
+                      </div>
+                      <div className="mt-5">
+                        <MicroLabel>Habits</MicroLabel>
+                        <div className="mt-2">
+                          <HabitsList commitmentId={c.id} />
+                        </div>
+                        <div className="mt-2">
+                          <HabitCapture commitmentId={c.id} compact />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </section>
   );
 }
