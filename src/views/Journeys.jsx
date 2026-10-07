@@ -752,18 +752,38 @@ function JourneyRunner({ journey, onExit, initialSession, initialScratch, initia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journey.id, scratch, step, finished]);
 
-  // The reset's subject, carried across stages: what the user named on the
-  // Situation step (pre-filled when launched from a Focus item or star).
-  // Shown from every step except the Situation step itself, where it would
-  // echo the field being typed.
+  // The reset's anchor, persistent across every step: the asset name
+  // (source), the Situation text beneath it, and an expandable log of the
+  // answers given so far. The name is the thread that keeps the reset's
+  // focus visible when the questions get deep.
+  const [recapOpen, setRecapOpen] = useState(false);
   const resetSubject =
     journey.id === "reset" ? (scratch.rsituation || "").trim() : "";
+  const isSourced =
+    !!session && session.sourceKind !== "general" && !!session.sourceName;
+  const assetLabel = isSourced
+    ? session.sourceName
+    : resetSubject || "Untitled reset";
+  const showAsset = journey.id === "reset" && !!session;
   const showSubject =
     resetSubject.length > 0 && journey.steps[step].id !== "rsituation";
   const subjectShort =
     resetSubject.length > 140
       ? resetSubject.slice(0, 140).trimEnd() + "…"
       : resetSubject;
+  // Answers so far: every completed step's response, for the recap log.
+  const recapSteps =
+    journey.id === "reset"
+      ? RESET_STEPS.slice(0, step).map((cfg) => {
+          const raw = (scratch[cfg.id] || "").trim();
+          let answer = raw.length > 120 ? raw.slice(0, 120).trimEnd() + "…" : raw;
+          if (cfg.id === "rinterpret" && scratch.rfriction) {
+            const fr = `Friction reads as ${frictionReadingLabel(scratch.rfriction)}.`;
+            answer = answer ? `${answer} — ${fr}` : fr;
+          }
+          return { id: cfg.id, title: cfg.title, answer: answer || "—" };
+        })
+      : [];
 
   const go = (dir) => {
     if (dir > 0 && step === journey.steps.length - 1) {
@@ -799,16 +819,68 @@ function JourneyRunner({ journey, onExit, initialSession, initialScratch, initia
           <h3 className="text-2xl font-light tracking-wide md:text-3xl">
             {journey.title}
           </h3>
-          {showSubject && (
-            <p
-              className="mt-3 max-w-xl text-[13px] leading-relaxed"
-              title={resetSubject}
-            >
-              <span className="mr-2 text-[10px] uppercase tracking-[0.22em] text-white/30">
-                Resetting
-              </span>
-              <span className="text-white/55">{subjectShort}</span>
-            </p>
+          {showAsset && (
+            <div className="mt-3 max-w-xl">
+              <p className="flex items-baseline gap-2 text-[13px]">
+                <span className="shrink-0 text-[10px] uppercase tracking-[0.22em] text-white/30">
+                  Reset on
+                </span>
+                <span
+                  className="truncate text-white/85"
+                  title={assetLabel}
+                >
+                  {assetLabel}
+                </span>
+              </p>
+              {isSourced && showSubject && (
+                <p
+                  className="mt-1 truncate text-[12px] text-white/40"
+                  title={resetSubject}
+                >
+                  {subjectShort}
+                </p>
+              )}
+              {recapSteps.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setRecapOpen((o) => !o)}
+                  aria-expanded={recapOpen}
+                  className="mt-2 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-white/40 transition-colors hover:text-white"
+                >
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    aria-hidden="true"
+                    className={`transition-transform duration-200 ${
+                      recapOpen ? "rotate-180" : ""
+                    }`}
+                  >
+                    <path
+                      d="M2 4l4 4 4-4"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                    />
+                  </svg>
+                  Your answers so far ({recapSteps.length})
+                </button>
+              )}
+              {recapOpen && recapSteps.length > 0 && (
+                <ul className="mt-3 space-y-2.5 border-l border-white/15 pl-4">
+                  {recapSteps.map((r) => (
+                    <li key={r.id}>
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-white/35">
+                        {r.title}
+                      </p>
+                      <p className="mt-0.5 text-[13px] leading-relaxed text-white/65">
+                        {r.answer}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
         </div>
         <button
