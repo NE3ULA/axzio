@@ -14,6 +14,7 @@ import {
   Btn,
   Field,
   TextArea,
+  DateField,
   HelpBubble,
   HelpText,
 } from "../components/ui.jsx";
@@ -416,8 +417,7 @@ function OutcomeStep({ scratch, setScratch }) {
       {scratch.gsubjectKind === "goal" && (
         <div>
           <MicroLabel className="mb-2">Horizon — the done-by date</MicroLabel>
-          <Field
-            type="date"
+          <DateField
             value={scratch.ghorizon}
             onChange={(e) =>
               setScratch((s) => ({ ...s, ghorizon: e.target.value }))
@@ -821,8 +821,7 @@ function CommitStep({ scratch, setScratch }) {
       />
       <div>
         <MicroLabel className="mb-2">Review date</MicroLabel>
-        <Field
-          type="date"
+        <DateField
           value={scratch.greviewDate}
           onChange={(e) =>
             setScratch((s) => ({ ...s, greviewDate: e.target.value }))

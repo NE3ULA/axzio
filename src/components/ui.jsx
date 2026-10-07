@@ -66,6 +66,24 @@ export function TextArea({ className = "", ...rest }) {
   );
 }
 
+/* Date input styled for the dark theme: the native control renders the
+   system calendar picker (on iPhone, the iOS calendar). The color-scheme
+   keeps the picker indicator visible on dark backgrounds. */
+export function DateField({ hint = "Tap to open the calendar.", ...rest }) {
+  return (
+    <div>
+      <input
+        type="date"
+        {...rest}
+        className={`w-full max-w-xs rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[14px] text-white outline-none transition-colors focus:border-white/50 [color-scheme:dark] ${rest.className || ""}`}
+      />
+      {hint && (
+        <p className="mt-1.5 text-[12px] text-white/40">{hint}</p>
+      )}
+    </div>
+  );
+}
+
 export function Pill({ children, tone = "neutral", className = "" }) {
   const tones = {
     neutral: "border-white/20 text-white/70",
