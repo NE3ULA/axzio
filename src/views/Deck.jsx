@@ -332,7 +332,9 @@ function WhoAmICard() {
           </p>
         )}
         {topCommitments.length > 0 ? (
-          <ul className="mt-4 space-y-2">
+          <>
+            <MicroLabel className="mb-2 mt-4">Top commitments</MicroLabel>
+            <ul className="space-y-2">
             {topCommitments.map((c, i) => {
               const openGoals = goalsForCommitment(state, c.id).filter(
                 (g) => !g.done
@@ -353,7 +355,8 @@ function WhoAmICard() {
                 </li>
               );
             })}
-          </ul>
+            </ul>
+          </>
         ) : (
           <p className="mt-4 text-[13px] leading-relaxed text-white/35">
             No commitments named yet.

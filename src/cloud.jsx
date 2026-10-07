@@ -54,7 +54,27 @@ export function CloudProvider({ children }) {
   const [authBusy, setAuthBusy] = useState(false);
 
   const stateRef = useRef(state);
+  // The updatedAt both sides agree on, persisted across boots. Lets the
+  // merge distinguish "this device has unsynced edits" from "this device's
+  // clock just runs fast" — a stale snapshot must never clobber the cloud.
+  const LAST_SYNC_KEY = "axzio-last-synced-v1";
   const lastSyncedRef = useRef(null); // updatedAt already reflected in cloud
+  if (lastSyncedRef.current === null) {
+    try {
+      const v = localStorage.getItem(LAST_SYNC_KEY);
+      lastSyncedRef.current = v === null ? null : Number(v) || 0;
+    } catch {
+      lastSyncedRef.current = null;
+    }
+  }
+  const markSynced = (ts) => {
+    lastSyncedRef.current = ts;
+    try {
+      localStorage.setItem(LAST_SYNC_KEY, String(ts));
+    } catch {
+      /* storage full/blocked — the in-memory ref still guards this session */
+    }
+  };
   const mergeRanRef = useRef(false);
   // A boot/sign-in merge must finish before any push is allowed. Without
   // this gate, a slow merge on a flaky connection lets the debounced push
@@ -76,6 +96,11 @@ export function CloudProvider({ children }) {
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  const userRef = useRef(null);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   const pushState = useCallback(async (client, userId, snapshot) => {
     const { error } = await client.from(CLOUD_TABLE).upsert(
@@ -122,13 +147,24 @@ export function CloudProvider({ children }) {
       // An intentional "erase everything" always pushes, even when the
       // snapshot is blank — the blank-safety guard below must not stop it.
       const forcePush = consumeIntentionalErase();
-      const direction = forcePush
+      let direction = forcePush
         ? "push"
         : decideSyncDirection({
             localUpdatedAt: local.updatedAt || 0,
             hadLocal: hadLocalAtBoot.current,
             cloudUpdatedAt: row ? Date.parse(row.updated_at) || 0 : null,
           });
+      if (direction === "push" && !forcePush && row) {
+        // Clock-skew guard: push only what this device hasn't already
+        // synced. If local.updatedAt matches the last agreed sync point,
+        // this device holds nothing new — a "newer" local clock is skew,
+        // not new data. Pull instead of letting a stale snapshot clobber
+        // the cloud (this is how a traveler name came back as "Traveler").
+        const unsynced =
+          hadLocalAtBoot.current &&
+          (local.updatedAt || 0) !== (lastSyncedRef.current || 0);
+        if (!unsynced) direction = "pull";
+      }
       if (direction === "push") {
         const cloudHasContent = row && row.state && !isEmptyState(row.state);
         if (!forcePush && isEmptyState(local) && cloudHasContent) {
@@ -136,17 +172,17 @@ export function CloudProvider({ children }) {
           // holds real data. Never upload the blank over it — take the
           // cloud's copy instead.
           replaceState(row.state);
-          lastSyncedRef.current = (row.state && row.state.updatedAt) || 0;
+          markSynced((row.state && row.state.updatedAt) || 0);
         } else {
           const err = await pushState(client, u.id, local);
           if (err) throw err;
-          lastSyncedRef.current = local.updatedAt || 0;
+          markSynced(local.updatedAt || 0);
         }
       } else if (direction === "pull") {
         replaceState(row.state);
-        lastSyncedRef.current = (row.state && row.state.updatedAt) || 0;
+        markSynced((row.state && row.state.updatedAt) || 0);
       } else {
-        lastSyncedRef.current = local.updatedAt || 0;
+        markSynced(local.updatedAt || 0);
       }
       // The merge finished with a signed-in user: pushes are now safe.
       // Flush anything that queued while the merge was in flight.
@@ -157,7 +193,7 @@ export function CloudProvider({ children }) {
         if ((cur.updatedAt || 0) !== lastSyncedRef.current) {
           const err = await pushState(client, u.id, cur);
           if (err) throw err;
-          lastSyncedRef.current = cur.updatedAt || 0;
+          markSynced(cur.updatedAt || 0);
         }
       }
       setSyncStatus("synced");
@@ -195,6 +231,36 @@ export function CloudProvider({ children }) {
       }
     };
   }, [configured]);
+
+  /* Immediate push of whatever this device hasn't synced yet. The
+     debounced effect below schedules it; page-hide and reconnect call it
+     directly so a quick final edit (rename the traveler, tap done, switch
+     apps) still lands, and a failed push is retried when the connection
+     returns instead of waiting for the next edit. */
+  const pushNow = useCallback(async () => {
+    if (!isSupabaseConfigured()) return;
+    const u = userRef.current;
+    if (!u || !mergeCompletedRef.current) return;
+    const cur = stateRef.current;
+    if ((cur.updatedAt || 0) === lastSyncedRef.current) return;
+    // Blank-safety: never upload a blank slate over the cloud.
+    // (An intentional "erase everything" consumes its escape hatch.)
+    if (isEmptyState(cur) && !consumeIntentionalErase()) return;
+    const client = getSupabaseClient();
+    if (!client) {
+      setSyncStatus("offline");
+      return;
+    }
+    setSyncStatus((s) => (s === "synced" || s === "idle" ? "syncing" : s));
+    try {
+      const err = await pushState(client, u.id, cur);
+      if (err) throw err;
+      markSynced(cur.updatedAt || 0);
+      setSyncStatus("synced");
+    } catch {
+      setSyncStatus("offline");
+    }
+  }, [pushState]);
 
   /* Debounced upsert after every local mutation (signed in only).
      Never pushes before the boot/sign-in merge completes: on a flaky
@@ -234,24 +300,31 @@ export function CloudProvider({ children }) {
       return () => clearTimeout(rt);
     }
     setSyncStatus((s) => (s === "synced" || s === "idle" ? "syncing" : s));
-    const t = setTimeout(async () => {
-      const client = getSupabaseClient();
-      if (!client) {
-        setSyncStatus("offline");
-        return;
-      }
-      try {
-        const snapshot = stateRef.current;
-        const err = await pushState(client, user.id, snapshot);
-        if (err) throw err;
-        lastSyncedRef.current = snapshot.updatedAt || 0;
-        setSyncStatus("synced");
-      } catch {
-        setSyncStatus("offline");
-      }
+    const t = setTimeout(() => {
+      pushNow();
     }, 1500);
     return () => clearTimeout(t);
-  }, [state, configured, user, pushState]);
+  }, [state, configured, user, pushNow]);
+
+  /* Flush unsynced changes when the page hides (a closing tab kills the
+     1.5s debounce above — the classic mobile "quick edit, switch apps"
+     loss) and retry the push when the browser reports the connection
+     back. Best-effort: strictly better than losing the edit. */
+  useEffect(() => {
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") pushNow();
+    };
+    const onPageHide = () => pushNow();
+    const onOnline = () => pushNow();
+    document.addEventListener("visibilitychange", onHidden);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("online", onOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", onHidden);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [pushNow]);
 
   /* Event journal drain: append-only history for readings + future AI.d.
      Signed-in only; missing table / offline → events stay queued. */

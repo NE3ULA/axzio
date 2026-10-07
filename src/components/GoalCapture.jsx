@@ -209,6 +209,7 @@ export default function GoalCapture({
   const [editHorizon, setEditHorizon] = useState("");
   const [editSchedule, setEditSchedule] = useState(null);
   const [editCommitmentId, setEditCommitmentId] = useState(null);
+  const [editNewCommitment, setEditNewCommitment] = useState("");
   const [editQuadrant, setEditQuadrant] = useState("q2");
   const editCommitments = sortedCommitments(state);
 
@@ -219,6 +220,7 @@ export default function GoalCapture({
     setEditHorizon(g.horizon || "");
     setEditSchedule(g.schedule || null);
     setEditCommitmentId(g.commitmentId || null);
+    setEditNewCommitment("");
     setEditQuadrant(g.quadrant || "q2");
   };
   const cancelEdit = () => {
@@ -227,15 +229,26 @@ export default function GoalCapture({
     setEditHorizon("");
     setEditSchedule(null);
     setEditCommitmentId(null);
+    setEditNewCommitment("");
     setEditQuadrant("q2");
   };
+  const editCreatingCommitment = editCommitmentId === "__new__";
+  const canSaveEdit =
+    editText.trim() &&
+    (editCreatingCommitment ? editNewCommitment.trim() : editCommitmentId);
   const saveEdit = () => {
-    if (!editText.trim() || !editCommitmentId) return;
+    if (!canSaveEdit) return;
+    let targetCid = editCommitmentId;
+    if (editCreatingCommitment) {
+      const nc = axzio.addCommitment(editNewCommitment);
+      if (!nc) return;
+      targetCid = nc.id;
+    }
     axzio.updateGoal(editingId, {
       text: editText,
       horizon: editHorizon || null,
       schedule: editSchedule,
-      commitmentId: editCommitmentId,
+      commitmentId: targetCid,
       quadrant: editQuadrant,
     });
     cancelEdit();
@@ -270,7 +283,18 @@ export default function GoalCapture({
                       {c.text.length > 48 ? c.text.slice(0, 48) + "…" : c.text}
                     </option>
                   ))}
+                  <option value="__new__">New commitment…</option>
                 </select>
+                {editCreatingCommitment && (
+                  <Field
+                    value={editNewCommitment}
+                    onChange={(e) => setEditNewCommitment(e.target.value)}
+                    placeholder="Name the new commitment"
+                    maxLength={120}
+                    aria-label="New commitment name"
+                    className="mt-2"
+                  />
+                )}
               </div>
               <div>
                 <MicroLabel className="mb-1.5">Quadrant</MicroLabel>
@@ -300,7 +324,7 @@ export default function GoalCapture({
               <button
                 type="button"
                 onClick={saveEdit}
-                disabled={!editText.trim() || !editCommitmentId}
+                disabled={!canSaveEdit}
                 className="rounded-lg border border-white/25 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-white/80 transition-colors hover:border-white/60 hover:text-white disabled:opacity-40"
               >
                 Save
