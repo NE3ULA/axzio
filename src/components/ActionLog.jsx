@@ -100,13 +100,13 @@ export function LogActionSection() {
     <section className="axzio-rise mt-10">
       <Card className="p-6">
         <SectionHead
-          label="Log action"
+          label="Action Quick Log"
           help={
             <HelpBubble title="Log action">
               <HelpText
                 what="A running log of embodied action — no quadrant required."
                 why="Some action doesn't need deliberation; it needs recording. The log is the evidence."
-                how="Log what you did. Delete with the × — the log is yours to keep honest."
+                how="Log what you did, right after the matrix. Delete with the × — the log is yours to keep honest."
               />
             </HelpBubble>
           }

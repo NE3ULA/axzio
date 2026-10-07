@@ -23,11 +23,14 @@ import Focus from "./views/Focus.jsx";
    in the Atlas drawer — the whiteboard for modules that are still being
    placed. Practices (Reset, Growth, rituals) live under the hood, opened
    contextually or from the drawer. */
+/* Tab order follows the day: wake → Bridge (snapshot) → Focus (the
+   day's work) → Nebula (capture and grow, later) → Core (the authored
+   identity — most important, reviewed least). */
 const ROUTES = [
   { key: "bridge", label: "Bridge", view: Bridge, main: true },
+  { key: "focus", label: "Focus", view: Focus, main: true },
   { key: "nebula", label: "Nebula", view: Constellation, main: true },
   { key: "core", label: "Core", view: Identity, main: true },
-  { key: "focus", label: "Focus", view: Focus, main: true },
   { key: "atlas", label: "Atlas", view: Atlas },
   { key: "practice", label: "Practice", view: Practices },
   { key: "modes", label: "Modes", view: Modes },

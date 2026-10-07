@@ -12,6 +12,7 @@ import {
 } from "../components/ui.jsx";
 import { LifeModRow } from "../components/LifeMod.jsx";
 import { ResetHistory, ResetActionCard } from "./Practices.jsx";
+import { ReflectionCard } from "../components/Reflection.jsx";
 
 /* The Atlas — the whiteboard. Index tables for everything that doesn't
    live on the four main tabs, plus the modules still being placed.
@@ -329,6 +330,23 @@ export default function Atlas() {
         }
       >
         <ResetHistory onOpen={(id) => setViewingReset(id)} />
+      </SectionShell>
+
+      <SectionShell
+        id="reflection"
+        kicker="Whiteboard"
+        title="Weekly Reflection"
+        help={
+          <HelpBubble title="Weekly Reflection">
+            <HelpText
+              what="The manual readings loop — what the last 7 days say, with no AI."
+              why="Parked here until it wraps into the evening review and the weekly/monthly reviews."
+              how="Read it weekly; sit with the questions."
+            />
+          </HelpBubble>
+        }
+      >
+        <ReflectionCard />
       </SectionShell>
 
       <SectionShell

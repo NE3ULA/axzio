@@ -450,10 +450,10 @@ export default function Focus() {
           ))}
         </div>
       </section>
+      <LogActionSection />
+
       {/* commitments — the full view: goals and habits live here, in the action page */}
       <CommitmentsSection />
-
-      <LogActionSection />
 
     </div>
   );

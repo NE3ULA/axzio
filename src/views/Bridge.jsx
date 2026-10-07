@@ -122,28 +122,19 @@ export default function Bridge() {
         <MicroLabel>Overview</MicroLabel>
         <div className="h-px flex-1 bg-white/10" />
       </div>
+      {/* snapshot: who I'm becoming, what's important, mode, state */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <BecomingCard />
+        <TodayCard />
+        <ModeCard />
         <StateCard />
-        <OrientationCard day={day} today={today} />
-        <ReviewsDueCard today={today} />
       </div>
 
-      {/* zone: reflection */}
-      <div className="mb-5 mt-14 flex items-center gap-4">
-        <MicroLabel>Reflection</MicroLabel>
-        <div className="h-px flex-1 bg-white/10" />
-      </div>
-      <ReflectionCard />
+      {/* the day's bookends: dawn and dusk rituals */}
+      <RitualsStrip day={day} />
 
-      {/* zone: capture */}
-      <div className="mb-5 mt-14 flex items-center gap-4">
-        <div className="h-px flex-1 bg-white/10" />
-        <MicroLabel>Capture</MicroLabel>
-        <div className="h-px flex-1 bg-white/10" />
-      </div>
-
-      {/* intention */}
-      <section className="axzio-rise axzio-rise-3">
+      {/* aim */}
+      <section className="axzio-rise axzio-rise-3 mt-6">
         <Card className="p-6">
           <SectionHead
             label="Intention for the day"
@@ -152,7 +143,7 @@ export default function Bridge() {
                 <HelpText
                   what="One line naming what today is for."
                   why="A named intention gives the day a direction the system can read against."
-                  how="Write or revise it any time; it stays with today's date."
+                  how="Set it in the Morning Alignment, or write it here — one shared intention."
                 />
               </HelpBubble>
             }
@@ -166,6 +157,23 @@ export default function Bridge() {
           />
         </Card>
       </section>
+
+      {/* today's practice */}
+      <div className="mt-6">
+        <OrientationCard day={day} today={today} />
+      </div>
+
+      <div className="mt-6">
+        <ReviewsDueCard today={today} />
+      </div>
+
+
+      {/* zone: capture */}
+      <div className="mb-5 mt-14 flex items-center gap-4">
+        <div className="h-px flex-1 bg-white/10" />
+        <MicroLabel>Capture</MicroLabel>
+        <div className="h-px flex-1 bg-white/10" />
+      </div>
 
       {/* sparks — the rawest capture; each can ignite into a seed */}
       <section className="axzio-rise axzio-rise-5 mt-6">
@@ -239,244 +247,8 @@ function ModuleLink({ href, children }) {
 
 /* ------------------------- overview cards ------------------------- */
 
-function WhoAmICard() {
-  const { state } = useAxzio();
-  const becoming = state.identity.becoming?.trim();
-  const topCommitments = sortedCommitments(state).slice(0, 3);
 
-  return (
-    <Card className="axzio-rise axzio-rise-1 flex flex-col p-6">
-      <SectionHead
-        label="Who am I"
-        help={
-          <HelpBubble title="Who am I">
-            <HelpText
-              what="A mirror of your Identity Core: the person you are choosing to become, plus your top three commitments in priority order."
-              why="AXZIO reads every day against your authored identity — not a mood, a role, or a performance."
-              how="Open Identity to author the four orientation statements, values, and prioritized commitments."
-            />
-          </HelpBubble>
-        }
-      />
-      <div className="flex-1">
-        {becoming ? (
-          <p className="line-clamp-3 text-[15px] leading-relaxed text-white/85">
-            <span className="text-white/45">Becoming someone who </span>
-            {becoming}
-          </p>
-        ) : (
-          <p className="text-[15px] leading-relaxed text-white/40">
-            No orientation statement yet — open Identity to author yours.
-          </p>
-        )}
-        {topCommitments.length > 0 ? (
-          <>
-            <MicroLabel className="mb-2 mt-4">Top commitments</MicroLabel>
-            <ul className="space-y-2">
-            {topCommitments.map((c, i) => {
-              const openGoals = goalsForCommitment(state, c.id).filter(
-                (g) => !g.done
-              ).length;
-              const activeHabits = habitsForCommitment(state, c.id).filter(
-                (h) => h.active !== false
-              ).length;
-              return (
-                <li key={c.id} className="flex items-baseline gap-3">
-                  <span className="shrink-0 text-[11px] tabular-nums tracking-[0.2em] text-white/40">
-                    {i + 1}
-                  </span>
-                  <span className="min-w-0 flex-1 line-clamp-1 text-[14px] leading-snug text-white/85">
-                    {c.text}
-                  </span>
-                  {(openGoals > 0 || activeHabits > 0) && (
-                    <span className="shrink-0 text-[11px] tracking-[0.14em] text-white/40">
-                      {[
-                        openGoals > 0
-                          ? `${openGoals} goal${openGoals === 1 ? "" : "s"}`
-                          : null,
-                        activeHabits > 0
-                          ? `${activeHabits} habit${activeHabits === 1 ? "" : "s"}`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-            </ul>
-          </>
-        ) : (
-          <p className="mt-4 text-[13px] leading-relaxed text-white/35">
-            No commitments named yet.
-          </p>
-        )}
-      </div>
-      <ModuleLink href="#/identity">Open Identity</ModuleLink>
-    </Card>
-  );
-}
 
-function WhatsImportantCard() {
-  const { state } = useAxzio();
-  const openDay = state.focusItems.filter(
-    (f) => !f.done && f.timeframe === "day" && !f.parentId
-  );
-  const priorities = PRIORITY_RANKS.map((r) => ({
-    ...r,
-    item: openDay.find((f) => f.priority === r.rank) || null,
-  }));
-  const q1 = openDay.filter((f) => f.quadrant === "q1").length;
-  const q2 = openDay.filter((f) => f.quadrant === "q2").length;
-
-  return (
-    <Card className="axzio-rise axzio-rise-2 flex flex-col p-6">
-      <SectionHead
-        label="What's important today"
-        help={
-          <HelpBubble title="What's important today">
-            <HelpText
-              what="Today's three ranked priorities — 1st is the one thing to focus on — plus the open counts in Do and Decide."
-              why="The matrix separates urgency from importance to preserve attention for aligned action; the ranks make the day's trade visible."
-              how="Rank items 1st/2nd/3rd in Focus; the lists here update live."
-            />
-          </HelpBubble>
-        }
-      />
-      <div className="flex-1">
-        {/* rank 1 dominates: the one thing to focus on */}
-        <div className="mb-3 rounded-xl border border-white/20 bg-white/[0.03] p-4">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-            {priorityLabel(1)}
-          </p>
-          {priorities[0].item ? (
-            <p className="mt-1.5 line-clamp-2 text-xl font-light leading-snug text-white">
-              {priorities[0].item.text}
-            </p>
-          ) : (
-            <p className="mt-1.5 text-[13px] tracking-wide text-white/30">
-              Not set
-            </p>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {priorities.slice(1).map((p) => (
-            <div key={p.rank}>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-                {priorityLabel(p.rank)}
-              </p>
-              {p.item ? (
-                <p className="mt-1 line-clamp-1 text-[15px] text-white">
-                  {p.item.text}
-                </p>
-              ) : (
-                <p className="mt-1 text-[13px] tracking-wide text-white/30">
-                  Not set
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 flex gap-6">
-          <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
-            Do{" "}
-            <span className="ml-1 text-xl font-light normal-case tracking-normal text-white">
-              {q1}
-            </span>
-          </p>
-          <p className="text-[12px] uppercase tracking-[0.18em] text-white/45">
-            Decide{" "}
-            <span className="ml-1 text-xl font-light normal-case tracking-normal text-white">
-              {q2}
-            </span>
-          </p>
-        </div>
-      </div>
-      <ModuleLink href="#/focus">Open Focus</ModuleLink>
-    </Card>
-  );
-}
-
-function ModeCard() {
-  const axzio = useAxzio();
-  const { state } = axzio;
-  const current = (state.modes && state.modes.current) || null;
-  const sel = (state.modes && state.modes.day) || {
-    primary: null,
-    secondary: null,
-  };
-
-  return (
-    <Card className="axzio-rise axzio-rise-3 flex flex-col p-6">
-      <SectionHead
-        label="What mode am I in"
-        help={
-          <HelpBubble title="What mode am I in">
-            <HelpText
-              what="Two readings of your energy. IN: the mode you're in right now — descriptive, where your energy actually is. FOCUS: the modes you're pointing attention at today — prescriptive, where focus goes even when that's not where you are."
-              why="Naming both keeps the tension honest: in Pleasure but focusing Production is a real, workable state — but only when it's named."
-              how="Set your current mode with the three buttons; quick-switch today's focus inline, or open Modes for the full picture."
-            />
-          </HelpBubble>
-        }
-      />
-      <div className="flex-1">
-        {/* the mode you're IN — prominent */}
-        {current ? (
-          <p className="mb-3">
-            <Pill tone="lit">In · {modeLabel(current)}</Pill>
-          </p>
-        ) : (
-          <p className="mb-3 text-[15px] leading-relaxed text-white/40">
-            Current mode not set — where is your energy right now?
-          </p>
-        )}
-        <div className="mb-5 flex flex-wrap gap-2">
-          {MODES.map((m) => {
-            const isSel = current === m.key;
-            return (
-              <button
-                key={m.key}
-                type="button"
-                onClick={() =>
-                  axzio.setCurrentMode(isSel ? null : m.key)
-                }
-                aria-pressed={isSel}
-                aria-label={`I am in ${m.label} mode`}
-                className={`rounded-full border px-3.5 py-1.5 text-[11px] uppercase tracking-[0.16em] transition-all duration-200 ${
-                  isSel
-                    ? "border-white/70 bg-white/10 text-white shadow-[0_0_20px_rgba(255,255,255,0.12)]"
-                    : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
-                }`}
-              >
-                {m.label}
-              </button>
-            );
-          })}
-        </div>
-        {/* where FOCUS goes today */}
-        <MicroLabel className="mb-2">Focus today</MicroLabel>
-        {sel.primary || sel.secondary ? (
-          <p className="mb-4 flex flex-wrap gap-2">
-            {sel.primary && (
-              <Pill tone="lit">Focus · {modeLabel(sel.primary)}</Pill>
-            )}
-            {sel.secondary && (
-              <Pill>{modeLabel(sel.secondary)}</Pill>
-            )}
-          </p>
-        ) : (
-          <p className="mb-4 text-[15px] leading-relaxed text-white/40">
-            No focus set for today — where is attention going?
-          </p>
-        )}
-        <ModePicker interval="day" compact />
-      </div>
-      <ModuleLink href="#/modes">Open Modes</ModuleLink>
-    </Card>
-  );
-}
 
 function StateCard() {
   const { state } = useAxzio();
@@ -755,223 +527,6 @@ function ReviewsDueCard({ today }) {
           </li>
         ))}
       </ul>
-    </Card>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Weekly reflection — the manual readings loop (no AI).
-   Derived transparently from the last 7 days of entries:
-   what we notice (descriptive) → a possible pattern (hedged) →
-   questions to sit with → rituals to try. Reflections, not verdicts.  */
-/* ------------------------------------------------------------------ */
-
-function last7Keys() {
-  const out = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    out.push(localDateKey(d));
-  }
-  return out;
-}
-
-function ReflectionCard() {
-  const { state } = useAxzio();
-  const keys = last7Keys();
-  const weekAgo = Date.now() - 7 * 86400000;
-
-  const days = keys
-    .map((k) => state.days?.[k])
-    .filter((d) => d && typeof d === "object");
-
-  // Battery: weekly averages + low-state/high-priority gaps.
-  const agg = {};
-  for (const b of BATTERY) agg[b.key] = { sum: 0, n: 0, gap: 0 };
-  for (const d of days) {
-    for (const b of BATTERY) {
-      const v = d.battery?.[b.key];
-      if (!Number.isFinite(v)) continue;
-      agg[b.key].sum += v;
-      agg[b.key].n += 1;
-      if (v <= 4 && d.batteryPriority?.[b.key] === "high") agg[b.key].gap += 1;
-    }
-  }
-  const avg = (k) => (agg[k].n ? agg[k].sum / agg[k].n : null);
-  const withData = BATTERY.filter((b) => agg[b.key].n >= 2);
-  const lowest = withData.length
-    ? withData.reduce((a, b) => (avg(b.key) < avg(a.key) ? b : a))
-    : null;
-  const gapDim = BATTERY.find((b) => agg[b.key].gap > 0);
-
-  // Focus: created vs completed in the last 7 days.
-  const created = (state.focusItems || []).filter((f) => f && f.created >= weekAgo);
-  const completed = (state.actions || []).filter(
-    (a) => a && a.tag === "focus" && a.ts >= weekAgo && /^Completed:/.test(a.text || "")
-  );
-  const openQ1 = (state.focusItems || []).filter(
-    (f) => f && !f.done && f.quadrant === "q1"
-  ).length;
-  const rate = created.length ? completed.length / created.length : null;
-
-  // Orientation: days with at least 3 of 4 practices held.
-  const grounded = days.filter((d) => {
-    const m = d.mantra || {};
-    return ["gratitude", "beauty", "action", "love"].filter((k) => m[k]).length >= 3;
-  }).length;
-
-  // Reset sessions in the last 7 days.
-  const resets = (state.resets || []).filter((r) => r && r.ts >= weekAgo).length;
-
-  // Modes: current (descriptive) vs day focus (prescriptive).
-  const curMode = state.modes?.current ? modeLabel(state.modes.current) : null;
-  const focusMode = state.modes?.day?.primary ? modeLabel(state.modes.day.primary) : null;
-
-  const hasData =
-    days.length > 0 || created.length > 0 || resets > 0 || (state.actions || []).length > 0;
-
-  if (!hasData) {
-    return (
-      <Card className="axzio-rise axzio-rise-3 p-6">
-        <SectionHead
-          label="Reflection"
-          help={
-            <HelpBubble title="Reflection">
-              <HelpText
-                what="A weekly reading of your own patterns — derived transparently from your entries, never asserted as truth."
-                why="Drift is normal and return is learnable; seeing the pattern is the first half of return."
-                how="Use AXZIO for a week and your first reflection grows here."
-              />
-            </HelpBubble>
-          }
-        />
-        <p className="text-[15px] leading-relaxed text-white/40">
-          A week of entries will grow your first reflection here — what the
-          system notices, a possible pattern, and questions to sit with.
-        </p>
-      </Card>
-    );
-  }
-
-  const notices = [];
-  if (lowest) {
-    notices.push(
-      `${lowest.label} averaged ${avg(lowest.key).toFixed(0)}/10 — your lowest battery this week.`
-    );
-  }
-  if (gapDim) {
-    notices.push(
-      `${gapDim.label} ran low while flagged high priority — it was promised attention it didn't get.`
-    );
-  }
-  if (curMode || focusMode) {
-    notices.push(
-      curMode && focusMode && curMode !== focusMode
-        ? `You're in ${curMode} mode, with focus set on ${focusMode}.`
-        : `Mode: ${curMode || focusMode}.`
-    );
-  }
-  if (created.length || completed.length) {
-    notices.push(
-      `${created.length} focus action${created.length === 1 ? "" : "s"} created, ${completed.length} completed.`
-    );
-  }
-  if (days.length) {
-    notices.push(`Practices held ${grounded} of the last ${days.length} days with entries.`);
-  }
-  if (resets) {
-    notices.push(`${resets} Reset session${resets === 1 ? "" : "s"} this week.`);
-  }
-
-  let pattern =
-    "One read: the week looks steady — the signal to watch is whatever repeats.";
-  if (openQ1 > 0 && rate !== null && rate < 0.5) {
-    pattern =
-      "One read: urgent items are aging while new ones keep arriving — the one thing may need re-choosing.";
-  } else if (gapDim) {
-    pattern =
-      "One read: a flagged battery keeps running low — either the priority or the load wants renegotiating.";
-  } else if (resets >= 2) {
-    pattern =
-      "One read: repeated Resets on similar ground — there may be a friction worth naming as a LifeMod.";
-  }
-
-  const prompts = [
-    "What drained the most energy this week — and was it friction, or the pressure of growth?",
-  ];
-  if (created.length - completed.length >= 3) {
-    prompts.push("Which open item is heaviest — and what would finishing it unlock?");
-  } else {
-    prompts.push("Which commitment received the least of you?");
-  }
-
-  const rituals = [];
-  if (openQ1 > 0) rituals.push("Run a Guided Reset on the heaviest open item.");
-  if (gapDim) rituals.push(`Give ${gapDim.label.toLowerCase()} one deliberate act of care today.`);
-  rituals.push("Name one friction as a LifeMod — remove drag or build lift.");
-  if (resets >= 2 && !openQ1) rituals.push("Revisit your oldest open seed: does it still deserve orbit?");
-
-  return (
-    <Card className="axzio-rise axzio-rise-3 p-6">
-      <SectionHead
-        label="Reflection"
-        help={
-          <HelpBubble title="Reflection">
-            <HelpText
-              what="A weekly reading of your own patterns — derived transparently from your entries, never asserted as truth."
-              why="Drift is normal and return is learnable; seeing the pattern is the first half of return."
-              how="Read it, correct it, ignore it — it's a mirror, not a verdict."
-            />
-          </HelpBubble>
-        }
-        right={
-          <span className="text-[11px] uppercase tracking-[0.2em] text-white/40">
-            Last 7 days
-          </span>
-        }
-      />
-
-      <div className="mb-5">
-        <MicroLabel className="mb-2">What we notice</MicroLabel>
-        <ul className="space-y-1.5">
-          {notices.slice(0, 4).map((n, i) => (
-            <li key={i} className="text-[14px] leading-relaxed text-white/75">
-              {n}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <p className="mb-5 border-l border-white/15 pl-4 text-[14px] italic leading-relaxed text-white/65">
-        {pattern}
-      </p>
-
-      <div className="mb-5">
-        <MicroLabel className="mb-2">Questions to sit with</MicroLabel>
-        <ul className="space-y-1.5">
-          {prompts.map((p, i) => (
-            <li key={i} className="text-[14px] leading-relaxed text-white/75">
-              {p}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div>
-        <MicroLabel className="mb-2">Rituals to try</MicroLabel>
-        <ul className="space-y-1.5">
-          {rituals.slice(0, 2).map((r, i) => (
-            <li key={i} className="text-[14px] leading-relaxed text-white/75">
-              {r}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <p className="mt-5 text-[11px] leading-relaxed text-white/35">
-        Derived from your entries. Correct it freely — reflections are evidence
-        of pattern, not identity labels.
-      </p>
     </Card>
   );
 }
@@ -1545,3 +1100,239 @@ function SignalForm() {
 }
 
 
+
+/* ---------------- Snapshot cards (simplified) ----------------
+   The Bridge is a morning snapshot: who I'm becoming, what's important
+   today, what mode I'm in, what my state is. Small bubbles, quick view. */
+
+function BecomingCard() {
+  const { state } = useAxzio();
+  const becoming = state.identity.becoming?.trim();
+  const top = sortedCommitments(state).slice(0, 3);
+  return (
+    <Card className="axzio-rise axzio-rise-1 flex flex-col p-6">
+      <SectionHead
+        label="I am Becoming"
+        help={
+          <HelpBubble title="I am Becoming">
+            <HelpText
+              what="The person you are choosing to become, plus your top three commitments."
+              why="Every day is read against your authored identity — not a mood, a direction."
+              how="Author the statements and commitments in Core."
+            />
+          </HelpBubble>
+        }
+      />
+      <div className="flex-1">
+        {becoming ? (
+          <p className="line-clamp-2 text-[15px] leading-relaxed text-white/85">
+            <span className="text-white/45">Someone who </span>
+            {becoming}
+          </p>
+        ) : (
+          <p className="text-[14px] text-white/35">
+            No becoming statement yet.
+          </p>
+        )}
+        {top.length > 0 && (
+          <ul className="mt-3 space-y-1.5">
+            {top.map((c, i) => (
+              <li key={c.id} className="flex items-baseline gap-2.5">
+                <span className="text-[10px] tabular-nums tracking-[0.18em] text-white/35">
+                  {i + 1}
+                </span>
+                <span className="line-clamp-1 text-[14px] text-white/80">
+                  {c.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <a
+        href="#/core"
+        className="mt-3 text-[11px] uppercase tracking-[0.14em] text-white/40 transition-colors hover:text-white"
+      >
+        Open Core →
+      </a>
+    </Card>
+  );
+}
+
+function TodayCard() {
+  const { state } = useAxzio();
+  const openDay = state.focusItems.filter(
+    (f) => !f.done && f.timeframe === "day" && !f.parentId
+  );
+  const ranks = PRIORITY_RANKS.map(
+    (r) => openDay.find((f) => f.priority === r.rank) || null
+  );
+  return (
+    <Card className="axzio-rise axzio-rise-2 flex flex-col p-6">
+      <SectionHead
+        label="What's important today"
+        help={
+          <HelpBubble title="What's important today">
+            <HelpText
+              what="Today's ranked priorities — 1st is the one thing."
+              why="Ranking forces the trade: if everything is priority one, nothing is."
+              how="Rank items in Focus; this snapshot updates live."
+            />
+          </HelpBubble>
+        }
+      />
+      <div className="flex-1">
+        {ranks[0] ? (
+          <p className="line-clamp-2 text-lg font-light leading-snug text-white">
+            {ranks[0].text}
+          </p>
+        ) : (
+          <p className="text-[14px] text-white/35">No 1st priority set.</p>
+        )}
+        <div className="mt-2 space-y-1">
+          {ranks.slice(1).map(
+            (item, i) =>
+              item && (
+                <p key={item.id} className="line-clamp-1 text-[13px] text-white/55">
+                  <span className="mr-2 text-[10px] uppercase tracking-[0.16em] text-white/30">
+                    {priorityLabel(i + 2)}
+                  </span>
+                  {item.text}
+                </p>
+              )
+          )}
+        </div>
+      </div>
+      <a
+        href="#/focus"
+        className="mt-3 text-[11px] uppercase tracking-[0.14em] text-white/40 transition-colors hover:text-white"
+      >
+        Open Focus →
+      </a>
+    </Card>
+  );
+}
+
+function ModeCard() {
+  const axzio = useAxzio();
+  const { state } = axzio;
+  const current = (state.modes && state.modes.current) || null;
+  const focusMode = (state.modes && state.modes.day && state.modes.day.primary) || null;
+  return (
+    <Card className="axzio-rise axzio-rise-3 flex flex-col p-6">
+      <SectionHead
+        label="Mode"
+        help={
+          <HelpBubble title="Mode">
+            <HelpText
+              what="IN: where your energy actually is. FOCUS: where you're pointing it today."
+              why="Naming both keeps the tension honest — in Pleasure but focusing Production is workable, once named."
+              how="Tap to set where you are; set the day's focus in Modes."
+            />
+          </HelpBubble>
+        }
+      />
+      <div className="flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          {MODES.map((m) => {
+            const isSel = current === m.key;
+            return (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => axzio.setCurrentMode(isSel ? null : m.key)}
+                aria-pressed={isSel}
+                aria-label={`I am in ${m.label} mode`}
+                className={`rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+                  isSel
+                    ? "border-white/70 bg-white/10 text-white"
+                    : "border-white/15 text-white/45 hover:border-white/40 hover:text-white"
+                }`}
+              >
+                {m.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-[13px] text-white/50">
+          {current ? (
+            <>In <span className="text-white/85">{modeLabel(current)}</span></>
+          ) : (
+            "Where is your energy right now?"
+          )}
+          {focusMode && (
+            <span className="text-white/40">
+              {" "}· focusing <span className="text-white/70">{modeLabel(focusMode)}</span>
+            </span>
+          )}
+        </p>
+      </div>
+      <a
+        href="#/modes"
+        className="mt-3 text-[11px] uppercase tracking-[0.14em] text-white/40 transition-colors hover:text-white"
+      >
+        Modes →
+      </a>
+    </Card>
+  );
+}
+
+/* The day's bookends: dawn and dusk rituals. The passages live under
+   the hood (Atlas drawer); the Bridge surfaces them in day order so
+   orientation has its frame. */
+function RitualsStrip({ day }) {
+  const morningDone = !!(day.intention && day.intention.trim());
+  const rituals = [
+    {
+      key: "dawn",
+      label: "Dawn",
+      title: "Morning Alignment",
+      desc: "Hold the anchors, name the day's intention, take the first action.",
+      href: "#/practice?passage=morning",
+      done: morningDone,
+      doneLabel: "Intention set",
+    },
+    {
+      key: "dusk",
+      label: "Dusk",
+      title: "Evening Review",
+      desc: "Name a gratitude, review the day's actions, transmit a closing signal.",
+      href: "#/practice?passage=evening",
+      done: false,
+      doneLabel: "",
+    },
+  ];
+  return (
+    <section className="axzio-rise axzio-rise-2 mt-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {rituals.map((r) => (
+          <a
+            key={r.key}
+            href={r.href}
+            className="group flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4 transition-colors hover:border-white/30"
+          >
+            <span>
+              <span className="block text-[10px] uppercase tracking-[0.22em] text-white/40">
+                {r.label}
+              </span>
+              <span className="mt-1 block text-[15px] text-white/85">
+                {r.title}
+                {r.done && (
+                  <span className="ml-2 text-[11px] uppercase tracking-[0.14em] text-[#d8a94e]">
+                    ✓ {r.doneLabel}
+                  </span>
+                )}
+              </span>
+              <span className="mt-0.5 block text-[12px] text-white/40">
+                {r.desc}
+              </span>
+            </span>
+            <span className="shrink-0 text-white/30 transition-colors group-hover:text-white">
+              →
+            </span>
+          </a>
+        ))}
+      </div>
+    </section>
+  );
+}
