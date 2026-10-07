@@ -419,7 +419,10 @@ export function HabitsList({ commitmentId }) {
 /* GrownHabitsList — habits that grew from one seed or LifeMod, shown at
    the source. Pass sourceLifeModId or sourceStarId. */
 export function GrownHabitsList({ sourceLifeModId = null, sourceStarId = null }) {
-  const { state } = useAxzio();
+  const axzio = useAxzio();
+  const { state } = axzio;
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState("");
   const habits = (state.habits || []).filter(
     (h) =>
       h &&
@@ -427,25 +430,82 @@ export function GrownHabitsList({ sourceLifeModId = null, sourceStarId = null })
         (sourceStarId && h.sourceStarId === sourceStarId))
   );
   if (habits.length === 0) return null;
+  const save = (id) => {
+    if (draft.trim()) axzio.updateHabit(id, { text: draft.trim().slice(0, 80) });
+    setEditingId(null);
+  };
   return (
     <ul className="mb-3 space-y-1.5">
       {habits.map((h) => (
         <li
           key={h.id}
-          className="flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2"
+          className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2"
         >
-          <span className="min-w-0 flex-1 text-[14px] leading-snug text-white/85">
-            {h.text}
-            <span className="mt-0.5 block truncate text-[11px] tracking-[0.08em] text-white/40">
-              {describeSchedule(h.schedule)}
-            </span>
-          </span>
-          <a
-            href="#/identity"
-            className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-white/45 transition-colors hover:text-white"
-          >
-            In Identity →
-          </a>
+          {editingId === h.id ? (
+            <>
+              <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") save(h.id);
+                  if (e.key === "Escape") setEditingId(null);
+                }}
+                autoFocus
+                maxLength={80}
+                className="min-w-0 flex-1 rounded border border-white/20 bg-black px-2 py-1 text-[14px] text-white outline-none focus:border-white/50"
+              />
+              <button
+                type="button"
+                onClick={() => save(h.id)}
+                className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-white/60 hover:text-white"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingId(null)}
+                className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-white/35 hover:text-white/70"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="min-w-0 flex-1 text-[14px] leading-snug text-white/85">
+                {h.text}
+                <span className="mt-0.5 block truncate text-[11px] tracking-[0.08em] text-white/40">
+                  {describeSchedule(h.schedule)}
+                </span>
+              </span>
+              <button
+                type="button"
+                aria-label="Edit habit"
+                onClick={() => {
+                  setEditingId(h.id);
+                  setDraft(h.text);
+                }}
+                className="shrink-0 text-white/30 transition-colors hover:text-white/70"
+              >
+                ✎
+              </button>
+              <button
+                type="button"
+                aria-label="Delete habit"
+                onClick={() => {
+                  if (window.confirm(`Delete “${h.text}”?`)) axzio.deleteHabit(h.id);
+                }}
+                className="shrink-0 text-white/30 transition-colors hover:text-white/70"
+              >
+                ×
+              </button>
+              <a
+                href="#/identity"
+                className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-white/45 transition-colors hover:text-white"
+              >
+                In Identity →
+              </a>
+            </>
+          )}
         </li>
       ))}
     </ul>

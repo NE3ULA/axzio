@@ -13,6 +13,7 @@ import {
   threadOffspring,
   threadReviewDue,
   threadSpine,
+  spineWhy,
   threadMassTier,
   threadAttention,
   stellarClass,
@@ -266,6 +267,41 @@ function IgniteForm() {
 /* ------------------------------------------------------------------ */
 /* Thread views — the sky and the threads list                          */
 /* ------------------------------------------------------------------ */
+
+/* Why is the thread here — and what moves it? The spine is derived,
+   never set; this expander makes the derivation legible. */
+function SpineExplainer({ star, state, spine }) {
+  const [open, setOpen] = useState(false);
+  const info = spineWhy(state, star);
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <SpineDots spine={spine} />
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="text-[11px] uppercase tracking-[0.14em] text-white/35 transition-colors hover:text-white/70"
+        >
+          Why this stage? {open ? "▾" : "▸"}
+        </button>
+      </div>
+      {open && (
+        <div className="mt-2.5 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
+          <p className="text-[13px] leading-relaxed text-white/70">{info.why}</p>
+          {info.lever && (
+            <p className="mt-1.5 text-[13px] leading-relaxed text-white/45">
+              <span className="text-[#d8a94e]">What moves it — </span>
+              {info.lever}
+            </p>
+          )}
+          <p className="mt-1.5 text-[11.5px] text-white/30">
+            Stages are earned by the work, never set by hand.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** The six spine positions as dots; current lit gold. */
 function SpineDots({ spine }) {
@@ -955,91 +991,6 @@ function GateSection({ star, axzio }) {
         })}
       </div>
 
-      {/* gate rows */}
-      <div className="mt-4 space-y-2.5">
-        {gates.map((g) => {
-          const met = g.have >= g.need;
-          const pct = Math.min(100, Math.round((g.have / g.need) * 100));
-          return (
-            <div
-              key={g.key}
-              className={`rounded-xl border p-4 ${
-                met ? "border-[#d8a94e]/40 bg-[#d8a94e]/[0.05]" : "border-white/10 bg-white/[0.02]"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[13px] font-medium tracking-wide text-white/85">
-                  {g.label}
-                </p>
-                <p className="shrink-0 text-[12px] text-white/50">
-                  {g.have}/{g.need} {g.unit}
-                  {met && <span className="ml-2 text-[#d8a94e]">· Ready</span>}
-                </p>
-              </div>
-              <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-[#d8a94e] transition-all"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <p className="mt-1.5 text-[12px] leading-relaxed text-white/40">{g.blurb}</p>
-              {g.key === "integrate" && habits.length > 0 && (
-                <div className="mt-3 space-y-2 border-t border-dashed border-white/10 pt-3">
-                  {habits.filter((h) => !habitIntegrated(h)).map((h) => (
-                    <div key={h.id} className="flex flex-wrap items-center gap-2">
-                      <span className="min-w-0 flex-1 text-[12.5px] text-white/70">
-                        {h.text} · {habitSessionCount(h)} session{habitSessionCount(h) === 1 ? "" : "s"}
-                        {h.repGoal ? ` / ${h.repGoal} rep goal` : " · no rep goal"}
-                      </span>
-                      {!h.repGoal && (
-                        <span className="flex items-center gap-1.5">
-                          <input
-                            type="number"
-                            min="1"
-                            max="365"
-                            value={repDraft}
-                            onChange={(e) => setRepDraft(e.target.value)}
-                            placeholder="#"
-                            aria-label={`Rep goal for ${h.text}`}
-                            className="w-14 rounded-lg border border-white/15 bg-black px-2 py-1 text-[12px] text-white outline-none focus:border-white/40"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const n = parseInt(repDraft, 10);
-                              if (Number.isInteger(n) && n > 0) {
-                                axzio.setHabitRepGoal(h.id, n);
-                                setRepDraft("");
-                              }
-                            }}
-                            className="rounded-lg border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:border-white/40 hover:text-white"
-                          >
-                            Set rep goal
-                          </button>
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => axzio.declareHabitIntegrated(h.id)}
-                        title="The habit is on autopilot — become, not practiced"
-                        className="rounded-lg border border-[#d8a94e]/40 px-2 py-1 text-[11px] text-[#d8a94e]/90 hover:border-[#d8a94e] hover:text-[#d8a94e]"
-                      >
-                        I feel integrated
-                      </button>
-                    </div>
-                  ))}
-                  {habits.some((h) => habitIntegrated(h)) && (
-                    <p className="text-[12px] text-white/40">
-                      Integrated: {habits.filter((h) => habitIntegrated(h)).map((h) => h.text).join(", ")}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
       {/* gate flow dialog */}
       {flow && (
         <div className="mt-4 rounded-xl border border-[#d8a94e]/40 bg-[#d8a94e]/[0.06] p-5">
@@ -1108,6 +1059,93 @@ function GateSection({ star, axzio }) {
           )}
         </div>
       )}
+
+      {/* gate rows */}
+      <div className="mt-4 space-y-2.5">
+        {gates.map((g) => {
+          const met = g.have >= g.need;
+          const pct = Math.min(100, Math.round((g.have / g.need) * 100));
+          return (
+            <div
+              key={g.key}
+              className={`rounded-xl border p-4 ${
+                met ? "border-[#d8a94e]/40 bg-[#d8a94e]/[0.05]" : "border-white/10 bg-white/[0.02]"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[13px] font-medium tracking-wide text-white/85">
+                  {g.label}
+                </p>
+                <p className="shrink-0 text-[12px] text-white/50">
+                  {g.have}/{g.need} {g.unit}
+                  {met && <span className="ml-2 text-[#d8a94e]">· Ready</span>}
+                </p>
+              </div>
+              <div className="mt-2 h-px bg-white/10">
+                <div
+                  className="h-px bg-[#d8a94e] transition-all"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <p className="mt-1.5 text-[12px] leading-relaxed text-white/40">{g.blurb}</p>
+              {g.key === "integrate" && habits.length > 0 && (
+                <div className="mt-3 space-y-2 border-t border-dashed border-white/10 pt-3">
+                  {habits.filter((h) => !habitIntegrated(h)).map((h) => (
+                    <div key={h.id} className="flex flex-wrap items-center gap-2">
+                      <span className="min-w-0 flex-1 text-[12.5px] text-white/70">
+                        {h.text} · {habitSessionCount(h)} session{habitSessionCount(h) === 1 ? "" : "s"}
+                        {h.repGoal ? ` / ${h.repGoal} rep goal` : " · no rep goal"}
+                      </span>
+                      {!h.repGoal && (
+                        <span className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min="1"
+                            max="365"
+                            value={repDraft}
+                            onChange={(e) => setRepDraft(e.target.value)}
+                            placeholder="#"
+                            aria-label={`Rep goal for ${h.text}`}
+                            className="w-14 rounded-lg border border-white/15 bg-black px-2 py-1 text-[12px] text-white outline-none focus:border-white/40"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const n = parseInt(repDraft, 10);
+                              if (Number.isInteger(n) && n > 0) {
+                                axzio.setHabitRepGoal(h.id, n);
+                                setRepDraft("");
+                              }
+                            }}
+                            className="rounded-lg border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:border-white/40 hover:text-white"
+                          >
+                            Set rep goal
+                          </button>
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => axzio.declareHabitIntegrated(h.id)}
+                        title="The habit is on autopilot — become, not practiced"
+                        className="rounded-lg border border-[#d8a94e]/40 px-2 py-1 text-[11px] text-[#d8a94e]/90 hover:border-[#d8a94e] hover:text-[#d8a94e]"
+                      >
+                        I feel integrated
+                      </button>
+                    </div>
+                  ))}
+                  {habits.some((h) => habitIntegrated(h)) && (
+                    <p className="text-[12px] text-white/40">
+                      Integrated: {habits.filter((h) => habitIntegrated(h)).map((h) => h.text).join(", ")}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+
       <p className="mt-2 text-[12px] leading-relaxed text-white/35">
         Moving back is always free. Release is always one tap — a thread let
         go on purpose, never a failure.
@@ -1128,6 +1166,8 @@ const EVIDENCE_KIND_LABEL = {
 
 function EvidenceSection({ star, axzio }) {
   const [draft, setDraft] = useState("");
+  const [condensed, setCondensed] = useState(false);
+  const [openKinds, setOpenKinds] = useState({});
   const ev = threadEvidence(axzio.state, star);
   const add = () => {
     if (draft.trim()) {
@@ -1135,10 +1175,55 @@ function EvidenceSection({ star, axzio }) {
       setDraft("");
     }
   };
+  const grouped = ev.reduce((acc, e) => {
+    (acc[e.kind] = acc[e.kind] || []).push(e);
+    return acc;
+  }, {});
+
+  const entryRow = (e, i) => (
+    <li
+      key={i}
+      className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5"
+    >
+      <span className="mt-0.5 shrink-0 rounded-full border border-white/15 px-2 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/50">
+        {EVIDENCE_KIND_LABEL[e.kind] || e.kind}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="text-[13.5px] text-white/85">{e.label}</span>
+        {e.sub && (
+          <span className="block truncate text-[12px] text-white/45">{e.sub}</span>
+        )}
+      </span>
+      {e.kind === "manual" ? (
+        <button
+          type="button"
+          onClick={() =>
+            axzio.removeManualEvidence(
+              star.id,
+              (star.manualEvidence || []).find((m) => m.text === e.sub)?.id
+            )
+          }
+          aria-label="Remove evidence"
+          className="shrink-0 text-white/25 transition-colors hover:text-white/70"
+        >
+          ×
+        </button>
+      ) : (
+        e.at > 0 && (
+          <span className="shrink-0 text-[11px] text-white/30">
+            {new Date(e.at).toLocaleDateString()}
+          </span>
+        )
+      )}
+    </li>
+  );
+
   return (
     <div className="mt-6 border-t border-white/10 pt-5">
       <div className="mb-3 flex items-center gap-2">
-        <MicroLabel>The evidence</MicroLabel>
+        <MicroLabel>
+          The evidence{ev.length > 0 ? ` · ${ev.length}` : ""}
+        </MicroLabel>
         <HelpBubble title="The evidence">
           <HelpText
             what="The accumulated proof behind the identity this thread claims — every reset faced, pursuit designed, goal completed, session kept."
@@ -1146,52 +1231,53 @@ function EvidenceSection({ star, axzio }) {
             how="Most entries are recorded automatically as you work. Add anything from outside AXZIO (or before it) below — those stay badged as entered by you."
           />
         </HelpBubble>
+        {ev.length > 3 && (
+          <button
+            type="button"
+            onClick={() => setCondensed((v) => !v)}
+            className="ml-auto text-[11px] uppercase tracking-[0.14em] text-white/35 transition-colors hover:text-white/70"
+          >
+            {condensed ? "Expand" : "Condense"}
+          </button>
+        )}
       </div>
       {ev.length === 0 ? (
         <p className="text-[13px] leading-relaxed text-white/35">
           No evidence yet — work the thread and the proof accumulates here on
           its own.
         </p>
-      ) : (
-        <ul className="space-y-2">
-          {ev.map((e, i) => (
-            <li
-              key={i}
-              className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5"
-            >
-              <span className="mt-0.5 shrink-0 rounded-full border border-white/15 px-2 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/50">
-                {EVIDENCE_KIND_LABEL[e.kind] || e.kind}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="text-[13.5px] text-white/85">{e.label}</span>
-                {e.sub && (
-                  <span className="block truncate text-[12px] text-white/45">{e.sub}</span>
-                )}
-              </span>
-              {e.kind === "manual" ? (
+      ) : condensed ? (
+        <ul className="space-y-1.5">
+          {Object.entries(grouped).map(([kind, items]) => {
+            const open = !!openKinds[kind];
+            return (
+              <li key={kind}>
                 <button
                   type="button"
                   onClick={() =>
-                    axzio.removeManualEvidence(
-                      star.id,
-                      (star.manualEvidence || []).find((m) => m.text === e.sub)?.id
-                    )
+                    setOpenKinds((o) => ({ ...o, [kind]: !o[kind] }))
                   }
-                  aria-label="Remove evidence"
-                  className="shrink-0 text-white/25 transition-colors hover:text-white/70"
+                  className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-left"
                 >
-                  ×
-                </button>
-              ) : (
-                e.at > 0 && (
-                  <span className="shrink-0 text-[11px] text-white/30">
-                    {new Date(e.at).toLocaleDateString()}
+                  <span className="rounded-full border border-white/15 px-2 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/50">
+                    {EVIDENCE_KIND_LABEL[kind] || kind}
                   </span>
-                )
-              )}
-            </li>
-          ))}
+                  <span className="flex-1 text-[13px] text-white/60">
+                    ×{items.length}
+                  </span>
+                  <span className="text-white/35">{open ? "▾" : "▸"}</span>
+                </button>
+                {open && (
+                  <ul className="mt-1.5 space-y-1.5 pl-3">
+                    {items.map((e, i) => entryRow(e, `${kind}-${i}`))}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
         </ul>
+      ) : (
+        <ul className="space-y-2">{ev.map((e, i) => entryRow(e, i))}</ul>
       )}
       <div className="mt-3 flex items-center gap-2">
         <Field
@@ -1209,56 +1295,128 @@ function EvidenceSection({ star, axzio }) {
   );
 }
 
-/* Stellar status: crown as a white dwarf (maintained identity — a badge,
-   not an exit), or mark as a black hole (anchor: core identity others
-   orbit; trap: gravity well that robs energy). */
+/* Stellar status: EARNED, not selected. The crown unlocks when the
+   thread integrates (the path below is walked); anchors require the thread
+   to be rooted into identity; traps are declared, not earned — naming a
+   drain is honesty, not achievement. Each carries a ? explaining what it is
+   and how it's achieved. Already-held statuses are grandfathered. */
 function StellarStatus({ star, axzio, tier }) {
   const cls = stellarClass(axzio.state, star, tier);
   const def = STELLAR_CLASSES[cls];
+  const gates = threadGates(axzio.state, star);
+  const integrateMet = gates[2].have >= gates[2].need;
+  const canCrown = star.crowned || integrateMet;
+  const canAnchor = star.blackHole === "anchor" || star.commitmentId;
+
+  const row = (
+    label,
+    help,
+    button,
+    disabledNote
+  ) => (
+    <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-[13.5px] text-white/80">{label}</span>
+          <HelpBubble title={label}>{help}</HelpBubble>
+        </div>
+        {disabledNote && (
+          <p className="mt-1 text-[12px] leading-relaxed text-white/40">
+            {disabledNote}
+          </p>
+        )}
+      </div>
+      {button}
+    </div>
+  );
+
+  const statusBtn = (active, onClick, activeLabel, idleLabel, disabled) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      className={`shrink-0 rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+        active
+          ? "border-[#d8a94e]/60 bg-[#d8a94e]/10 text-[#d8a94e]"
+          : disabled
+            ? "cursor-not-allowed border-white/10 text-white/25"
+            : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
+      }`}
+    >
+      {active ? activeLabel : idleLabel}
+    </button>
+  );
+
   return (
     <div className="mt-6 border-t border-white/10 pt-5">
       <div className="mb-3 flex items-center gap-2">
         <MicroLabel>Stellar status</MicroLabel>
         <HelpBubble title="Stellar status">
           <HelpText
-            what="What kind of star this thread is. Dwarf colors follow mass; a crowned thread is a white dwarf — dense, enduring identity."
+            what="What kind of star this thread is. Dwarf colors follow mass automatically; the rest are earned."
             why="A star's kind tells you how to tend it: seeds want orbiting, white dwarfs want maintaining, anchors hold the sky together, traps want watching."
-            how="Crown a thread that became identity — it stays in the sky and still dims if untended. Mark an anchor for core identities, a trap for gravity wells like doomscrolling."
+            how="Statuses are earned by the work — the crown unlocks when the thread integrates, anchors require rooting into identity. Traps are declared, not earned."
           />
         </HelpBubble>
       </div>
       <p className="mb-3 text-[13px] text-white/55">
-        Currently a <span style={{ color: def.color === "#050508" ? def.ring : def.color }}>{def.label}</span>
+        Currently a{" "}
+        <span style={{ color: def.color === "#050508" ? def.ring : def.color }}>
+          {def.label}
+        </span>
         {star.crowned && " — crowned, maintained identity"}
       </p>
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => axzio.toggleCrowned(star.id)}
-          aria-pressed={star.crowned}
-          className={`rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.14em] transition-colors ${
-            star.crowned
-              ? "border-white/70 bg-white/10 text-white"
-              : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
-          }`}
-        >
-          {star.crowned ? "Crowned ✓" : "Crown as white dwarf"}
-        </button>
-        {["anchor", "trap"].map((k) => (
-          <button
-            key={k}
-            type="button"
-            onClick={() => axzio.setBlackHole(star.id, star.blackHole === k ? null : k)}
-            aria-pressed={star.blackHole === k}
-            className={`rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.14em] transition-colors ${
-              star.blackHole === k
-                ? "border-[#d8a94e]/60 bg-[#d8a94e]/10 text-[#d8a94e]"
-                : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
-            }`}
-          >
-            {k === "anchor" ? "Mark as anchor" : "Mark as trap"}
-          </button>
-        ))}
+      <div className="space-y-2">
+        {row(
+          "White dwarf — crowned",
+          <HelpText
+            what="A crowned thread: the ambition became identity, dense and enduring."
+            why="Crowning honors the becoming without removing it — a white dwarf stays in the sky and still dims if untended."
+            how="Earned by integrating the thread: walk the path below (Reset → Growth → completions) and approve the integrate gate."
+          />,
+          statusBtn(
+            star.crowned,
+            () => axzio.toggleCrowned(star.id),
+            "Crowned ✓",
+            "Crown",
+            !canCrown
+          ),
+          !canCrown &&
+            `Unlocks when this thread integrates — currently ${gates[2].have}/${gates[2].need} completions.`
+        )}
+        {row(
+          "Black hole · anchor",
+          <HelpText
+            what="A core identity — other threads orbit it. Its gravity is coherence."
+            why="Anchors are the load-bearing walls of the sky: marking one says 'everything bends toward this.'"
+            how="Earned by rooting the thread into identity first — only identity claims can be anchors."
+          />,
+          statusBtn(
+            star.blackHole === "anchor",
+            () => axzio.setBlackHole(star.id, star.blackHole === "anchor" ? null : "anchor"),
+            "Anchor ✓",
+            "Mark anchor",
+            !canAnchor
+          ),
+          !canAnchor && "Root this thread into identity first."
+        )}
+        {row(
+          "Black hole · trap",
+          <HelpText
+            what="A gravity well — a pattern that robs energy and focus (doomscrolling, the 2am spiral)."
+            why="Named traps lose power. Checking the well honestly — steered clear or fell in — turns a drain into data."
+            how="Declared, not earned: mark any thread that drains you. Quiet wells surface in Needs attention."
+          />,
+          statusBtn(
+            star.blackHole === "trap",
+            () => axzio.setBlackHole(star.id, star.blackHole === "trap" ? null : "trap"),
+            "Trap ✓",
+            "Mark trap",
+            false
+          ),
+          null
+        )}
       </div>
       {star.blackHole === "trap" && (
         <div className="mt-3 rounded-xl border border-[#b45cff]/25 bg-[#b45cff]/[0.05] p-4">
@@ -1291,12 +1449,86 @@ function StellarStatus({ star, axzio, tier }) {
           </div>
         </div>
       )}
-      {star.blackHole === "anchor" && (
-        <p className="mt-3 text-[12.5px] leading-relaxed text-white/45">
-          An anchor is a core identity — other threads orbit it. Its gravity
-          is coherence: everything bends toward who you are.
+    </div>
+  );
+}
+
+/* Root into identity: link the thread to an EXISTING commitment or
+   create a new one. Unlinking is always available — mistakes undo. */
+function RootIdentity({ star, axzio }) {
+  const commitments = (axzio.state.identity.commitments || []).filter(
+    (c) => c && !c.archived
+  );
+  const [pick, setPick] = useState(star.commitmentId || "");
+  const [newName, setNewName] = useState("");
+  const rootedText = commitmentText(axzio.state, star.commitmentId);
+
+  const link = () => {
+    if (pick === "__new") {
+      const c = axzio.addCommitment(newName.trim() || star.name);
+      if (c) axzio.linkStarCommitment(star.id, c.id);
+    } else if (pick) {
+      axzio.linkStarCommitment(star.id, pick);
+    }
+    setNewName("");
+  };
+
+  if (rootedText) {
+    return (
+      <div className="rounded-xl border border-white/20 bg-white/[0.03] p-4">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+          Rooted as commitment
         </p>
+        <p className="mt-1.5 text-[15px] leading-relaxed text-white">
+          {rootedText}
+        </p>
+        <button
+          type="button"
+          onClick={() => axzio.linkStarCommitment(star.id, null)}
+          className="mt-2 text-[11px] uppercase tracking-[0.14em] text-white/35 transition-colors hover:text-white/70"
+        >
+          Unlink
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2.5">
+      <select
+        value={pick}
+        onChange={(e) => setPick(e.target.value)}
+        className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[14px] text-white/85 outline-none focus:border-white/40"
+      >
+        <option value="">Choose a commitment…</option>
+        {commitments.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.text}
+          </option>
+        ))}
+        <option value="__new">＋ New commitment…</option>
+      </select>
+      {pick === "__new" && (
+        <Field
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder={`Name it — e.g. “${(star.name || "…").slice(0, 40)}”`}
+          maxLength={80}
+        />
       )}
+      <div>
+        <button
+          type="button"
+          onClick={link}
+          disabled={!pick}
+          className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white disabled:opacity-40"
+        >
+          Root into identity
+        </button>
+      </div>
+      <p className="text-[12px] leading-relaxed text-white/35">
+        A matured seed becomes a system asset — link it to an existing
+        commitment, or grow a new one.
+      </p>
     </div>
   );
 }
@@ -1327,10 +1559,6 @@ function ThreadDetail({ star, axzio, onClose }) {
     if (axzio.requestGrowthFrom("star", star.id)) {
       window.location.hash = "#/journeys";
     }
-  };
-  const promote = () => {
-    const c = axzio.addCommitment(star.name);
-    if (c) axzio.linkStarCommitment(star.id, c.id);
   };
   const growLifeMod = () => {
     // Door A: the seed matures into a LifeMod. addLifeMod links the
@@ -1435,11 +1663,8 @@ function ThreadDetail({ star, axzio, onClose }) {
         </div>
         <CloseBtn onClose={onClose} />
       </div>
-      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <SpineDots spine={spine} />
-        {spineInfo && (
-          <span className="text-[12.5px] text-white/45">{spineInfo.copy}</span>
-        )}
+      <div className="mb-4">
+        <SpineExplainer star={star} state={axzio.state} spine={spine} />
       </div>
       <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.02] p-4">
         <MicroLabel className="mb-2">The chain</MicroLabel>
@@ -1476,30 +1701,7 @@ function ThreadDetail({ star, axzio, onClose }) {
             />
           </HelpBubble>
         </div>
-        {rootedText ? (
-          <div className="rounded-xl border border-white/20 bg-white/[0.03] p-4">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
-              Rooted as commitment
-            </p>
-            <p className="mt-1.5 text-[15px] leading-relaxed text-white">
-              {rootedText}
-            </p>
-          </div>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={promote}
-              className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
-            >
-              Make commitment
-            </button>
-            <p className="mt-2 text-[12px] leading-relaxed text-white/35">
-              A seed that has matured becomes a system asset — an identity
-              commitment, added at the lowest priority.
-            </p>
-          </>
-        )}
+        <RootIdentity star={star} axzio={axzio} />
       </div>
 
       <div className="mt-5">
@@ -1521,6 +1723,13 @@ function ThreadDetail({ star, axzio, onClose }) {
             <p className="mt-1.5 text-[15px] leading-relaxed text-white">
               {grownLifeMod.name}
             </p>
+            <button
+              type="button"
+              onClick={() => axzio.linkStarLifeMod(star.id, null)}
+              className="mt-2 text-[11px] uppercase tracking-[0.14em] text-white/35 transition-colors hover:text-white/70"
+            >
+              Unlink
+            </button>
           </div>
         ) : (
           <>

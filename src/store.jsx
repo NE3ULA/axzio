@@ -1119,6 +1119,81 @@ export function threadEvidence(state, star) {
     ev.push({ kind: "manual", at: m.at || 0, sys: false, label: "Entered by you", sub: m.text });
   return ev.sort((a, b) => (b.at || 0) - (a.at || 0));
 }
+/* Why is this thread at its spine stage — and what moves it? The spine
+   is derived, never set by hand; this makes the derivation legible so the
+   levers (hatch, review, root, tend) are visible instead of mysterious. */
+const SPINE_LOOP_LABEL = {
+  reveal: "Reveal",
+  interpret: "Interpret",
+  align: "Align",
+  act: "Act",
+  integrate: "Integrate",
+  released: "Released",
+};
+export function spineWhy(state, star) {
+  const stage = threadSpine(state, star);
+  const commitmentName = star.commitmentId
+    ? commitmentText(state, star.commitmentId)
+    : null;
+  switch (stage) {
+    case "released":
+      return {
+        stage,
+        why: "Released — let go with intention. It stays in the sky as compost.",
+        lever: null,
+      };
+    case "evolve":
+      return {
+        stage,
+        why: commitmentName
+          ? `Became the commitment \u201c${commitmentName}\u201d — the ambition is now identity.`
+          : "Rooted into identity — the ambition is now a standing promise.",
+        lever:
+          "Tend it: a maintained identity still dims if untended. Crown it once the path below is walked.",
+      };
+    case "review": {
+      const due = threadReviewDue(state, star);
+      return {
+        stage,
+        why: due
+          ? `A ${due.kind === "growth" ? "Growth Practice" : "Reset"} review is due${due.date ? ` (since ${due.date})` : ""}.`
+          : "Worked enough to be looked at again.",
+        lever: "Complete the review to move on.",
+      };
+    }
+    case "execute": {
+      const off = threadOffspring(state, star);
+      const names = [
+        ...off.goals.map((g) => `goal \u201c${g.text}\u201d`),
+        ...off.habits.map((h) => `habit \u201c${h.text}\u201d`),
+        ...(off.lifemod ? [`LifeMod \u201c${off.lifemod.name}\u201d`] : []),
+      ];
+      return {
+        stage,
+        why:
+          names.length > 0
+            ? `Hatched: ${names.slice(0, 3).join(", ")}${
+                names.length > 3 ? ` +${names.length - 3} more` : ""
+              }.`
+            : "Something was hatched from this thread.",
+        lever: "Work the offspring — their completions move the thread.",
+      };
+    }
+    case "evaluate":
+      return {
+        stage,
+        why: `${star.orbits || 0} orbit${star.orbits === 1 ? "" : "s"}; E3 loop at \u201c${SPINE_LOOP_LABEL[star.loopStage] || star.loopStage}\u201d.`,
+        lever: "Advance through the E3 path below — each gate walked moves it.",
+      };
+    default:
+      return {
+        stage: "capture",
+        why: "Fresh spark — the first orbit hasn't begun.",
+        lever: "Begin an orbit, or run a Reset to clear the fog.",
+      };
+  }
+}
+
 /** What needs the user's attention on this thread, if anything. */
 const WELL_QUIET_MS = 3 * 24 * 3600 * 1000;
 /** Event-horizon warning: a trap unchecked for 3+ days surfaces. */

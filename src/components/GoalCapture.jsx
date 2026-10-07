@@ -421,6 +421,8 @@ export default function GoalCapture({
 export function GrownGoalsList({ sourceLifeModId = null, sourceStarId = null }) {
   const axzio = useAxzio();
   const { state } = axzio;
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState("");
   const goals = (state.goals || []).filter(
     (g) =>
       g &&
@@ -428,26 +430,83 @@ export function GrownGoalsList({ sourceLifeModId = null, sourceStarId = null }) 
         (sourceStarId && g.sourceStarId === sourceStarId))
   );
   if (goals.length === 0) return null;
+  const save = (id) => {
+    if (draft.trim()) axzio.updateGoal(id, { text: draft.trim().slice(0, 80) });
+    setEditingId(null);
+  };
   return (
     <ul className="mb-3 space-y-1.5">
       {goals.map((g) => (
         <li
           key={g.id}
-          className="flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2"
+          className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2"
         >
-          <span
-            className={`min-w-0 flex-1 text-[14px] leading-snug ${
-              g.done ? "text-white/40 line-through" : "text-white/85"
-            }`}
-          >
-            {g.text}
-          </span>
-          <a
-            href="#/identity"
-            className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-white/45 transition-colors hover:text-white"
-          >
-            In Identity →
-          </a>
+          {editingId === g.id ? (
+            <>
+              <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") save(g.id);
+                  if (e.key === "Escape") setEditingId(null);
+                }}
+                autoFocus
+                maxLength={80}
+                className="min-w-0 flex-1 rounded border border-white/20 bg-black px-2 py-1 text-[14px] text-white outline-none focus:border-white/50"
+              />
+              <button
+                type="button"
+                onClick={() => save(g.id)}
+                className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-white/60 hover:text-white"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingId(null)}
+                className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-white/35 hover:text-white/70"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <span
+                className={`min-w-0 flex-1 text-[14px] leading-snug ${
+                  g.done ? "text-white/40 line-through" : "text-white/85"
+                }`}
+              >
+                {g.text}
+              </span>
+              <button
+                type="button"
+                aria-label="Edit goal"
+                onClick={() => {
+                  setEditingId(g.id);
+                  setDraft(g.text);
+                }}
+                className="shrink-0 text-white/30 transition-colors hover:text-white/70"
+              >
+                ✎
+              </button>
+              <button
+                type="button"
+                aria-label="Delete goal"
+                onClick={() => {
+                  if (window.confirm(`Delete “${g.text}”?`)) axzio.deleteGoal(g.id);
+                }}
+                className="shrink-0 text-white/30 transition-colors hover:text-white/70"
+              >
+                ×
+              </button>
+              <a
+                href="#/identity"
+                className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-white/45 transition-colors hover:text-white"
+              >
+                In Identity →
+              </a>
+            </>
+          )}
         </li>
       ))}
     </ul>

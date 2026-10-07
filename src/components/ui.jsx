@@ -1,3 +1,4 @@
+import React from "react";
 /* Shared UI primitives — the AXZIO visual language:
    pure black, white text, thin 1px borders, wide-tracked micro labels. */
 
@@ -17,6 +18,47 @@ export function Card({ className = "", children, ...rest }) {
 }
 
 /** Small uppercase label with wide letter-spacing. */
+/* ErrorBoundary — a render crash anywhere inside shows a recovery card
+   instead of a black page. The user's data is untouched; one tap reloads
+   the view. */
+export class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    try {
+      console.error("AXZIO view crashed:", error, info && info.componentStack);
+    } catch (_) {}
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="mx-auto max-w-xl px-6 py-16 text-center">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-white/40">
+            Something glitched
+          </p>
+          <p className="mt-3 text-[15px] leading-relaxed text-white/70">
+            This view hit a snag and couldn't draw itself. Your data is safe —
+            nothing was lost.
+          </p>
+          <button
+            type="button"
+            onClick={() => this.setState({ error: null })}
+            className="mt-6 rounded-lg border border-white/20 px-4 py-2 text-[11px] uppercase tracking-[0.14em] text-white/70 hover:border-white/50 hover:text-white"
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export function MicroLabel({ className = "", children }) {
   return (
     <p
