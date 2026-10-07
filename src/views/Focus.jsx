@@ -18,6 +18,9 @@ import {
   goalsForCommitment,
   effectiveServes,
   descendantIds,
+  goalOccurrences,
+  timeframeRange,
+  localDateKey,
   QUEST_KINDS,
   formatLongDate,
 } from "../store.jsx";
@@ -42,6 +45,160 @@ import {
 const QUAD_KEYS = ["q1", "q2", "q3", "q4"];
 const VALID_MODES = MODES.map((m) => m.key);
 const VALID_PILLARS = PILLARS.map((p) => p.key);
+
+/* ScheduledSessions — work sessions derived live from goal schedules.
+   Goals pre-populate Focus: each session is a dated occurrence of a
+   goal's work plan. Nothing is materialized — sessions derive from
+   goal.schedule, and done state lives on goal.sessions[dateKey].
+   The year tab shows per-goal aggregates instead of individual rows. */
+function ScheduledSessions({ timeframe }) {
+  const { state, toggleGoalSession } = useAxzio();
+  const { fromKey, toKey } = timeframeRange(timeframe);
+  const goals = (state.goals || []).filter((g) => g && !g.done && g.schedule);
+
+  const sessions = [];
+  for (const g of goals) {
+    for (const occ of goalOccurrences(g, fromKey, toKey)) {
+      sessions.push({
+        key: `${g.id}:${occ.date}`,
+        goal: g,
+        date: occ.date,
+        minutes: occ.minutes,
+        done: !!(g.sessions && g.sessions[occ.date]),
+      });
+    }
+  }
+  sessions.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  if (sessions.length === 0) return null;
+
+  const minsLabel = (m) =>
+    m >= 60 && m % 60 === 0 ? `${m / 60} h` : `${m} min`;
+  const dayLabel = (dateKey) => {
+    const [y, m, d] = dateKey.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+      weekday: "short",
+      day: "numeric",
+    });
+  };
+  const openCount = sessions.filter((s) => !s.done).length;
+
+  const help = (
+    <HelpBubble title="Scheduled sessions">
+      <HelpText
+        what="Work sessions your goals scheduled — placed here automatically from each goal's work plan."
+        why="The day should start populated, not blank. Goals declare when they get worked on; Focus shows up with the sessions ready, so your time goes to reviewing and refining instead of re-entering."
+        how="Set work sessions on any goal — from Identity or the goal's editor. Check a session off when the work is done; it records against the goal, not as a separate task."
+      />
+    </HelpBubble>
+  );
+
+  if (timeframe === "year") {
+    const byGoal = new Map();
+    for (const s of sessions) {
+      if (!byGoal.has(s.goal.id))
+        byGoal.set(s.goal.id, { goal: s.goal, total: 0, done: 0 });
+      const agg = byGoal.get(s.goal.id);
+      agg.total += 1;
+      if (s.done) agg.done += 1;
+    }
+    return (
+      <section className="mb-8">
+        <Card className="p-6">
+          <div className="mb-4 flex items-center gap-3">
+            <MicroLabel>Scheduled — {timeframeLabel(timeframe)}</MicroLabel>
+            {help}
+          </div>
+          <ul className="space-y-4">
+            {[...byGoal.values()].map(({ goal, total, done }) => (
+              <li key={goal.id}>
+                <div className="mb-1.5 flex items-baseline gap-3">
+                  <span className="min-w-0 flex-1 truncate text-[14px] text-white/85">
+                    {goal.text}
+                  </span>
+                  <span className="shrink-0 text-[11px] tabular-nums tracking-[0.14em] text-white/40">
+                    {done}/{total} sessions
+                  </span>
+                </div>
+                <div className="h-1 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-white/60 transition-all"
+                    style={{
+                      width: `${total ? Math.round((done / total) * 100) : 0}%`,
+                    }}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mb-8">
+      <Card className="p-6">
+        <div className="mb-4 flex items-center gap-3">
+          <MicroLabel>Scheduled — {timeframeLabel(timeframe)}</MicroLabel>
+          {help}
+          <span className="ml-auto text-[11px] uppercase tracking-[0.2em] text-white/40">
+            {openCount} open
+          </span>
+        </div>
+        <ul className="space-y-2">
+          {sessions.map((s) => (
+            <li
+              key={s.key}
+              className="flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2.5"
+            >
+              <button
+                type="button"
+                onClick={() => toggleGoalSession(s.goal.id, s.date)}
+                aria-pressed={s.done}
+                aria-label={s.done ? "Reopen session" : "Complete session"}
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                  s.done
+                    ? "border-white/70 bg-white text-black"
+                    : "border-white/30 hover:border-white/70"
+                }`}
+              >
+                {s.done && (
+                  <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                    <path
+                      d="M1.5 5.5l2.5 2.5 4.5-5.5"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                    />
+                  </svg>
+                )}
+              </button>
+              <div className="min-w-0 flex-1">
+                <p
+                  className={`truncate text-[14px] leading-snug ${
+                    s.done ? "text-white/40 line-through" : "text-white/85"
+                  }`}
+                >
+                  {s.goal.text}
+                </p>
+                <p className="mt-0.5 truncate text-[11px] tracking-[0.08em] text-white/40">
+                  {commitmentText(state, s.goal.commitmentId)} ·{" "}
+                  {minsLabel(s.minutes)}
+                </p>
+              </div>
+              {timeframe !== "day" && (
+                <span className="shrink-0 text-[11px] tabular-nums tracking-[0.1em] text-white/45">
+                  {dayLabel(s.date)}
+                </span>
+              )}
+              <Pill>Goal</Pill>
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </section>
+  );
+}
 
 export default function Focus() {
   const axzio = useAxzio();
@@ -168,6 +325,9 @@ export default function Focus() {
           />
         </Card>
       </section>
+
+      {/* goal-scheduled work sessions for the active timeframe */}
+      <ScheduledSessions timeframe={timeframe} />
 
       {/* the matrix */}
       <section className="axzio-rise axzio-rise-3">

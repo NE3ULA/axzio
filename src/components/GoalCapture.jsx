@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { useAxzio, sortedCommitments, formatLongDate } from "../store.jsx";
+import {
+  useAxzio,
+  sortedCommitments,
+  formatLongDate,
+  localDateKey,
+  describeSchedule,
+} from "../store.jsx";
 import { MicroLabel, Field, Btn, HelpBubble, HelpText } from "./ui.jsx";
 
 /* GoalCapture — compact goal entry. A goal always serves exactly one
@@ -24,6 +30,7 @@ export default function GoalCapture({
   const [cid, setCid] = useState(commitmentId);
   const [newCommitment, setNewCommitment] = useState("");
   const [horizon, setHorizon] = useState("");
+  const [schedule, setSchedule] = useState(null);
 
   const locked = commitmentId != null;
   const creatingCommitment = !locked && cid === "__new__";
@@ -38,6 +45,7 @@ export default function GoalCapture({
     }
     const g = axzio.addGoal(text, targetCid, {
       horizon: horizon || null,
+      schedule,
       sourceLifeModId,
       sourceStarId,
     });
@@ -45,6 +53,7 @@ export default function GoalCapture({
       setText("");
       setHorizon("");
       setNewCommitment("");
+      setSchedule(null);
       if (!locked) setCid(null);
       setOpen(false);
       if (onCreated) onCreated(g);
@@ -60,6 +69,10 @@ export default function GoalCapture({
         type="button"
         onClick={() => {
           setText(initialText);
+          setCid(commitmentId);
+          setHorizon("");
+          setNewCommitment("");
+          setSchedule(null);
           setOpen(true);
         }}
         className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
@@ -96,6 +109,7 @@ export default function GoalCapture({
       <p className="mt-1.5 text-[11px] leading-relaxed text-white/35">
         Keep it crisp — if it needs paragraphs, it needs refining.
       </p>
+      <GoalScheduleEditor value={schedule} onChange={setSchedule} />
       <div className={`mt-3 grid gap-3 ${locked ? "" : "sm:grid-cols-2"}`}>
         {!locked && (
           <div>
@@ -173,23 +187,27 @@ export default function GoalCapture({
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
   const [editHorizon, setEditHorizon] = useState("");
+  const [editSchedule, setEditSchedule] = useState(null);
 
   const startEdit = (g) => {
     setConfirmId(null);
     setEditingId(g.id);
     setEditText(g.text || "");
     setEditHorizon(g.horizon || "");
+    setEditSchedule(g.schedule || null);
   };
   const cancelEdit = () => {
     setEditingId(null);
     setEditText("");
     setEditHorizon("");
+    setEditSchedule(null);
   };
   const saveEdit = () => {
     if (!editText.trim()) return;
     axzio.updateGoal(editingId, {
       text: editText,
       horizon: editHorizon || null,
+      schedule: editSchedule,
     });
     cancelEdit();
   };
@@ -234,6 +252,7 @@ export default function GoalCapture({
                 Cancel
               </button>
             </div>
+            <GoalScheduleEditor value={editSchedule} onChange={setEditSchedule} />
           </li>
         ) : (
         <li
@@ -265,11 +284,20 @@ export default function GoalCapture({
             type="button"
             onClick={() => startEdit(g)}
             title="Edit goal"
-            className={`min-w-0 flex-1 cursor-text text-left text-[14px] leading-snug ${
-              g.done ? "text-white/40 line-through" : "text-white/85"
-            }`}
+            className="min-w-0 flex-1 cursor-text text-left"
           >
-            {g.text}
+            <span
+              className={`block text-[14px] leading-snug ${
+                g.done ? "text-white/40 line-through" : "text-white/85"
+              }`}
+            >
+              {g.text}
+            </span>
+            {g.schedule && (
+              <span className="mt-0.5 block text-[11px] tracking-[0.08em] text-white/40">
+                {describeSchedule(g.schedule)}
+              </span>
+            )}
           </button>
           {g.horizon && (
             <span className="shrink-0 text-[11px] tracking-[0.14em] text-white/35">
@@ -348,5 +376,196 @@ export function GrownGoalsList({ sourceLifeModId = null, sourceStarId = null }) 
         </li>
       ))}
     </ul>
+  );
+}
+
+const SCHEDULE_KINDS = [
+  { key: "none", label: "No schedule" },
+  { key: "once", label: "One day" },
+  { key: "weekly", label: "Weekly" },
+];
+const WEEKDAY_PICKER = [
+  { d: 1, label: "M" },
+  { d: 2, label: "T" },
+  { d: 3, label: "W" },
+  { d: 4, label: "T" },
+  { d: 5, label: "F" },
+  { d: 6, label: "S" },
+  { d: 0, label: "S" },
+];
+
+/* GoalScheduleEditor — when the goal gets worked on and for how long.
+   value: a schedule object or null. onChange receives the edited
+   schedule (or null). The store normalizes on write. */
+export function GoalScheduleEditor({ value, onChange }) {
+  const s = value || {};
+  const kind = s.kind || "none";
+
+  const set = (patch) => {
+    const next = { ...s, ...patch };
+    if (next.kind === "none") return onChange(null);
+    if (next.kind === "once") {
+      return onChange(
+        next.date
+          ? { kind: "once", date: next.date, minutes: next.minutes || 30 }
+          : null
+      );
+    }
+    // weekly
+    const days = Array.isArray(next.days) ? next.days : [];
+    return onChange(
+      days.length > 0 && next.start && next.weeks > 0
+        ? {
+            kind: "weekly",
+            days,
+            start: next.start,
+            weeks: next.weeks,
+            minutes: next.minutes || 30,
+          }
+        : null
+    );
+  };
+
+  const toggleDay = (d) => {
+    const days = Array.isArray(s.days) ? s.days : [];
+    set({
+      days: days.includes(d) ? days.filter((x) => x !== d) : [...days, d],
+    });
+  };
+
+  return (
+    <div className="mt-3">
+      <div className="mb-2 flex items-center gap-2">
+        <MicroLabel>Work sessions</MicroLabel>
+        <HelpBubble title="Work sessions">
+          <HelpText
+            what="When this goal gets worked on, and for how long each time."
+            why="A goal with a horizon but no work plan is a wish. Scheduling the sessions turns the outcome into a rhythm — and Focus pre-fills from it, so the days start populated instead of blank."
+            how="One day: a single dated session. Weekly: pick weekdays, minutes per session, a start date and how many weeks it runs. Sessions appear in Focus's day, week and month views, ready to be worked and checked off."
+          />
+        </HelpBubble>
+      </div>
+      <div className="mb-3 flex flex-wrap gap-2" role="radiogroup" aria-label="Schedule kind">
+        {SCHEDULE_KINDS.map((k) => (
+          <button
+            key={k.key}
+            type="button"
+            role="radio"
+            aria-checked={kind === k.key}
+            onClick={() => {
+              if (k.key === "none") return onChange(null);
+              set({
+                kind: k.key,
+                date: s.date || localDateKey(),
+                days: Array.isArray(s.days) && s.days.length ? s.days : [1, 2, 3, 4, 5],
+                start: s.start || localDateKey(),
+                weeks: s.weeks || 4,
+                minutes: s.minutes || 30,
+              });
+            }}
+            className={`rounded-full border px-3.5 py-1.5 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+              kind === k.key
+                ? "border-white/70 bg-white/10 text-white"
+                : "border-white/15 text-white/45 hover:border-white/40 hover:text-white"
+            }`}
+          >
+            {k.label}
+          </button>
+        ))}
+      </div>
+
+      {kind === "once" && (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <MicroLabel className="mb-1.5">Day</MicroLabel>
+            <input
+              type="date"
+              value={s.date || localDateKey()}
+              onChange={(e) => set({ date: e.target.value })}
+              aria-label="Session day"
+              className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30 [color-scheme:dark]"
+            />
+          </div>
+          <div>
+            <MicroLabel className="mb-1.5">Minutes</MicroLabel>
+            <input
+              type="number"
+              min={5}
+              max={480}
+              step={5}
+              value={s.minutes || 30}
+              onChange={(e) => set({ minutes: Number(e.target.value) })}
+              aria-label="Minutes per session"
+              className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30"
+            />
+          </div>
+        </div>
+      )}
+
+      {kind === "weekly" && (
+        <div className="space-y-3">
+          <div>
+            <MicroLabel className="mb-1.5">Weekdays</MicroLabel>
+            <div className="flex gap-1.5">
+              {WEEKDAY_PICKER.map(({ d, label }) => {
+                const on = Array.isArray(s.days) && s.days.includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggleDay(d)}
+                    className={`flex h-9 w-9 items-center justify-center rounded-full border text-[12px] font-medium transition-colors ${
+                      on
+                        ? "border-white/70 bg-white/15 text-white"
+                        : "border-white/15 text-white/40 hover:border-white/40 hover:text-white"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <MicroLabel className="mb-1.5">Minutes</MicroLabel>
+              <input
+                type="number"
+                min={5}
+                max={480}
+                step={5}
+                value={s.minutes || 30}
+                onChange={(e) => set({ minutes: Number(e.target.value) })}
+                aria-label="Minutes per session"
+                className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30"
+              />
+            </div>
+            <div>
+              <MicroLabel className="mb-1.5">Starts</MicroLabel>
+              <input
+                type="date"
+                value={s.start || localDateKey()}
+                onChange={(e) => set({ start: e.target.value })}
+                aria-label="Schedule start date"
+                className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30 [color-scheme:dark]"
+              />
+            </div>
+            <div>
+              <MicroLabel className="mb-1.5">Weeks</MicroLabel>
+              <input
+                type="number"
+                min={1}
+                max={52}
+                value={s.weeks || 4}
+                onChange={(e) => set({ weeks: Number(e.target.value) })}
+                aria-label="Duration in weeks"
+                className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[13px] text-white outline-none transition-colors hover:border-white/30"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

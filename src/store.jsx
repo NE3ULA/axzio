@@ -1044,6 +1044,8 @@ function normalizeGoals(raw, validCommitmentIds) {
         typeof g.horizon === "string" && g.horizon ? g.horizon : null,
       done: g.done === true,
       created: Number(g.created) || 0,
+      schedule: normalizeSchedule(g.schedule),
+      sessions: normalizeSessions(g.sessions),
       // Origin threads: what this goal grew from (seed or LifeMod).
       sourceLifeModId:
         typeof g.sourceLifeModId === "string" && g.sourceLifeModId
@@ -1075,6 +1077,155 @@ export function goalsForCommitment(state, commitmentId) {
       (a, b) =>
         Number(a.done) - Number(b.done) || (a.created || 0) - (b.created || 0)
     );
+}
+
+const SCHEDULE_KINDS = ["once", "weekly"];
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** Normalize a goal work-schedule. Null when absent or invalid. */
+export function normalizeSchedule(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const minutes =
+    Number.isFinite(Number(raw.minutes)) && Number(raw.minutes) > 0
+      ? Math.min(480, Math.round(Number(raw.minutes)))
+      : 30;
+  if (raw.kind === "once") {
+    if (typeof raw.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(raw.date))
+      return null;
+    return { kind: "once", date: raw.date, minutes };
+  }
+  if (raw.kind === "weekly") {
+    const days = (Array.isArray(raw.days) ? raw.days : [])
+      .map(Number)
+      .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+    const weeks =
+      Number.isInteger(Number(raw.weeks)) && Number(raw.weeks) > 0
+        ? Math.min(52, Number(raw.weeks))
+        : 0;
+    if (
+      days.length === 0 ||
+      typeof raw.start !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(raw.start) ||
+      weeks <= 0
+    )
+      return null;
+    return {
+      kind: "weekly",
+      days: [...new Set(days)].sort((a, b) => a - b),
+      start: raw.start,
+      weeks,
+      minutes,
+    };
+  }
+  return null;
+}
+
+/** Normalize the per-date session completion map on a goal. */
+export function normalizeSessions(raw) {
+  if (!raw || typeof raw !== "object") return {};
+  const out = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(k) && v) out[k] = true;
+  }
+  return out;
+}
+
+function parseDateKey(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/**
+ * Work sessions a goal's schedule generates between two date keys
+ * (inclusive). Returns [{ date, minutes }]. Done goals generate none —
+ * a completed goal stops populating Focus.
+ */
+export function goalOccurrences(goal, fromKey, toKey) {
+  const s = goal?.schedule;
+  if (!s || goal.done) return [];
+  const out = [];
+  const minutes = s.minutes || 30;
+  if (s.kind === "once") {
+    if (s.date >= fromKey && s.date <= toKey)
+      out.push({ date: s.date, minutes });
+  } else if (s.kind === "weekly") {
+    const start = parseDateKey(s.start);
+    const end = new Date(start);
+    end.setDate(end.getDate() + s.weeks * 7 - 1);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const k = localDateKey(d);
+      if (k < fromKey || k > toKey) continue;
+      if (s.days.includes(d.getDay())) out.push({ date: k, minutes });
+    }
+  }
+  return out;
+}
+
+/** Compact weekday-range label: [1,2,3,4,5] -> "Mon–Fri". */
+function daysLabel(days) {
+  const sorted = [...days].sort((a, b) => a - b);
+  const ranges = [];
+  let run = [sorted[0]];
+  for (let i = 1; i <= sorted.length; i++) {
+    if (sorted[i] === run[run.length - 1] + 1) run.push(sorted[i]);
+    else {
+      ranges.push(run);
+      run = [sorted[i]];
+    }
+  }
+  return ranges
+    .filter((r) => r[0] !== undefined)
+    .map((r) =>
+      r.length === 1
+        ? DAY_NAMES[r[0]]
+        : `${DAY_NAMES[r[0]]}–${DAY_NAMES[r[r.length - 1]]}`
+    )
+    .join(", ");
+}
+
+/** Human line for a schedule: "Mon–Fri · 60 min · 3 wks" / "Oct 9 · 30 min". */
+export function describeSchedule(s) {
+  if (!s) return "";
+  const mins = s.minutes >= 60 && s.minutes % 60 === 0
+    ? `${s.minutes / 60} h`
+    : `${s.minutes} min`;
+  if (s.kind === "once") {
+    const [y, m, d] = s.date.split("-").map(Number);
+    const label = new Date(y, m - 1, d).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    });
+    return `${label} · ${mins}`;
+  }
+  if (s.kind === "weekly") {
+    return `${daysLabel(s.days)} · ${mins} · ${s.weeks} wk${s.weeks === 1 ? "" : "s"}`;
+  }
+  return "";
+}
+
+/** Date-key range for a Focus timeframe tab. Week = Mon–Sun. */
+export function timeframeRange(timeframe) {
+  const now = new Date();
+  if (timeframe === "day") {
+    const k = localDateKey(now);
+    return { fromKey: k, toKey: k };
+  }
+  if (timeframe === "week") {
+    const dow = (now.getDay() + 6) % 7; // 0 = Monday
+    const mon = new Date(now);
+    mon.setDate(now.getDate() - dow);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    return { fromKey: localDateKey(mon), toKey: localDateKey(sun) };
+  }
+  if (timeframe === "month") {
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { fromKey: localDateKey(first), toKey: localDateKey(last) };
+  }
+  // year
+  const y = now.getFullYear();
+  return { fromKey: `${y}-01-01`, toKey: `${y}-12-31` };
 }
 
 /**
@@ -1610,6 +1761,8 @@ export function AxzioProvider({ children }) {
               : null,
           done: false,
           created: Date.now(),
+          schedule: normalizeSchedule(opts.schedule),
+          sessions: {},
           sourceLifeModId:
             typeof opts.sourceLifeModId === "string"
               ? opts.sourceLifeModId
@@ -1647,7 +1800,21 @@ export function AxzioProvider({ children }) {
               ? patch.horizon
               : null;
         }
+        if ("schedule" in patch) {
+          g.schedule = normalizeSchedule(patch.schedule);
+        }
       });
+    },
+    /** Flip one scheduled work session (by date key) on a goal. */
+    toggleGoalSession(goalId, dateKey) {
+      update((d) => {
+        const g = (d.goals || []).find((x) => x.id === goalId);
+        if (!g) return;
+        if (!g.sessions || typeof g.sessions !== "object") g.sessions = {};
+        if (g.sessions[dateKey]) delete g.sessions[dateKey];
+        else g.sessions[dateKey] = true;
+      });
+      logEvent("goal.session", { id: goalId, date: dateKey });
     },
     deleteGoal(id) {
       update((d) => {
