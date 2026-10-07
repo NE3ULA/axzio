@@ -211,7 +211,7 @@ function TopNav({ route, name }) {
       className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-md"
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3.5">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3.5 sm:gap-3 sm:px-5">
         <button
           onClick={() => go("bridge")}
           className="flex shrink-0 items-center gap-3"
@@ -222,7 +222,7 @@ function TopNav({ route, name }) {
             <line x1="36" y1="8" x2="36" y2="64" stroke="white" strokeWidth="3" opacity="0.9" />
             <circle cx="36" cy="36" r="8" fill="white" />
           </svg>
-          <span className="text-sm font-medium uppercase tracking-[0.42em]">
+          <span className="hidden text-sm font-medium uppercase tracking-[0.42em] sm:inline">
             Axzio
           </span>
         </button>
@@ -245,8 +245,12 @@ function TopNav({ route, name }) {
           ))}
         </nav>
 
-        {/* Mobile: all four main tabs, compact */}
-        <nav className="flex shrink-0 items-center gap-0.5 md:hidden" aria-label="Views">
+        {/* Mobile: all four main tabs, compact — scrolls internally so it can
+            never push the hamburger / settings off-screen on narrow phones */}
+        <nav
+          className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:hidden"
+          aria-label="Views"
+        >
           {MAIN_ROUTES.map((r) => (
             <button
               key={r.key}
