@@ -88,6 +88,9 @@ export default function Constellation() {
 
   const inThread = stars.filter((s) => s.loopStage !== "released").length;
   const releasedCount = stars.length - inThread;
+  // Selecting a star opens its thread; selecting it again closes it.
+  const toggleSelect = (id) =>
+    setSelectedId((cur) => (cur === id ? null : id));
 
   return (
     <div className="mx-auto w-full max-w-6xl px-5 pb-24 pt-8">
@@ -144,7 +147,7 @@ export default function Constellation() {
           stars={stars}
           state={state}
           selectedId={selectedId}
-          onSelect={(id) => setSelectedId(id)}
+          onSelect={toggleSelect}
         />
       ) : (
         <ThreadsView
