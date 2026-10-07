@@ -21,13 +21,21 @@ export default function GoalCapture({
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(initialText);
   const [cid, setCid] = useState(commitmentId);
+  const [newCommitment, setNewCommitment] = useState("");
   const [horizon, setHorizon] = useState("");
 
   const locked = commitmentId != null;
-  const effectiveCid = locked ? commitmentId : cid;
+  const creatingCommitment = !locked && cid === "__new__";
+  const effectiveCid = locked ? commitmentId : creatingCommitment ? null : cid;
 
   const submit = () => {
-    const g = axzio.addGoal(text, effectiveCid, {
+    let targetCid = effectiveCid;
+    if (creatingCommitment) {
+      const nc = axzio.addCommitment(newCommitment);
+      if (!nc) return;
+      targetCid = nc.id;
+    }
+    const g = axzio.addGoal(text, targetCid, {
       horizon: horizon || null,
       sourceLifeModId,
       sourceStarId,
@@ -35,11 +43,15 @@ export default function GoalCapture({
     if (g) {
       setText("");
       setHorizon("");
+      setNewCommitment("");
       if (!locked) setCid(null);
       setOpen(false);
       if (onCreated) onCreated(g);
     }
   };
+
+  const canSubmit =
+    text.trim() && (effectiveCid || (creatingCommitment && newCommitment.trim()));
 
   if (!open) {
     return (
@@ -68,7 +80,7 @@ export default function GoalCapture({
           <HelpText
             what="A defined outcome with a horizon, living inside a commitment. Goals complete; commitments are kept."
             why="The ladder runs task → goal → commitment → identity. A goal that can't name the commitment it serves doesn't belong here."
-            how="Name the outcome plainly, set an optional horizon. Completing it honors the goal and feeds the commitment it serves."
+            how="Name the outcome plainly, set an optional horizon. Pick the commitment it serves — or name a new one right here; it is created with the goal. Completing it honors the goal and feeds the commitment it serves."
             example="“Beta live by December” — serving the AXZIO commitment."
           />
         </HelpBubble>
@@ -96,7 +108,18 @@ export default function GoalCapture({
                   {c.text.length > 48 ? c.text.slice(0, 48) + "…" : c.text}
                 </option>
               ))}
+              <option value="__new__">New commitment…</option>
             </select>
+            {creatingCommitment && (
+              <Field
+                value={newCommitment}
+                onChange={(e) => setNewCommitment(e.target.value)}
+                placeholder="Name the new commitment — it is created with the goal"
+                maxLength={120}
+                aria-label="New commitment name"
+                className="mt-2"
+              />
+            )}
           </div>
         )}
         <div>
@@ -111,7 +134,7 @@ export default function GoalCapture({
         </div>
       </div>
       <div className="mt-3 flex items-center gap-3">
-        <Btn onClick={submit} disabled={!text.trim() || !effectiveCid}>
+        <Btn onClick={submit} disabled={!canSubmit}>
           Add goal
         </Btn>
         <button
@@ -122,7 +145,7 @@ export default function GoalCapture({
           Cancel
         </button>
       </div>
-      {!effectiveCid && (
+      {!effectiveCid && !creatingCommitment && (
         <p className="mt-2 text-[12px] leading-relaxed text-white/40">
           Every goal serves a commitment — choose one to place it.
         </p>
