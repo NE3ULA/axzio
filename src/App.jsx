@@ -178,27 +178,9 @@ function TopNav({ route, name }) {
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3.5">
-        {/* Mobile: hamburger */}
-        <button
-          onClick={() => setMenuOpen((o) => !o)}
-          aria-expanded={menuOpen}
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-white/70 transition-colors hover:border-white/40 hover:text-white md:hidden"
-        >
-          {menuOpen ? (
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.5" />
-            </svg>
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" />
-            </svg>
-          )}
-        </button>
-
         <button
           onClick={() => go("deck")}
-          className="flex items-center gap-3"
+          className="flex shrink-0 items-center gap-3"
           aria-label="AXZIO home"
         >
           <svg width="22" height="22" viewBox="0 0 72 72" fill="none" aria-hidden="true">
@@ -230,22 +212,43 @@ function TopNav({ route, name }) {
         </nav>
 
         {/* Mobile: Deck stays pinned on the bar as the priority page */}
-        <button
-          onClick={() => go("deck")}
-          aria-current={route === "deck" ? "page" : undefined}
-          className={`shrink-0 rounded-lg px-3.5 py-2 text-[11px] font-medium uppercase tracking-[0.2em] transition-colors md:hidden ${
-            route === "deck"
-              ? "bg-white/10 text-white"
-              : "text-white/45 hover:text-white"
-          }`}
-        >
-          Deck
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={() => go("deck")}
+            aria-current={route === "deck" ? "page" : undefined}
+            className={`shrink-0 rounded-lg px-3.5 py-2 text-[11px] font-medium uppercase tracking-[0.2em] transition-colors md:hidden ${
+              route === "deck"
+                ? "bg-white/10 text-white"
+                : "text-white/45 hover:text-white"
+            }`}
+          >
+            Deck
+          </button>
 
-        <span className="hidden max-w-[160px] truncate text-[11px] uppercase tracking-[0.22em] text-white/40 sm:block">
-          {name || "Traveler"}
-        </span>
-        <AccountControl />
+          <span className="hidden max-w-[160px] truncate text-[11px] uppercase tracking-[0.22em] text-white/40 sm:block">
+            {name || "Traveler"}
+          </span>
+
+          {/* Mobile: hamburger, just left of settings */}
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-expanded={menuOpen}
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-white/70 transition-colors hover:border-white/40 hover:text-white md:hidden"
+          >
+            {menuOpen ? (
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+            )}
+          </button>
+
+          <AccountControl />
+        </div>
       </div>
 
       {/* Mobile: hamburger dropdown */}
