@@ -1085,6 +1085,7 @@ function FocusRow({ item, depth }) {
           onSave={saveEditor}
           onCancel={closeEditor}
           onExplore={exploreInReset}
+          onGrow={growFromItem}
           onDelete={() => {
             axzio.deleteFocusItem(item.id);
             closeEditor();
@@ -1117,6 +1118,7 @@ function FocusItemEditor({
   onSave,
   onCancel,
   onExplore,
+  onGrow,
   onDelete,
 }) {
   const { state } = useAxzio();
@@ -1613,7 +1615,7 @@ function FocusItemEditor({
         </button>
         <button
           type="button"
-          onClick={growFromItem}
+          onClick={onGrow}
           className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white"
         >
           Grow — design pursuit →
