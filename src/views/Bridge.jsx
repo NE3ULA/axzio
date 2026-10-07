@@ -1315,7 +1315,22 @@ function RitualsStrip({ day }) {
           <a
             key={r.key}
             href={r.href}
-            className="group flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4 transition-colors hover:border-white/30"
+            className="group relative flex items-center justify-between gap-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4 transition-colors hover:border-white/30"
+            style={
+              r.key === "dawn"
+                ? {
+                    backgroundImage:
+                      "linear-gradient(rgba(4,4,12,0.78), rgba(4,4,12,0.88)), url(images/mars-dawn.jpg)",
+                    backgroundSize: "cover",
+                    backgroundPosition: "center 62%",
+                  }
+                : undefined
+            }
+            title={
+              r.key === "dawn"
+                ? "Martian dawn over Mount Sharp — captured by NASA's Curiosity rover, Aug 2026"
+                : undefined
+            }
           >
             <span>
               <span className="block text-[10px] uppercase tracking-[0.22em] text-white/40">
@@ -1336,6 +1351,11 @@ function RitualsStrip({ day }) {
             <span className="shrink-0 text-white/30 transition-colors group-hover:text-white">
               →
             </span>
+            {r.key === "dawn" && (
+              <span className="pointer-events-none absolute bottom-1.5 right-4 text-[8px] uppercase tracking-[0.2em] text-white/30">
+                Courtesy NASA/JPL-Caltech/MSSS
+              </span>
+            )}
           </a>
         ))}
       </div>
