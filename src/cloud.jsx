@@ -43,7 +43,11 @@ export function useCloud() {
 
 /* syncStatus: idle | syncing | synced | offline */
 export function CloudProvider({ children }) {
-  const { state, replaceState } = useAxzio();
+  const { state, replaceState, addSignal } = useAxzio();
+  // Ref so the boot merge (run once) always reaches the latest addSignal
+  // without re-triggering the merge effect on store re-renders.
+  const addSignalRef = useRef(null);
+  addSignalRef.current = addSignal;
 
   const [configured, setConfigured] = useState(() => isSupabaseConfigured());
   const [showSetup, setShowSetup] = useState(
@@ -120,6 +124,39 @@ export function CloudProvider({ children }) {
       { onConflict: "user_id" }
     );
     return error || null;
+  }, []);
+
+  /* Capture inbox drain (the seamless-capture pipeline). The iOS
+     "Capture to AXZIO" Shortcut POSTs text rows to axzio_inbox (anon
+     INSERT-only RLS). After a successful signed-in merge, each row becomes
+     a spark via addSignal and the ingested rows are deleted. Fully
+     defensive: if the table doesn't exist yet (SQL not run) or the network
+     fails, capture simply isn't wired up — nothing breaks, nothing shows. */
+  const drainInbox = useCallback(async (client, userId) => {
+    try {
+      const { data: rows, error } = await client
+        .from("axzio_inbox")
+        .select("id, text")
+        .eq("user_id", userId);
+      if (error) return;
+      if (!rows || rows.length === 0) return;
+      const add = addSignalRef.current;
+      if (typeof add !== "function") return;
+      const ingested = [];
+      for (const row of rows) {
+        try {
+          const entry = add(row.text);
+          if (entry) ingested.push(row.id);
+        } catch {
+          /* one bad row never blocks the rest */
+        }
+      }
+      if (ingested.length > 0) {
+        await client.from("axzio_inbox").delete().in("id", ingested);
+      }
+    } catch {
+      /* inbox unreachable — fail soft, local remains source of truth */
+    }
   }, []);
 
   /**
@@ -236,6 +273,11 @@ export function CloudProvider({ children }) {
       // The merge finished with a signed-in user: pushes are now safe.
       // Flush anything that queued while the merge was in flight.
       mergeCompletedRef.current = true;
+      // Drain the capture inbox: the iOS Shortcut POSTs rows to
+      // axzio_inbox while the user is out in the world. Each row becomes
+      // a spark, then the row is deleted. Silent — the sparks simply
+      // appear in the Bridge's Sparks section.
+      await drainInbox(client, u.id);
       if (pendingPushRef.current) {
         pendingPushRef.current = false;
         const cur = stateRef.current;
@@ -251,7 +293,7 @@ export function CloudProvider({ children }) {
       setAuthReady(true);
       setSyncStatus("offline");
     }
-  }, [pushState, replaceState]);
+  }, [pushState, replaceState, drainInbox]);
 
   /* Run the merge once the client is configured; track session changes.
      The effect depends only on `configured` — the merge itself is reached
