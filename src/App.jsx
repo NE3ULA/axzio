@@ -7,6 +7,7 @@ import Starfield from "./components/Starfield.jsx";
 import Boot from "./views/Boot.jsx";
 import Onboarding from "./views/Onboarding.jsx";
 import SupabaseSetup from "./components/SupabaseSetup.jsx";
+import QuickCapture from "./components/QuickCapture.jsx";
 import AccountControl from "./components/AccountControl.jsx";
 import Bridge from "./views/Bridge.jsx";
 import Constellation from "./views/Constellation.jsx";
@@ -158,6 +159,7 @@ export default function App() {
         </div>
       )}
       <SupabaseSetup />
+      <QuickCapture />
     </div>
   );
 }
