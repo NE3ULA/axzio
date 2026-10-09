@@ -674,6 +674,774 @@ function ThreadDetail({ star, axzio, onClose }) {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Restored 2026-10-09: these ThreadDetail sections were lost in the
+   Nebula merge (364c5f6) and are still referenced above. Restored
+   verbatim from the pre-merge version.
+/* ------------------------------------------------------------------ */
+
+function FutureNameField({ star, axzio }) {
+  const [draft, setDraft] = useState(star.futureName || "");
+  const [editing, setEditing] = useState(false);
+  if (!editing && !star.futureName)
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDraft("");
+          setEditing(true);
+        }}
+        className="mt-2 text-[12px] tracking-wide text-white/35 transition-colors hover:text-[#d8a94e]"
+      >
+        + Name what this is becoming…
+      </button>
+    );
+  if (!editing)
+    return (
+      <p className="mt-2 text-[13px] text-white/55">
+        <span className="text-[#d8a94e]">→ becoming “{star.futureName}”</span>{" "}
+        <button
+          type="button"
+          onClick={() => {
+            setDraft(star.futureName);
+            setEditing(true);
+          }}
+          className="ml-1 text-[11px] uppercase tracking-[0.12em] text-white/30 hover:text-white/60"
+        >
+          edit
+        </button>
+      </p>
+    );
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <Field
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="The future self — e.g. Mommas Boy"
+        maxLength={80}
+        className="max-w-xs"
+      />
+      <Btn
+        variant="quiet"
+        onClick={() => {
+          axzio.setFutureName(star.id, draft);
+          setEditing(false);
+        }}
+      >
+        Set
+      </Btn>
+      <Btn
+        variant="ghost"
+        onClick={() => {
+          setEditing(false);
+          setDraft(star.futureName || "");
+        }}
+      >
+        Cancel
+      </Btn>
+    </div>
+  );
+}
+
+const E3_ORDER = ["reveal", "interpret", "align", "act", "integrate"];
+
+/** Which gate guards a forward move to the given E3 stage. */
+function gateForTarget(target, gates) {
+  if (target === "interpret" || target === "align") return gates[0];
+  if (target === "act") return gates[1];
+  return gates[2];
+}
+
+/* The orbit: the E3 loop as a quiet stepper. A thread walks its orbit
+   over and over — Reveal → Interpret → Align → Act → Integrate, one full
+   revolution per pass. Gates run in the background: tapping a stage opens
+   its popup, which says plainly what the stage asks and where the thread
+   stands. Stages are earned. (The orbit is the loop; the spine is the
+   Becoming Cycle — the thread's one-way biography.) */
+function GateSection({ star, axzio }) {
+  const [flow, setFlow] = useState(null); // {target, gate, met}
+  const [repDraft, setRepDraft] = useState("");
+  const gates = threadGates(axzio.state, star);
+  const curIdx = E3_ORDER.indexOf(star.loopStage);
+  const stageLabel = (k) =>
+    (LOOP_STAGES.find((l) => l.key === k) || {}).label || k;
+
+  const tryAdvance = (target) => {
+    if (target === "released" || E3_ORDER.indexOf(target) <= curIdx) {
+      // Back, same, or released: always free.
+      axzio.setStarLoopStage(star.id, target);
+      return;
+    }
+    // Forward: walk one gated step at a time.
+    const next = E3_ORDER[curIdx + 1] || target;
+    const gate = gateForTarget(next, gates);
+    setFlow({ target: next, gate, met: gate.have >= gate.need });
+  };
+
+  const beginInstrument = () => {
+    const g = flow.gate;
+    setFlow(null);
+    if (g.key === "reset") {
+      if (axzio.requestResetFromStar(star.id)) window.location.hash = "#/practice";
+    } else if (g.key === "growth") {
+      if (axzio.requestGrowthFrom("star", star.id)) window.location.hash = "#/practice";
+    }
+  };
+  const declareAdvance = () => {
+    axzio.setStarLoopStage(star.id, flow.target);
+    setFlow(null);
+  };
+
+  const intGate = gates[2];
+  const habits = (intGate.detail && intGate.detail.habits) || [];
+
+  // gate state per stage, for the quiet hint under each button
+  const gateHint = (key) => {
+    const idx = E3_ORDER.indexOf(key);
+    if (idx < 0 || idx <= curIdx) return null;
+    if (idx > curIdx + 1) return null; // only the next stage shows state
+    const gate = gateForTarget(key, gates);
+    const met = gate.have >= gate.need;
+    return met ? "ready" : `${gate.have}/${gate.need}`;
+  };
+
+  return (
+    <div className="mt-6 border-t border-white/10 pt-5">
+      <div className="mb-3 flex items-center gap-2">
+        <MicroLabel>The orbit</MicroLabel>
+        <HelpBubble title="The orbit">
+          <HelpText
+            what="The E3 loop this thread walks, over and over: Reveal → Interpret → Align → Act → Integrate. Its angle on the commitment's orbit ring is its stage."
+            why="Stages you earn mean something. The gate doesn't auto-advance you; it knocks, and you decide whether the work is real."
+            how="Tap the next stage to see what it asks. Meet the requirement and approve — or move early: the instrument is offered first, and honest declaration is always accepted."
+          />
+        </HelpBubble>
+      </div>
+
+      {/* the stepper — forward moves open the gate popup */}
+      <div className="flex flex-wrap gap-2">
+        {ALL_STAGES.map((st) => {
+          const isSel = star.loopStage === st.key;
+          const isReleased = st.key === "released";
+          const hint = gateHint(st.key);
+          return (
+            <button
+              key={st.key}
+              type="button"
+              onClick={() => tryAdvance(st.key)}
+              aria-pressed={isSel}
+              title={st.copy}
+              className={`rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+                isSel
+                  ? "border-white/70 bg-white/10 text-white"
+                  : isReleased
+                    ? "border-dashed border-white/20 text-white/45 hover:border-white/50 hover:text-white"
+                    : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
+              }`}
+            >
+              {st.label}
+              {hint && (
+                <span className={`ml-1.5 ${hint === "ready" ? "text-[#d8a94e]" : "text-white/35"}`}>
+                  {hint === "ready" ? "· ready" : `· ${hint}`}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* gate popup */}
+      {flow && (
+        <div className="mt-4 rounded-xl border border-[#d8a94e]/40 bg-[#d8a94e]/[0.06] p-5">
+          {!flow.met ? (
+            <>
+              <p className="text-[14px] text-white/85">
+                {stageLabel(flow.target)} asks for{" "}
+                {flow.gate.key === "integrate"
+                  ? `${flow.gate.need} completions — goals finished, habits integrated, or focus tasks done`
+                  : flow.gate.instrument
+                    ? `a ${flow.gate.instrument}`
+                    : "the work"}
+                . You're at {flow.gate.have} of {flow.gate.need}.
+              </p>
+              <p className="mt-1.5 text-[12.5px] leading-relaxed text-white/50">
+                {flow.gate.blurb} The tools are the path of least resistance —
+                but your word is always accepted.
+              </p>
+              {flow.gate.key === "integrate" && habits.length > 0 && (
+                <div className="mt-3 space-y-2 border-t border-dashed border-white/10 pt-3">
+                  {habits.filter((h) => !habitIntegrated(h)).map((h) => (
+                    <div key={h.id} className="flex flex-wrap items-center gap-2">
+                      <span className="min-w-0 flex-1 text-[12.5px] text-white/70">
+                        {h.text} · {habitSessionCount(h)} session{habitSessionCount(h) === 1 ? "" : "s"}
+                        {h.repGoal ? ` / ${h.repGoal} rep goal` : " · no rep goal"}
+                      </span>
+                      {!h.repGoal && (
+                        <span className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min="1"
+                            max="365"
+                            value={repDraft}
+                            onChange={(e) => setRepDraft(e.target.value)}
+                            placeholder="#"
+                            aria-label={`Rep goal for ${h.text}`}
+                            className="w-14 rounded-lg border border-white/15 bg-black px-2 py-1 text-[12px] text-white outline-none focus:border-white/40"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const n = parseInt(repDraft, 10);
+                              if (Number.isInteger(n) && n > 0) {
+                                axzio.setHabitRepGoal(h.id, n);
+                                setRepDraft("");
+                              }
+                            }}
+                            className="rounded-lg border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:border-white/40 hover:text-white"
+                          >
+                            Set rep goal
+                          </button>
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => axzio.declareHabitIntegrated(h.id)}
+                        title="The habit is on autopilot — become, not practiced"
+                        className="rounded-lg border border-[#d8a94e]/40 px-2 py-1 text-[11px] text-[#d8a94e]/90 hover:border-[#d8a94e] hover:text-[#d8a94e]"
+                      >
+                        I feel integrated
+                      </button>
+                    </div>
+                  ))}
+                  {habits.some((h) => habitIntegrated(h)) && (
+                    <p className="text-[12px] text-white/40">
+                      Integrated: {habits.filter((h) => habitIntegrated(h)).map((h) => h.text).join(", ")}
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {flow.gate.instrument && (
+                  <Btn variant="primary" onClick={beginInstrument}>
+                    Begin {flow.gate.instrument} →
+                  </Btn>
+                )}
+                <Btn variant="quiet" onClick={declareAdvance}>
+                  I've done this work — declare it
+                </Btn>
+                <Btn variant="ghost" onClick={() => setFlow(null)}>
+                  Not now
+                </Btn>
+              </div>
+            </>
+          ) : flow.gate.key === "integrate" ? (
+            <>
+              <p className="text-[14px] text-white/85">
+                The count is hit — {flow.gate.have} completion{flow.gate.have === 1 ? "" : "s"}.
+              </p>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-white/60">
+                Do you feel this is integrated? Honestly — the stat got you to
+                the door; only the feeling opens it.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Btn variant="primary" onClick={declareAdvance}>
+                  Yes — I feel integrated
+                </Btn>
+                <Btn variant="quiet" onClick={() => setFlow(null)}>
+                  Not yet
+                </Btn>
+              </div>
+              <p className="mt-2 text-[12px] text-white/40">
+                Not yet? Raise a rep target above, or revise the habit — maybe
+                the design was wrong, not the effort.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-[14px] text-white/85">
+                Ready — advance to {stageLabel(flow.target)}?
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Btn variant="primary" onClick={declareAdvance}>
+                  Advance →
+                </Btn>
+                <Btn variant="ghost" onClick={() => setFlow(null)}>
+                  Not yet
+                </Btn>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      <p className="mt-3 text-[12px] leading-relaxed text-white/35">
+        Moving back is always free. Release is always one tap — a thread let
+        go on purpose, never a failure.
+      </p>
+    </div>
+  );
+}
+
+/* The evidence: the case file for the identity being claimed. A lens
+   over existing records — resets faced, pursuits designed, goals done,
+   sessions kept — plus user-entered evidence from outside AXZIO, clearly
+   badged as entered-by-you. */
+const EVIDENCE_KIND_LABEL = {
+  reset: "Reset", growth: "Growth", goal: "Goal", habit: "Habit",
+  focus: "Focus", orbit: "Orbits", rename: "Renamed", beacon: "Beacon",
+  ignition: "Ignition", crown: "Crowned", manual: "Entered by you",
+};
+
+function EvidenceSection({ star, axzio }) {
+  const [draft, setDraft] = useState("");
+  const [condensed, setCondensed] = useState(false);
+  const [openKinds, setOpenKinds] = useState({});
+  const ev = threadEvidence(axzio.state, star);
+  const add = () => {
+    if (draft.trim()) {
+      axzio.addManualEvidence(star.id, draft.trim());
+      setDraft("");
+    }
+  };
+  const grouped = ev.reduce((acc, e) => {
+    (acc[e.kind] = acc[e.kind] || []).push(e);
+    return acc;
+  }, {});
+
+  const entryRow = (e, i) => (
+    <li
+      key={i}
+      className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5"
+    >
+      <span className="mt-0.5 shrink-0 rounded-full border border-white/15 px-2 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/50">
+        {EVIDENCE_KIND_LABEL[e.kind] || e.kind}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="text-[13.5px] text-white/85">{e.label}</span>
+        {e.sub && (
+          <span className="block truncate text-[12px] text-white/45">{e.sub}</span>
+        )}
+      </span>
+      {e.kind === "manual" ? (
+        <button
+          type="button"
+          onClick={() =>
+            axzio.removeManualEvidence(
+              star.id,
+              (star.manualEvidence || []).find((m) => m.text === e.sub)?.id
+            )
+          }
+          aria-label="Remove evidence"
+          className="shrink-0 text-white/25 transition-colors hover:text-white/70"
+        >
+          ×
+        </button>
+      ) : (
+        e.at > 0 && (
+          <span className="shrink-0 text-[11px] text-white/30">
+            {new Date(e.at).toLocaleDateString()}
+          </span>
+        )
+      )}
+    </li>
+  );
+
+  return (
+    <div className="mt-6 border-t border-white/10 pt-5">
+      <div className="mb-3 flex items-center gap-2">
+        <MicroLabel>
+          The evidence{ev.length > 0 ? ` · ${ev.length}` : ""}
+        </MicroLabel>
+        <HelpBubble title="The evidence">
+          <HelpText
+            what="The accumulated proof behind the identity this thread claims — every reset faced, pursuit designed, goal completed, session kept."
+            why="An identity claim without evidence is a wish. The case file lets the thread — and you — see that the becoming is real."
+            how="Most entries are recorded automatically as you work. Add anything from outside AXZIO (or before it) below — those stay badged as entered by you."
+          />
+        </HelpBubble>
+        {ev.length > 3 && (
+          <button
+            type="button"
+            onClick={() => setCondensed((v) => !v)}
+            className="ml-auto text-[11px] uppercase tracking-[0.14em] text-white/35 transition-colors hover:text-white/70"
+          >
+            {condensed ? "Expand" : "Condense"}
+          </button>
+        )}
+      </div>
+      {ev.length === 0 ? (
+        <p className="text-[13px] leading-relaxed text-white/35">
+          No evidence yet — work the thread and the proof accumulates here on
+          its own.
+        </p>
+      ) : condensed ? (
+        <ul className="space-y-1.5">
+          {Object.entries(grouped).map(([kind, items]) => {
+            const open = !!openKinds[kind];
+            return (
+              <li key={kind}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenKinds((o) => ({ ...o, [kind]: !o[kind] }))
+                  }
+                  className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-left"
+                >
+                  <span className="rounded-full border border-white/15 px-2 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/50">
+                    {EVIDENCE_KIND_LABEL[kind] || kind}
+                  </span>
+                  <span className="flex-1 text-[13px] text-white/60">
+                    ×{items.length}
+                  </span>
+                  <span className="text-white/35">{open ? "▾" : "▸"}</span>
+                </button>
+                {open && (
+                  <ul className="mt-1.5 space-y-1.5 pl-3">
+                    {items.map((e, i) => entryRow(e, `${kind}-${i}`))}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <ul className="space-y-2">{ev.map((e, i) => entryRow(e, i))}</ul>
+      )}
+      <div className="mt-3 flex items-center gap-2">
+        <Field
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Evidence from outside AXZIO — e.g. ran a 5k in 2023"
+          maxLength={300}
+          className="flex-1"
+        />
+        <Btn variant="quiet" onClick={add} disabled={!draft.trim()}>
+          Add
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
+/* Stellar status: EARNED, not selected. The crown unlocks when the
+   thread integrates (the path below is walked); anchors require the thread
+   to be rooted into identity; traps are declared, not earned — naming a
+   drain is honesty, not achievement. Each carries a ? explaining what it is
+   and how it's achieved. Already-held statuses are grandfathered. */
+/* Stellar status: EARNED, not selected. The crown unlocks when the
+   thread integrates; a draining thread can collapse into a trap. Anchors
+   are commitments — they need no marking: rooting into identity IS
+   anchoring, and the sky renders every commitment as a gold-ringed
+   black hole. */
+function StellarStatus({ star, axzio, tier }) {
+  const cls = stellarClass(axzio.state, star, tier);
+  const def = STELLAR_CLASSES[cls];
+  const gates = threadGates(axzio.state, star);
+  const integrateMet = gates[2].have >= gates[2].need;
+  const canCrown = star.crowned || integrateMet;
+  const isTrap = star.blackHole === "trap";
+  const anchorName = star.commitmentId
+    ? commitmentText(axzio.state, star.commitmentId)
+    : null;
+
+  const row = (label, help, button, note) => (
+    <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-[13.5px] text-white/80">{label}</span>
+          <HelpBubble title={label}>{help}</HelpBubble>
+        </div>
+        {note && (
+          <p className="mt-1 text-[12px] leading-relaxed text-white/40">{note}</p>
+        )}
+      </div>
+      {button}
+    </div>
+  );
+
+  const statusBtn = (active, onClick, activeLabel, idleLabel, disabled) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      className={`shrink-0 rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+        active
+          ? "border-[#b45cff]/60 bg-[#b45cff]/10 text-[#b45cff]"
+          : disabled
+            ? "cursor-not-allowed border-white/10 text-white/25"
+            : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
+      }`}
+    >
+      {active ? activeLabel : idleLabel}
+    </button>
+  );
+
+  return (
+    <div className="mt-6 border-t border-white/10 pt-5">
+      <div className="mb-3 flex items-center gap-2">
+        <MicroLabel>Stellar status</MicroLabel>
+        <HelpBubble title="Stellar status">
+          <HelpText
+            what="What kind of star this thread is. Dwarf colors follow mass automatically; the rest are earned or declared."
+            why="A star's kind tells you how to tend it: seeds want orbiting, white dwarfs want maintaining, traps want watching — and anchors hold the whole sky together."
+            how="The crown unlocks when the thread integrates. A draining thread can collapse into a trap. Anchors are your commitments — automatic."
+          />
+        </HelpBubble>
+      </div>
+      <p className="mb-3 text-[13px] text-white/55">
+        Currently a{" "}
+        <span style={{ color: def.color === "#050508" ? def.ring : def.color }}>
+          {def.label}
+        </span>
+        {star.crowned && " — crowned, maintained identity"}
+        {anchorName && (
+          <span className="text-[#d8a94e]/80"> · anchored to “{anchorName}”</span>
+        )}
+      </p>
+      <div className="space-y-2">
+        {row(
+          "White dwarf — crowned",
+          <HelpText
+            what="A crowned thread: the ambition became identity, dense and enduring."
+            why="Crowning honors the becoming without removing it — a white dwarf stays in the sky and still dims if untended."
+            how="Earned by integrating the thread: walk the path (Reset → Growth → completions) and approve the integrate gate."
+          />,
+          <button
+            type="button"
+            onClick={() => axzio.toggleCrowned(star.id)}
+            disabled={!canCrown}
+            aria-pressed={star.crowned}
+            className={`shrink-0 rounded-lg border px-3 py-2 text-[11px] uppercase tracking-[0.14em] transition-colors ${
+              star.crowned
+                ? "border-white/70 bg-white/10 text-white"
+                : !canCrown
+                  ? "cursor-not-allowed border-white/10 text-white/25"
+                  : "border-white/15 text-white/50 hover:border-white/40 hover:text-white"
+            }`}
+          >
+            {star.crowned ? "Crowned ✓" : "Crown"}
+          </button>,
+          !canCrown &&
+            `Unlocks when this thread integrates — currently ${gates[2].have}/${gates[2].need} completions.`
+        )}
+        {row(
+          "Collapse into a trap",
+          <HelpText
+            what="A gravity well — a pattern that robs energy and focus (doomscrolling, the 2am spiral). Collapsing names it honestly: this thread is not a star, it's gravity."
+            why="Named traps lose power. Checking the well honestly — steered clear or fell in — turns a drain into data."
+            how="Declared, not earned. A collapsed thread keeps its well log; release it to let it be a thread again."
+          />,
+          statusBtn(
+            isTrap,
+            () => axzio.setBlackHole(star.id, isTrap ? null : "trap"),
+            "Trap ✓",
+            "Collapse",
+            false
+          ),
+          null
+        )}
+      </div>
+      {isTrap && (
+        <div className="mt-3 rounded-xl border border-[#b45cff]/25 bg-[#b45cff]/[0.05] p-4">
+          <p className="text-[12.5px] leading-relaxed text-white/55">
+            This thread has collapsed into a gravity well. Check the well
+            honestly: did you steer clear, or fall in? Quiet wells surface in
+            Needs attention.
+          </p>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => axzio.logWellCheck(star.id, false)}
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] text-white/65 hover:border-white/40 hover:text-white"
+            >
+              Steered clear
+            </button>
+            <button
+              type="button"
+              onClick={() => axzio.logWellCheck(star.id, true)}
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] text-white/65 hover:border-white/40 hover:text-white"
+            >
+              Fell in
+            </button>
+            {(star.wellLog || []).length > 0 && (
+              <span className="text-[11px] text-white/35">
+                {star.wellLog.filter((w) => !w.fell).length} clear ·{" "}
+                {star.wellLog.filter((w) => w.fell).length} fell in
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RootIdentity({ star, axzio }) {
+  const commitments = (axzio.state.identity.commitments || []).filter(
+    (c) => c && !c.archived
+  );
+  const [pick, setPick] = useState(star.commitmentId || "");
+  const [newName, setNewName] = useState("");
+  const rootedText = commitmentText(axzio.state, star.commitmentId);
+
+  const link = () => {
+    if (pick === "__new") {
+      const c = axzio.addCommitment(newName.trim() || star.name);
+      if (c) axzio.linkStarCommitment(star.id, c.id);
+    } else if (pick) {
+      axzio.linkStarCommitment(star.id, pick);
+    }
+    setNewName("");
+  };
+
+  if (rootedText) {
+    return (
+      <div className="rounded-xl border border-white/20 bg-white/[0.03] p-4">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+          Rooted as commitment
+        </p>
+        <p className="mt-1.5 text-[15px] leading-relaxed text-white">
+          {rootedText}
+        </p>
+        <button
+          type="button"
+          onClick={() => axzio.linkStarCommitment(star.id, null)}
+          className="mt-2 text-[11px] uppercase tracking-[0.14em] text-white/35 transition-colors hover:text-white/70"
+        >
+          Unlink
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2.5">
+      <select
+        value={pick}
+        onChange={(e) => setPick(e.target.value)}
+        className="w-full rounded-lg border border-white/15 bg-black px-3 py-2.5 text-[14px] text-white/85 outline-none focus:border-white/40"
+      >
+        <option value="">Choose a commitment…</option>
+        {commitments.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.text}
+          </option>
+        ))}
+        <option value="__new">＋ New commitment…</option>
+      </select>
+      {pick === "__new" && (
+        <Field
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder={`Name it — e.g. “${(star.name || "…").slice(0, 40)}”`}
+          maxLength={80}
+        />
+      )}
+      <div>
+        <button
+          type="button"
+          onClick={link}
+          disabled={!pick}
+          className="rounded-lg border border-white/15 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:border-white/50 hover:text-white disabled:opacity-40"
+        >
+          Root into identity
+        </button>
+      </div>
+      <p className="text-[12px] leading-relaxed text-white/35">
+        A matured seed becomes a system asset — link it to an existing
+        commitment, or grow a new one.
+      </p>
+    </div>
+  );
+}
+
+/* The LifeMod grown from this thread: opens as an overlay right here,
+   in the seed view where it was added. Deleting removes the LifeMod;
+   goals and habits grown from it stay under their commitments. */
+function LifeModCard({ lifemod, axzio }) {
+  const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <>
+      <div className="rounded-xl border border-white/20 bg-white/[0.03] p-4">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+          Growing as LifeMod
+        </p>
+        <p className="mt-1.5 text-[15px] leading-relaxed text-white">
+          {lifemod.name}
+        </p>
+        <div className="mt-2 flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="text-[11px] uppercase tracking-[0.14em] text-white/60 transition-colors hover:text-white"
+          >
+            Open →
+          </button>
+          {confirming ? (
+            <span className="flex items-center gap-2 text-[11px] text-white/50">
+              Delete this LifeMod?
+              <button
+                type="button"
+                onClick={() => axzio.deleteLifeMod(lifemod.id)}
+                className="uppercase tracking-[0.14em] text-red-300/80 hover:text-red-200"
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="uppercase tracking-[0.14em] text-white/40 hover:text-white/70"
+              >
+                Keep
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              className="text-[11px] uppercase tracking-[0.14em] text-white/35 transition-colors hover:text-white/70"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      </div>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`LifeMod: ${lifemod.name}`}
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="mx-auto my-8 w-full max-w-2xl px-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="rounded-2xl border border-white/15 bg-black p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <MicroLabel>LifeMod</MicroLabel>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  aria-label="Close"
+                  className="text-white/40 hover:text-white"
+                >
+                  ×
+                </button>
+              </div>
+              <LifeModEditor lifemod={lifemod} />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+
+
 function CloseBtn({ onClose }) {
   return (
     <button
