@@ -88,6 +88,7 @@ export default function App() {
   const { configured, user, authReady } = useCloud();
   const [phase, setPhase] = useState("boot"); // boot | main
   const [route, setRoute] = useState(routeFromHash());
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   useEffect(() => {
     const onHash = () => setRoute(routeFromHash());
@@ -141,7 +142,7 @@ export default function App() {
   return (
     <div className="min-h-full bg-black text-white">
       <Starfield />
-      <TopNav route={route} name={state.identity.name} />
+      <TopNav route={route} name={state.identity.name} onFeedback={() => setFeedbackOpen(true)} />
       <main
         key={route}
         className="relative z-10"
@@ -159,20 +160,30 @@ export default function App() {
           <Onboarding onComplete={onboardingDone} />
         </div>
       )}
-      {/* The sync setup and capture button wait until the first-use
-          walkthrough is done — a stranger's first minute belongs to the
-          welcome, not to infrastructure. */}
+      {/* The sync setup, capture button, and feedback button wait until
+          the first-use walkthrough is done — a stranger's first minute
+          belongs to the welcome, not to infrastructure. */}
       {!showIntro && <SupabaseSetup />}
       {!showIntro && <QuickCapture />}
+      {!showIntro && (
+        <button
+          type="button"
+          onClick={() => setFeedbackOpen(true)}
+          aria-label="Send feedback"
+          className="fixed bottom-5 left-5 z-[60] rounded-full border border-white/15 bg-black/70 px-4 py-2.5 text-[11px] uppercase tracking-[0.2em] text-white/50 shadow-xl shadow-black/50 backdrop-blur-md transition-colors hover:border-white/40 hover:text-white"
+        >
+          Feedback
+        </button>
+      )}
+      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} />}
     </div>
   );
 }
 
-function TopNav({ route, name }) {
+function TopNav({ route, name, onFeedback }) {
   const go = (key) => {
     window.location.hash = `#/${key}`;
   };
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
   // The Atlas drawer: the whiteboard. Practices, index tables, and the
   // modules still being placed — one tap away on every screen size.
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -375,7 +386,7 @@ function TopNav({ route, name }) {
             <button
               onClick={() => {
                 closeDrawer();
-                setFeedbackOpen(true);
+                onFeedback();
               }}
               className="text-[11px] uppercase tracking-[0.24em] text-white/40 transition-colors hover:text-white"
             >
@@ -384,7 +395,6 @@ function TopNav({ route, name }) {
           </div>
         </nav>
       )}
-      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} />}
     </header>
   );
 }

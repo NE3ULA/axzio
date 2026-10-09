@@ -2,6 +2,7 @@
  * falls back to email when the table isn't reachable. */
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Card, MicroLabel, Btn, Field, TextArea } from "./ui.jsx";
 import { feedbackConfigured, submitFeedback, FEEDBACK_EMAIL } from "../feedback.js";
 
@@ -28,9 +29,11 @@ export default function FeedbackModal({ onClose }) {
     }
   };
 
-  return (
+  /* Portaled to document.body: inside the sticky header, backdrop-blur
+     traps fixed positioning and the modal renders cut off. */
+  return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-5"
+      className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/70 p-5"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -102,6 +105,7 @@ export default function FeedbackModal({ onClose }) {
           </>
         )}
       </Card>
-    </div>
+    </div>,
+    document.body
   );
 }
