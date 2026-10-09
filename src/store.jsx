@@ -606,6 +606,9 @@ export function defaultState() {
     updatedAt: 0,
     identity: {
       name: "",
+      // The user's vessel: named at setup, changeable any time; the menu
+      // carries it. AXZIO stays the app brand; the ship name is the vessel.
+      shipName: "",
       // The four orientation statements (WE ARE ALCHEMY, ch. AUTHORSHIP).
       becoming: "", // "I am choosing to become someone who…"
       standFor: "", // "I stand for…"

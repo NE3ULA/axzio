@@ -238,6 +238,17 @@ function IdentityStep() {
             autoFocus
           />
         </div>
+        <div>
+          <MicroLabel className="mb-2">
+            Ship name <span className="text-white/30">(optional)</span>
+          </MicroLabel>
+          <Field
+            value={state.identity.shipName || ""}
+            onChange={(e) => updateIdentity({ shipName: e.target.value })}
+            placeholder="Name your vessel — the menu carries it"
+            maxLength={40}
+          />
+        </div>
         {ORIENTATION_STATEMENTS.map((s) => (
           <div key={s.key}>
             <MicroLabel className="mb-2">

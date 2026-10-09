@@ -64,6 +64,17 @@ export default function Identity() {
             and honest enough to guide an ordinary Tuesday.
           </p>
           <div className="space-y-6">
+            <div>
+              <MicroLabel className="mb-2">Ship name</MicroLabel>
+              <Field
+                value={state.identity.shipName || ""}
+                onChange={(e) =>
+                  axzio.updateIdentity({ shipName: e.target.value })
+                }
+                placeholder="Name your vessel — the menu carries it"
+                maxLength={40}
+              />
+            </div>
             {ORIENTATION_STATEMENTS.map((s) => (
               <div key={s.key}>
                 <div className="mb-2 flex items-center gap-2">
