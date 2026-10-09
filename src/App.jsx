@@ -9,6 +9,7 @@ import Onboarding from "./views/Onboarding.jsx";
 import SupabaseSetup from "./components/SupabaseSetup.jsx";
 import QuickCapture from "./components/QuickCapture.jsx";
 import AccountControl from "./components/AccountControl.jsx";
+import FeedbackModal from "./components/FeedbackModal.jsx";
 import Bridge from "./views/Bridge.jsx";
 import Constellation from "./views/Constellation.jsx";
 import Galaxy from "./views/Galaxy.jsx";
@@ -171,6 +172,7 @@ function TopNav({ route, name }) {
   const go = (key) => {
     window.location.hash = `#/${key}`;
   };
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   // The Atlas drawer: the whiteboard. Practices, index tables, and the
   // modules still being placed — one tap away on every screen size.
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -369,8 +371,20 @@ function TopNav({ route, name }) {
               {drawerLink("#/atlas?section=launch", "Launch Sequence", "placeholder")}
             </div>
           </div>
+          <div className="mx-auto mt-4 max-w-6xl border-t border-white/10 px-3 pt-4">
+            <button
+              onClick={() => {
+                closeDrawer();
+                setFeedbackOpen(true);
+              }}
+              className="text-[11px] uppercase tracking-[0.24em] text-white/40 transition-colors hover:text-white"
+            >
+              Send feedback →
+            </button>
+          </div>
         </nav>
       )}
+      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} />}
     </header>
   );
 }
