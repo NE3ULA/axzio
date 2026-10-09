@@ -4,7 +4,7 @@ import { MicroLabel } from "./ui.jsx";
 /**
  * ModePicker — primary + secondary FOCUS mode selection for one interval
  * (day / week / month). Shared by the Modes view, the first-use
- * walkthrough, and the Command Deck's inline quick-switch.
+ * walkthrough, and the Bridge's inline quick-switch.
  */
 export default function ModePicker({ interval, compact = false }) {
   const axzio = useAxzio();

@@ -68,10 +68,10 @@ function LoginGate() {
     <div className="min-h-screen bg-black text-white">
       <Starfield />
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md flex-col items-center justify-center px-5 py-16">
-        <MicroLabel className="mb-3">Command Deck</MicroLabel>
+        <MicroLabel className="mb-3">Bridge</MicroLabel>
         <h1 className="text-4xl font-light tracking-wide">AXZIO</h1>
         <p className="mt-3 text-center text-sm leading-relaxed text-white/50">
-          Sign in to enter your deck.
+          Sign in to enter.
         </p>
         <Card className="mt-8 w-full p-7">
           <AuthForm onAuthenticated={() => {}} />
@@ -158,8 +158,11 @@ export default function App() {
           <Onboarding onComplete={onboardingDone} />
         </div>
       )}
-      <SupabaseSetup />
-      <QuickCapture />
+      {/* The sync setup and capture button wait until the first-use
+          walkthrough is done — a stranger's first minute belongs to the
+          welcome, not to infrastructure. */}
+      {!showIntro && <SupabaseSetup />}
+      {!showIntro && <QuickCapture />}
     </div>
   );
 }

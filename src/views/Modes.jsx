@@ -111,7 +111,7 @@ export default function Modes() {
             <HelpText
               what="The modes you're directing attention toward per day, week, and month — a primary and a secondary each. Prescriptive: where focus goes, even when that's not the mode you're in."
               why="Intention and state rarely match perfectly. Naming both keeps the gap visible — and the gap itself is useful signal — instead of letting it run the system unnoticed."
-              how="Pick a primary and a secondary per interval; tap the selected mode again to clear it. The Command Deck reads today's setting."
+              how="Pick a primary and a secondary per interval; tap the selected mode again to clear it. The Bridge reads today's setting."
             />
           </HelpBubble>
         </div>

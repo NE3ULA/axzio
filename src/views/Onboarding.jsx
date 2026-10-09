@@ -20,40 +20,35 @@ import ModePicker from "../components/ModePicker.jsx";
 
 const MODULES = [
   {
-    key: "deck",
-    label: "Command Deck",
+    key: "bridge",
+    label: "Bridge",
     purpose:
-      "Your daily overview: who you are, what matters today, what mode you are in, and the state of your battery.",
+      "Your day, oriented: who you're becoming, what matters today, your energy and your mode — and a place to catch every spark before it fades.",
   },
   {
     key: "focus",
     label: "Focus",
     purpose:
-      "The Decision Engine: sort everything that needs doing, separate the urgent from the important — and find the one thing to focus on.",
+      "What needs doing, sorted: the urgent from the important, and the one thing to focus on.",
   },
   {
-    key: "modes",
-    label: "Modes",
+    key: "nebula",
+    label: "Nebula",
     purpose:
-      "Your energy, organized three ways — Production, Pleasure, People — set per day, week, and month.",
+      "Your ideas, alive: sparks become seeds, seeds grow into threads, and threads root into the commitments they serve.",
   },
   {
-    key: "constellation",
-    label: "Constellation",
+    key: "core",
+    label: "Core",
     purpose:
-      "Follow the seeds you ignite — from spark to understanding, placement, planning, and action — until each one roots into your legend or is released.",
+      "Who you're becoming: your identity, your commitments, your values — the core the whole system reads against.",
   },
   {
-    key: "identity",
-    label: "Identity",
+    key: "atlas",
+    label: "Atlas",
     purpose:
-      "Who you are becoming: the authored Identity Core the whole system reads against.",
-  },
-  {
-    key: "journeys",
-    label: "Journeys",
-    purpose:
-      "Guided practice passages: morning and evening rituals, ignition — and the Reset that turns a situation into an Action Card.",
+      "Everything else, one tap away: guided practices, your indexes, and the whiteboard. Open it from the menu, any time.",
+    noRoute: true,
   },
 ];
 
@@ -96,7 +91,7 @@ export default function Onboarding({ onComplete }) {
         <button
           onClick={dismiss}
           aria-label="Close walkthrough"
-          title="Skip to Deck"
+          title="Skip to Bridge"
           className="absolute right-4 top-4 rounded-full border border-white/15 p-2 text-white/50 transition-colors hover:border-white/40 hover:text-white"
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -155,7 +150,7 @@ export default function Onboarding({ onComplete }) {
               onClick={dismiss}
               className="text-[11px] uppercase tracking-[0.22em] text-white/30 transition-colors hover:text-white/70"
             >
-              Skip to Deck →
+              Skip to Bridge →
             </button>
           </div>
           <div className="flex items-center gap-3">
@@ -165,7 +160,7 @@ export default function Onboarding({ onComplete }) {
               </Btn>
             )}
             {isLast ? (
-              <Btn onClick={finish}>Enter the deck</Btn>
+              <Btn onClick={finish}>Enter</Btn>
             ) : (
               <Btn onClick={() => go(step + 1)}>Continue</Btn>
             )}
@@ -186,13 +181,12 @@ function WelcomeStep() {
         This is AXZIO.
       </h2>
       <p className="mt-5 max-w-md text-[15px] leading-relaxed text-white/65">
-        AXZIO is the interface layer of NE3ULA —{" "}
-        <span className="text-white">where signal becomes structure</span>. It
-        reads every day against the identity you are authoring, and turns
-        attention into aligned action.
+        AXZIO is a personal operating system: it reads every day against
+        the identity you are authoring, and turns{" "}
+        <span className="text-white">attention into aligned action</span>.
       </p>
       <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/65">
-        First, a short tour of the six modules — then a few setup steps, each
+        First, a short tour of the five views — then a few setup steps, each
         skippable. Nothing here is permanent; everything can be revised later.
       </p>
     </div>
@@ -211,9 +205,11 @@ function TourStep({ module, index }) {
       <p className="mt-5 max-w-md text-[15px] leading-relaxed text-white/65">
         {module.purpose}
       </p>
-      <p className="mt-4 text-[11px] uppercase leading-relaxed tracking-[0.2em] text-white/35">
-        #/{module.key}
-      </p>
+      {!module.noRoute && (
+        <p className="mt-4 text-[11px] uppercase leading-relaxed tracking-[0.2em] text-white/35">
+          #/{module.key}
+        </p>
+      )}
     </div>
   );
 }
@@ -272,7 +268,7 @@ function BatteryStep() {
     <div>
       <MicroLabel className="mb-3">Setup — baseline</MicroLabel>
       <h2 className="text-3xl font-light tracking-wide md:text-4xl">
-        Hear the instrument.
+        How is your battery?
       </h2>
       <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/60">
         The Human Battery reads five dimensions of available capacity. Set a
@@ -346,7 +342,7 @@ function IntentionStep() {
         What is today for?
       </h2>
       <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/60">
-        One line. This becomes today's intention on the Command Deck — the
+        One line. This becomes today's intention on the Bridge — the
         first entry in the interface.
       </p>
       <div className="mt-7">
@@ -365,8 +361,7 @@ function IntentionStep() {
 
 /* "What's important today?" — capture 1–3 focus items (Day timeframe,
    Q2 by default). Writes live into the store, so it is skip-safe like
-   every other step. Once accounts exist this step will be able to pull
-   from history; for now it is a fresh capture. */
+   every other step. */
 const IMPORTANT_TODAY_MAX = 3;
 
 function ImportantTodayStep() {
@@ -394,10 +389,6 @@ function ImportantTodayStep() {
         Name up to three things that matter today. They land in{" "}
         <span className="text-white">Focus</span> as today's items, ready to
         be placed, tagged, and ranked.
-      </p>
-      <p className="mt-3 max-w-md text-[13px] leading-relaxed text-white/40">
-        Once accounts exist, this step will be able to pull from your
-        history — for now, it's a fresh capture.
       </p>
       <form onSubmit={submit} className="mt-7 flex gap-3">
         <Field

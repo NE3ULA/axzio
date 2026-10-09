@@ -656,7 +656,7 @@ const JOURNEYS = [
       title: "Morning Alignment",
       what: "A dawn passage: hold the mantra anchors, set the day's intention, take the first action.",
       why: "The first hour sets the frame — intention before input.",
-      how: "Three steps, each writing into the deck. About two minutes.",
+      how: "Three steps, each writing into the Bridge. About two minutes.",
     },
     steps: [
       { id: "mantra", title: "Anchor the mantra", phase: "Reveal", render: MantraStep },

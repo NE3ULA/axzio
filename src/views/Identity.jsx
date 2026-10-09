@@ -536,7 +536,7 @@ function primitiveGuidance(scores) {
     return (
       `${label} is the soft edge at ${lowVal}/10. Nothing urgent — ` +
       "but this is where your next increment of stability will come from. " +
-      "One deliberate action this week, logged in the deck."
+      "One deliberate action this week, logged on the Bridge."
     );
   }
   const avg = entries.reduce((s, [, v]) => s + v, 0) / entries.length;
