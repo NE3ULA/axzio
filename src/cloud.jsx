@@ -17,7 +17,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useAxzio, STORAGE_KEY, SYNC_VERSION, isEmptyState, isBarelyStarted, consumeIntentionalErase } from "./store.jsx";
+import { useAxzio, STORAGE_KEY, SYNC_VERSION, isEmptyState, isBarelyStarted, consumeIntentionalErase, defaultState, loadOwnerId, saveOwnerId, stashEnvelope, loadStashedEnvelope } from "./store.jsx";
 import { peekOutbox, dropEvents, logEvent } from "./events.js";
 import {
   CLOUD_TABLE,
@@ -101,6 +101,7 @@ export function CloudProvider({ children }) {
     }
   };
   const mergeRanRef = useRef(false);
+  const mergeInFlightRef = useRef(false);
   // A boot/sign-in merge must finish before any push is allowed. Without
   // this gate, a slow merge on a flaky connection lets the debounced push
   // below upload stale local state over newer cloud data.
@@ -170,6 +171,8 @@ export function CloudProvider({ children }) {
   const runBootMerge = useCallback(async () => {
     const client = getSupabaseClient();
     if (!client) return;
+    if (mergeInFlightRef.current) return; // never run two merges at once
+    mergeInFlightRef.current = true;
     setSyncStatus("syncing");
     try {
       const {
@@ -184,14 +187,45 @@ export function CloudProvider({ children }) {
         setSyncStatus("idle");
         return;
       }
+      // User-scoped envelope: the browser's local state belongs to whoever
+      // was signed in when it was written. A different user must never
+      // inherit it — or push it into their own cloud row. On a switch, the
+      // previous envelope is stashed under its owner's key and this user's
+      // envelope (or a fresh one) takes its place before anything merges
+      // or pushes.
+      let local = stateRef.current;
+      const owner = loadOwnerId();
+      if (!owner) {
+        saveOwnerId(u.id); // adopt: pre-scoping envelopes belong to this user
+      } else if (owner !== u.id) {
+        stashEnvelope(owner);
+        // The shared sync point belongs to the previous user; drop it so
+        // this user's merge starts clean.
+        try {
+          localStorage.removeItem(LAST_SYNC_KEY);
+          localStorage.removeItem(LAST_SNAPSHOT_KEY);
+        } catch {
+          /* ignore */
+        }
+        lastSyncedRef.current = 0;
+        local = loadStashedEnvelope(u.id) || defaultState();
+        replaceState(local);
+        saveOwnerId(u.id);
+        // The event outbox is browser-shared too: don't attribute the
+        // previous user's queued telemetry to the new user.
+        try {
+          const queued = peekOutbox();
+          if (queued.length) dropEvents(queued.map((e) => e.id));
+        } catch {
+          /* ignore */
+        }
+      }
       const { data: row, error } = await client
         .from(CLOUD_TABLE)
         .select("state, updated_at")
         .eq("user_id", u.id)
         .maybeSingle();
       if (error) throw error;
-
-      const local = stateRef.current;
       // An intentional "erase everything" always pushes, even when the
       // snapshot is blank — the blank-safety guard below must not stop it.
       const forcePush = consumeIntentionalErase();
@@ -315,6 +349,8 @@ export function CloudProvider({ children }) {
       // Fail soft: local remains the source of truth.
       setAuthReady(true);
       setSyncStatus("offline");
+    } finally {
+      mergeInFlightRef.current = false;
     }
   }, [pushState, replaceState, drainInbox]);
 
@@ -336,7 +372,19 @@ export function CloudProvider({ children }) {
       mergeRef.current();
     }
     const { data: sub } = client.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const nu = session?.user ?? null;
+      // A different user signed in: the envelope on disk isn't theirs.
+      // Re-run the boot merge, which re-scopes the envelope to the new
+      // user before anything can merge or push. (Same-user token
+      // refreshes are untouched: owner already matches. The in-flight
+      // gate skips the INITIAL_SESSION echo while the boot merge runs.)
+      if (nu && !mergeInFlightRef.current && nu.id !== loadOwnerId()) {
+        mergeRanRef.current = false;
+        mergeCompletedRef.current = false;
+        pendingPushRef.current = false;
+        mergeRef.current();
+      }
+      setUser(nu);
     });
     return () => {
       try {

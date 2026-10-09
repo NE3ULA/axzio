@@ -596,7 +596,7 @@ export const MONTHS_OF_YEAR = [
   { key: 11, label: "Dec" },
 ];
 
-function defaultState() {
+export function defaultState() {
   return {
     version: 1,
     // Sync protocol version (see SYNC_VERSION). Old envelopes predate it.
@@ -1887,6 +1887,58 @@ export function isBarelyStarted(s) {
     nonEmpty(s.resets) ||
     nonEmpty(s.people);
   return !hasSubstance;
+}
+
+/* ---------------- user-scoped envelopes ----------------
+   The browser's local envelope (STORAGE_KEY) is shared, but auth users
+   are not. Without scoping, signing in as a different user inherits the
+   previous user's state — and the next push writes it into the new
+   user's cloud row. The owner id records whose data the envelope holds;
+   on a user switch the previous envelope is stashed under its own key
+   and the new user's envelope (or a fresh one) takes its place. */
+
+export const OWNER_KEY = "axzio-state-owner";
+const envelopeKeyFor = (uid) => `${STORAGE_KEY}:${uid}`;
+
+export function loadOwnerId() {
+  try {
+    return localStorage.getItem(OWNER_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveOwnerId(uid) {
+  try {
+    if (uid) localStorage.setItem(OWNER_KEY, uid);
+    else localStorage.removeItem(OWNER_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Stash the current envelope under its owner's key. */
+export function stashEnvelope(uid) {
+  if (!uid) return;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) localStorage.setItem(envelopeKeyFor(uid), raw);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Load a previously stashed envelope for uid, or null. */
+export function loadStashedEnvelope(uid) {
+  if (!uid) return null;
+  try {
+    const raw = localStorage.getItem(envelopeKeyFor(uid));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 /* Intentional-erase escape hatch for the blank-safety guard. resetAll()
