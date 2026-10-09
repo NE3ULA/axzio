@@ -5,12 +5,10 @@
  * Row Level Security is the real boundary: the table's only policy allows
  * anon INSERT. Nothing can be read, updated, or deleted through this key.
  *
- * After running the SQL, fill in FEEDBACK_URL and FEEDBACK_ANON_KEY from
- * the Supabase dashboard (Project Settings → API).
  */
 
-const FEEDBACK_URL = "https://YOUR_PROJECT_REF.supabase.co";
-const FEEDBACK_ANON_KEY = "YOUR_ANON_KEY";
+const FEEDBACK_URL = "https://vgmdyczfvlgnvhvlbwfw.supabase.co";
+const FEEDBACK_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZnbWR5Y3pmdmxnbnZodmxid2Z3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyNTI5NjYsImV4cCI6MjEwNjgyODk2Nn0.Pi7rIGzeNxYllS7dXUAovK2v0Mek3DV3ZJ6LlsLjbJ4";
 
 /** Fallback contact when the table isn't reachable. */
 export const FEEDBACK_EMAIL = "affinitymojo3@gmail.com";
