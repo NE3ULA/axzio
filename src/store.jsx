@@ -604,11 +604,11 @@ export function defaultState() {
     // Local mutation clock (ms epoch). Bumped on every store mutation;
     // drives cloud last-write-wins. Old envelopes migrate to 0.
     updatedAt: 0,
+    // The vessel. Named at setup, changeable any time; the Bridge is the
+    // bridge OF this ship. AXZIO stays the app brand — this is not identity.
+    shipName: "",
     identity: {
       name: "",
-      // The user's vessel: named at setup, changeable any time; the menu
-      // carries it. AXZIO stays the app brand; the ship name is the vessel.
-      shipName: "",
       // The four orientation statements (WE ARE ALCHEMY, ch. AUTHORSHIP).
       becoming: "", // "I am choosing to become someone who…"
       standFor: "", // "I stand for…"
@@ -2375,6 +2375,8 @@ export function normalizeState(parsed) {
     }
     delete identity.authored;
     delete identity.orientation;
+    // The ship is the vessel, not the identity: it lives top-level now.
+    delete identity.shipName;
 
     /* First-use walkthrough: anyone who finished the old bare setup
        never sees the new onboarding. Check the saved identity (not the
@@ -2459,6 +2461,13 @@ export function normalizeState(parsed) {
       ...base,
       ...parsed,
       identity,
+      // The vessel. Migrates from the brief period it lived under identity.
+      shipName:
+        typeof parsed.shipName === "string"
+          ? parsed.shipName
+          : typeof oldIdentity.shipName === "string"
+            ? oldIdentity.shipName
+            : "",
       days,
       actions: Array.isArray(parsed.actions) ? parsed.actions : [],
       signals: Array.isArray(parsed.signals) ? parsed.signals : [],
@@ -2621,6 +2630,12 @@ export function AxzioProvider({ children }) {
     updateIdentity(patch) {
       update((d) => {
         Object.assign(d.identity, patch);
+      });
+    },
+    /** Name the vessel. The Bridge is the bridge of this ship. */
+    setShipName(name) {
+      update((d) => {
+        d.shipName = typeof name === "string" ? name.slice(0, 40) : "";
       });
     },
     /* settings */

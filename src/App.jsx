@@ -140,7 +140,7 @@ export default function App() {
   return (
     <div className="min-h-full bg-black text-white">
       <Starfield />
-      <TopNav route={route} name={state.identity.name} shipName={state.identity.shipName} />
+      <TopNav route={route} name={state.identity.name} />
       <main
         key={route}
         className="relative z-10"
@@ -167,7 +167,7 @@ export default function App() {
   );
 }
 
-function TopNav({ route, name, shipName }) {
+function TopNav({ route, name }) {
   const go = (key) => {
     window.location.hash = `#/${key}`;
   };
@@ -311,22 +311,6 @@ function TopNav({ route, name, shipName }) {
           className="border-t border-white/10 bg-black/95 px-5 py-4 backdrop-blur-md"
           aria-label="Atlas"
         >
-          <div className="mx-auto mb-4 max-w-6xl px-3">
-            {shipName ? (
-              <p className="text-[11px] uppercase tracking-[0.24em] text-white/40">
-                Aboard the{" "}
-                <span className="text-white/85">{shipName}</span>
-              </p>
-            ) : (
-              <a
-                href="#/core"
-                onClick={() => setDrawerOpen(false)}
-                className="text-[11px] uppercase tracking-[0.24em] text-white/30 transition-colors hover:text-white/70"
-              >
-                Name your ship →
-              </a>
-            )}
-          </div>
           <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <div>
               <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.24em] text-white/35">

@@ -63,6 +63,15 @@ export default function Bridge() {
     setEditingName(false);
   };
 
+  /* The vessel: this Bridge is the bridge OF this ship. */
+  const [editingShip, setEditingShip] = useState(false);
+  const [shipDraft, setShipDraft] = useState("");
+
+  const saveShip = () => {
+    axzio.setShipName(shipDraft.trim());
+    setEditingShip(false);
+  };
+
   return (
     <div className="mx-auto w-full max-w-5xl px-5 pb-24 pt-8">
       {/* header */}
@@ -108,6 +117,49 @@ export default function Bridge() {
           <p className="mt-2 text-sm tracking-wide text-white/45">
             {formatLongDate(today)}
           </p>
+          <div className="mt-2 flex items-center gap-2 text-sm tracking-wide text-white/45">
+            {editingShip ? (
+              <input
+                value={shipDraft}
+                onChange={(e) => setShipDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveShip();
+                  if (e.key === "Escape") setEditingShip(false);
+                }}
+                onBlur={saveShip}
+                autoFocus
+                maxLength={40}
+                aria-label="Ship name"
+                placeholder="Name your vessel"
+                className="w-56 rounded-lg border border-white/20 bg-black px-3 py-1 text-sm tracking-wide text-white placeholder:text-white/25 focus:border-white/50 focus:outline-none"
+              />
+            ) : (
+              <>
+                {state.shipName ? (
+                  <span>
+                    Aboard the{" "}
+                    <span className="text-white/80">{state.shipName}</span>
+                  </span>
+                ) : (
+                  <span className="text-white/30">Name your ship</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShipDraft(state.shipName || "");
+                    setEditingShip(true);
+                  }}
+                  aria-label="Edit ship name"
+                  title="Edit ship name"
+                  className="rounded-lg p-1.5 text-white/30 transition-colors hover:text-white"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                  </svg>
+                </button>
+              </>
+            )}
+          </div>
           <p className="mt-3 max-w-md text-[11px] uppercase leading-relaxed tracking-[0.2em] text-white/35">
             Time is your frame. Energy is your fuel. Identity is your
             direction. Purpose is your destination.

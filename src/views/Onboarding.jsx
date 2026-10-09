@@ -215,7 +215,7 @@ function TourStep({ module, index }) {
 }
 
 function IdentityStep() {
-  const { state, updateIdentity } = useAxzio();
+  const { state, updateIdentity, setShipName } = useAxzio();
   return (
     <div>
       <MicroLabel className="mb-3">Setup — identity</MicroLabel>
@@ -243,9 +243,9 @@ function IdentityStep() {
             Ship name <span className="text-white/30">(optional)</span>
           </MicroLabel>
           <Field
-            value={state.identity.shipName || ""}
-            onChange={(e) => updateIdentity({ shipName: e.target.value })}
-            placeholder="Name your vessel — the menu carries it"
+            value={state.shipName || ""}
+            onChange={(e) => setShipName(e.target.value)}
+            placeholder="Name your vessel"
             maxLength={40}
           />
         </div>
