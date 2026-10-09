@@ -1853,6 +1853,42 @@ export function isEmptyState(s) {
   );
 }
 
+/**
+ * A state with only day-level data: check-ins (days) and captured sparks
+ * (signals), but no identity substance, commitments, goals, or other
+ * durable structure. A fresh install that did a morning check-in looks
+ * exactly like this — and it must never push over (or merge-wipe) a
+ * substantive cloud. Pure emptiness is handled by isEmptyState; this is
+ * the barely-started case the empty guards miss. Deliberate mass-deletion
+ * also lands here and bounces back, by design — the erase hatch
+ * (forcePush) is the intentional path.
+ */
+export function isBarelyStarted(s) {
+  if (!s || typeof s !== "object") return false;
+  if (isEmptyState(s)) return false;
+  const id = s.identity || {};
+  const hasIdentityText = [id.name, id.becoming, id.standFor, id.practice, id.returnThrough].some(
+    (v) => typeof v === "string" && v.trim().length > 0
+  );
+  const nonEmpty = (v) => Array.isArray(v) && v.length > 0;
+  // Mirrors isEmptyState's list, minus the day-data containers (days,
+  // signals) a fresh device can legitimately hold.
+  const hasSubstance =
+    hasIdentityText ||
+    nonEmpty(id.commitments) ||
+    nonEmpty(id.values) ||
+    nonEmpty(s.focusItems) ||
+    nonEmpty(s.goals) ||
+    nonEmpty(s.habits) ||
+    nonEmpty(s.stars) ||
+    nonEmpty(s.lifemods) ||
+    nonEmpty(s.actions) ||
+    nonEmpty(s.assessments) ||
+    nonEmpty(s.resets) ||
+    nonEmpty(s.people);
+  return !hasSubstance;
+}
+
 /* Intentional-erase escape hatch for the blank-safety guard. resetAll()
    arms this; the cloud layer consumes it once. Without it, the guard
    would block the deliberate "erase everything" push and the next boot

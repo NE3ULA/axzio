@@ -17,11 +17,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { useAxzio, STORAGE_KEY, SYNC_VERSION, isEmptyState, consumeIntentionalErase } from "./store.jsx";
+import { useAxzio, STORAGE_KEY, SYNC_VERSION, isEmptyState, isBarelyStarted, consumeIntentionalErase } from "./store.jsx";
 import { peekOutbox, dropEvents, logEvent } from "./events.js";
 import {
   CLOUD_TABLE,
   threeWayMerge,
+  mergeWithoutBase,
+  unionDayData,
   getSupabaseClient,
   getClientError,
   getSupabaseConfig,
@@ -223,6 +225,21 @@ export function CloudProvider({ children }) {
         const err = await pushState(client, u.id, local);
         if (err) throw err;
         markSynced(local);
+      } else if (!forcePush && isBarelyStarted(local)) {
+        // A barely-started device — day check-ins and captured sparks, but
+        // no durable structure — must never push over (or merge-wipe) a
+        // cloud that holds real state. Without this, a fresh install that
+        // did a morning check-in would three-way merge its emptiness over
+        // the full cloud from a null base, and the device-in-hand
+        // tie-break would even revert the traveler's name to "".
+        // Pull the cloud instead, folding this device's day data in so
+        // today's work survives. A deliberate wipe still goes through the
+        // erase hatch (forcePush above).
+        const merged = unionDayData(cloudState, local);
+        replaceState(merged);
+        const err = await pushState(client, u.id, merged);
+        if (err) throw err;
+        markSynced(merged);
       } else if ((cloudState.syncVersion || 0) < SYNC_VERSION) {
         // The cloud was written by a stale client (pre-protocol version).
         // Never pull that poison in — heal the cloud by pushing this
@@ -258,12 +275,18 @@ export function CloudProvider({ children }) {
         markSynced(cloudState);
       } else {
         // Genuine conflict: both sides moved since the last agreement.
-        // Three-way merge keeps each side's non-overlapping edits; the
-        // device in the user's hand wins per-section ties. Nothing is
-        // silently discarded.
-        const { merged, conflicts } = threeWayMerge(base, local, cloudState);
-        if (conflicts.length > 0 && base) {
-          logEvent("sync.conflict", { keys: conflicts });
+        // With a base snapshot, per-section 3-way merge keeps each side's
+        // non-overlapping edits and the device in hand wins ties. Without
+        // a base there is no common ancestor, so emptiness is read as
+        // absence (never a deletion) and append-only collections union —
+        // a sparse device can no longer wipe a full cloud from a null base.
+        const baseAbsent =
+          !base || typeof base !== "object" || Object.keys(base).length === 0;
+        const { merged, conflicts } = baseAbsent
+          ? mergeWithoutBase(local, cloudState)
+          : threeWayMerge(base, local, cloudState);
+        if (conflicts.length > 0) {
+          logEvent("sync.conflict", { keys: conflicts, baseAbsent });
         }
         replaceState(merged);
         const err = await pushState(client, u.id, merged);
