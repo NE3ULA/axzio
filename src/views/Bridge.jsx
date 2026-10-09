@@ -1321,14 +1321,9 @@ function ModeCard() {
         </div>
         <p className="mt-3 text-[13px] text-white/50">
           {current ? (
-            <>In <span className="text-white/85">{modeLabel(current)}</span></>
+            <span className="text-white/85">{modeLabel(current)}</span>
           ) : (
             "Where is your energy right now?"
-          )}
-          {focusMode && (
-            <span className="text-white/40">
-              {" "}· focusing <span className="text-white/70">{modeLabel(focusMode)}</span>
-            </span>
           )}
         </p>
       </div>
