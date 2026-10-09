@@ -1319,13 +1319,11 @@ function ModeCard() {
             );
           })}
         </div>
-        <p className="mt-3 text-[13px] text-white/50">
-          {current ? (
-            <span className="text-white/85">{modeLabel(current)}</span>
-          ) : (
-            "Where is your energy right now?"
-          )}
-        </p>
+        {!current && (
+          <p className="mt-3 text-[13px] text-white/50">
+            Where is your energy right now?
+          </p>
+        )}
       </div>
       <a
         href="#/modes"
