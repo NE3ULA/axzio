@@ -237,10 +237,13 @@ export default function Practices() {
   };
 
   // Direct passage launch: #/practice?passage=reset|growth|morning|evening|star.
+  // &from=bridge records a Bridge launch so completion returns there.
+  const [fromBridge, setFromBridge] = useState(false);
   useEffect(() => {
     const m = window.location.hash.match(/[?&]passage=([a-z]+)/);
     if (m && JOURNEYS.some((j) => j.id === m[1])) {
       setActive(m[1]);
+      setFromBridge(/[?&]from=bridge/.test(window.location.hash));
     }
   }, []);
   // Deep link: #/practice?reset=<id> opens that reset's Action Card.
@@ -503,7 +506,11 @@ export default function Practices() {
         <JourneyRunner
           key={active}
           journey={JOURNEYS.find((j) => j.id === active)}
-          onExit={() => setActive(null)}
+          onExit={() => {
+            if (fromBridge) window.location.hash = "#/bridge";
+            else setActive(null);
+          }}
+          exitLabel={fromBridge ? "Return to Bridge" : "Return to journeys"}
         />
       )}
     </div>
@@ -828,7 +835,7 @@ function ResetDraftList({ drafts, onResume, onDiscard, onNew, onBack }) {
   );
 }
 
-function JourneyRunner({ journey, onExit, initialSession, initialScratch, initialStep }) {
+function JourneyRunner({ journey, onExit, initialSession, initialScratch, initialStep, exitLabel }) {
   const axzio = useAxzio();
   // A reset runs inside a session (draft id + source carried for the
   // persist below); other journeys keep the legacy scratch props.
@@ -1081,7 +1088,7 @@ function JourneyRunner({ journey, onExit, initialSession, initialScratch, initia
             <Btn variant="ghost" onClick={restart}>
               Walk it again
             </Btn>
-            <Btn onClick={onExit}>Return to journeys</Btn>
+            <Btn onClick={onExit}>{exitLabel || "Return to journeys"}</Btn>
           </div>
         </div>
       )}
