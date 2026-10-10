@@ -7,7 +7,6 @@ import {
   HelpText,
   Field,
   Btn,
-  Pill,
   Empty,
 } from "../components/ui.jsx";
 import { LifeModRow } from "../components/LifeMod.jsx";
@@ -206,17 +205,46 @@ function HabitsIndex() {
 }
 
 function LaunchPlaceholder() {
+  const { state } = useAxzio();
+  const crossings = state.launchCrossings || [];
+  const done = crossings.length;
+  const total = 9;
   return (
     <Card className="p-6">
-      <div className="flex items-center gap-2">
-        <Pill tone="lit">Placeholder</Pill>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[15px] text-white/85">
+            {done === 0
+              ? "The journey hasn't begun."
+              : done >= total
+                ? "Nine of nine — the myth is forged."
+                : `${done} of ${total} thresholds crossed.`}
+          </p>
+          <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-white/50">
+            Love → Hope → Dream → Believe → Begin → Build → Become → Live Your
+            Legend → Forge the Myth.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            window.location.hash = "#/launch";
+          }}
+          className="shrink-0 rounded-xl border border-[#d8a94e]/50 px-4 py-2.5 text-[11px] uppercase tracking-[0.16em] text-[#d8a94e] transition-colors hover:bg-[#d8a94e]/10"
+        >
+          {done === 0 ? "Begin" : done >= total ? "Revisit" : "Continue"} →
+        </button>
       </div>
-      <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-white/60">
-        The Identity Launch Sequence — Love → Hope → Dream → Believe → Begin →
-        Build → Become → Live Your Legend → Forge the Myth — will become a
-        guided journey here: the first-run passage and the training arc for
-        new travelers. Parked until the condense pass lands.
-      </p>
+      {done > 0 && (
+        <div className="mt-4">
+          <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-[#d8a94e]"
+              style={{ width: `${Math.min(100, (done / total) * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
@@ -351,14 +379,14 @@ export default function Atlas() {
 
       <SectionShell
         id="launch"
-        kicker="Whiteboard"
+        kicker="Journey"
         title="Launch Sequence"
         help={
           <HelpBubble title="Launch Sequence">
             <HelpText
-              what="A placeholder for the guided first-run journey."
-              why="Parked deliberately until the condense pass lands."
-              how="Nothing to do here yet."
+              what="The identity launch journey — nine thresholds from Love to Forge the Myth."
+              why="Becoming has an arc. Crossings are written into your legend and your Nebula."
+              how="Open the journey to begin or continue."
             />
           </HelpBubble>
         }

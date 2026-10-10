@@ -569,6 +569,67 @@ export function normalizeQuest(raw) {
   };
 }
 
+/* Quest stage: { id, name, note, done, doneAt }. */
+function normalizeQuestStage(s) {
+  if (!s || typeof s !== "object") return null;
+  return {
+    id: typeof s.id === "string" && s.id ? s.id : uid(),
+    name: typeof s.name === "string" ? s.name.slice(0, 140) : "",
+    note: typeof s.note === "string" ? s.note.slice(0, 300) : "",
+    done: s.done === true,
+    doneAt: typeof s.doneAt === "number" ? s.doneAt : null,
+  };
+}
+
+/** Normalize the Forge's quest list; old states predate quests entirely. */
+export function normalizeQuests(raw) {
+  if (!Array.isArray(raw)) return [];
+  const statuses = new Set(["active", "paused", "complete"]);
+  return raw
+    .filter((q) => q && typeof q === "object")
+    .map((q) => ({
+      id: typeof q.id === "string" && q.id ? q.id : uid(),
+      name: typeof q.name === "string" ? q.name.trim().slice(0, 140) : "",
+      why: typeof q.why === "string" ? q.why.slice(0, 300) : "",
+      commitmentId:
+        typeof q.commitmentId === "string" && q.commitmentId
+          ? q.commitmentId
+          : null,
+      goalId: typeof q.goalId === "string" && q.goalId ? q.goalId : null,
+      sourceKind:
+        typeof q.sourceKind === "string" ? q.sourceKind.slice(0, 24) : null,
+      sourceId: typeof q.sourceId === "string" && q.sourceId ? q.sourceId : null,
+      threadId: typeof q.threadId === "string" && q.threadId ? q.threadId : null,
+      stages: Array.isArray(q.stages)
+        ? q.stages.map(normalizeQuestStage).filter(Boolean)
+        : [],
+      status: statuses.has(q.status) ? q.status : "active",
+      shared: q.shared === true,
+      withYou:
+        Number.isInteger(q.withYou) && q.withYou >= 0 ? q.withYou : 0,
+      createdAt: typeof q.createdAt === "number" ? q.createdAt : Date.now(),
+      completedAt:
+        typeof q.completedAt === "number" ? q.completedAt : null,
+    }))
+    .filter((q) => q.name);
+}
+
+/** Normalize the AI.d shell; old states predate it. Reviews arrive with
+ *  the intelligence layer — until then the list stays empty. */
+export function normalizeAid(raw) {
+  const r = raw && typeof raw === "object" ? raw : {};
+  const bool = (v, dflt) => (typeof v === "boolean" ? v : dflt);
+  return {
+    readBattery: bool(r.readBattery, true),
+    readActions: bool(r.readActions, true),
+    readThreads: bool(r.readThreads, false),
+    readJournal: bool(r.readJournal, false),
+    reviews: Array.isArray(r.reviews)
+      ? r.reviews.filter((x) => x && typeof x === "object")
+      : [],
+  };
+}
+
 /* Week items repeat on selected days (0 = Sunday … 6 = Saturday);
    month items repeat in selected months (0 = January … 11 = December). */
 export const DAYS_OF_WEEK = [
@@ -668,6 +729,31 @@ export function defaultState() {
     lifemods: [],
     // Identity Launch Sequence locator: stage key or null.
     launchStage: null,
+    // Launch Sequence crossings: [{ id, stageKey, at, words }]. The
+    // journey's position is launchStage (above); crossings are its
+    // history. The first crossing seeds the journey thread
+    // (launchThreadId); every crossing writes evidence to it.
+    launchCrossings: [],
+    launchThreadId: null,
+    // Quests — goals given a story. The Forge.
+    // { id, name, why, commitmentId, goalId, sourceKind, sourceId,
+    //   threadId (linked Nebula thread, optional),
+    //   stages: [{ id, name, note, done, doneAt }],
+    //   status: 'active'|'paused'|'complete',
+    //   shared, withYou (anonymous fellow-traveler count),
+    //   createdAt, completedAt }
+    quests: [],
+    // AI.d structural shell. The intelligence layer ships later; until
+    // then `reviews` stays empty and the UI shows honest empty states —
+    // never simulated intelligence. The read* flags are the sovereignty
+    // toggles: which surfaces AI.d may read once the layer connects.
+    aid: {
+      readBattery: true,
+      readActions: true,
+      readThreads: false,
+      readJournal: false,
+      reviews: [],
+    },
     // Modes of Energy: `current` is the mode I'm IN right now
     // (descriptive, single nullable value). Per interval (day/week/month),
     // primary + secondary are where FOCUS goes (prescriptive intention).
@@ -2499,6 +2585,23 @@ export function normalizeState(parsed) {
         LAUNCH_STAGES.some((s) => s.key === parsed.launchStage)
           ? parsed.launchStage
           : null,
+      // Launch Sequence crossings: old states predate the journey.
+      launchCrossings: Array.isArray(parsed.launchCrossings)
+        ? parsed.launchCrossings.filter(
+            (c) =>
+              c &&
+              typeof c === "object" &&
+              LAUNCH_STAGES.some((s) => s.key === c.stageKey)
+          )
+        : [],
+      launchThreadId:
+        typeof parsed.launchThreadId === "string"
+          ? parsed.launchThreadId
+          : null,
+      // Quests: old states predate the Forge.
+      quests: normalizeQuests(parsed.quests),
+      // AI.d shell: old states predate it; merge over defaults.
+      aid: normalizeAid(parsed.aid),
       modes: normalizeModes(parsed.modes),
       resets: normalizeResets(parsed.resets),
       resetDrafts: normalizeResetDrafts(parsed.resetDrafts, parsed.resetDraft),
@@ -3759,6 +3862,239 @@ export function AxzioProvider({ children }) {
           ? stageKey
           : null;
       });
+    },
+
+    /* Launch Sequence journey — threshold crossings. The journey is an
+       arc, not a checklist: beginLaunch starts at Love, crossLaunchStage
+       crosses the current stage (recording the traveler's words) and
+       advances. The first crossing seeds the journey thread in the
+       Nebula; every crossing writes evidence to it. */
+    beginLaunch() {
+      let started = false;
+      update((d) => {
+        if ((d.launchCrossings || []).length > 0) return;
+        if (!d.launchStage) d.launchStage = LAUNCH_STAGES[0].key;
+        started = true;
+      });
+      if (started) logEvent("launch.began", {});
+    },
+    crossLaunchStage(words) {
+      let crossing = null;
+      update((d) => {
+        const idx = LAUNCH_STAGES.findIndex((s) => s.key === d.launchStage);
+        if (idx < 0) return;
+        const stage = LAUNCH_STAGES[idx];
+        const w = String(words || "").trim().slice(0, 500);
+        crossing = { id: uid(), stageKey: stage.key, at: Date.now(), words: w };
+        d.launchCrossings = [...(d.launchCrossings || []), crossing];
+        let threadId = d.launchThreadId;
+        if (!threadId) {
+          const star = {
+            id: uid(),
+            name: "Launch Sequence",
+            note: "The identity launch journey — nine thresholds.",
+            created: Date.now(),
+            loopStage: "reveal",
+            orbits: 1,
+            commitmentId: null,
+          };
+          d.stars.push(star);
+          threadId = star.id;
+          d.launchThreadId = threadId;
+        }
+        const t = (d.stars || []).find((s) => s.id === threadId);
+        if (t) {
+          const entry = {
+            id: uid(),
+            text: `Crossed ${stage.label}${w ? " — " + w : ""}`,
+            at: Date.now(),
+          };
+          t.manualEvidence = [...(t.manualEvidence || []), entry];
+        }
+        d.launchStage =
+          idx + 1 < LAUNCH_STAGES.length ? LAUNCH_STAGES[idx + 1].key : null;
+      });
+      if (crossing) logEvent("launch.crossed", { stage: crossing.stageKey });
+      return crossing;
+    },
+    /** Walk the sequence again. The journey thread stays — it's history. */
+    resetLaunch() {
+      update((d) => {
+        d.launchCrossings = [];
+        d.launchStage = null;
+        d.launchThreadId = null;
+      });
+      logEvent("launch.reset", {});
+    },
+
+    /* The Forge — quests. A quest is a goal with a story: named stages
+       walked in the world. Completing a quest crowns its linked thread
+       (earned, like every crown) and writes the completion into legend. */
+    addQuest(input = {}) {
+      const name = String(input.name || "").trim().slice(0, 140);
+      if (!name) return null;
+      const stageNames = Array.isArray(input.stages)
+        ? input.stages
+        : String(input.stages || "")
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean);
+      const quest = {
+        id: uid(),
+        name,
+        why: String(input.why || "").trim().slice(0, 300),
+        commitmentId:
+          typeof input.commitmentId === "string" && input.commitmentId
+            ? input.commitmentId
+            : null,
+        goalId:
+          typeof input.goalId === "string" && input.goalId ? input.goalId : null,
+        sourceKind:
+          typeof input.sourceKind === "string"
+            ? input.sourceKind.slice(0, 24)
+            : null,
+        sourceId:
+          typeof input.sourceId === "string" && input.sourceId
+            ? input.sourceId
+            : null,
+        threadId:
+          typeof input.threadId === "string" && input.threadId
+            ? input.threadId
+            : null,
+        stages: stageNames.slice(0, 24).map((s) => ({
+          id: uid(),
+          name: String(s).slice(0, 140),
+          note: "",
+          done: false,
+          doneAt: null,
+        })),
+        status: "active",
+        shared: false,
+        withYou: 0,
+        createdAt: Date.now(),
+        completedAt: null,
+      };
+      update((d) => {
+        d.quests = [...(d.quests || []), quest];
+      });
+      logEvent("quest.created", { id: quest.id, name: quest.name });
+      return quest;
+    },
+    updateQuest(id, patch = {}) {
+      update((d) => {
+        const q = (d.quests || []).find((x) => x.id === id);
+        if (!q) return;
+        if (typeof patch.name === "string" && patch.name.trim())
+          q.name = patch.name.trim().slice(0, 140);
+        if (typeof patch.why === "string") q.why = patch.why.slice(0, 300);
+        if ("threadId" in patch)
+          q.threadId =
+            typeof patch.threadId === "string" && patch.threadId
+              ? patch.threadId
+              : null;
+        if ("shared" in patch) q.shared = patch.shared === true;
+      });
+    },
+    deleteQuest(id) {
+      update((d) => {
+        d.quests = (d.quests || []).filter((x) => x.id !== id);
+      });
+      logEvent("quest.deleted", { id });
+    },
+    setQuestStatus(id, status) {
+      if (status !== "active" && status !== "paused") return;
+      update((d) => {
+        const q = (d.quests || []).find((x) => x.id === id);
+        if (!q || q.status === "complete") return;
+        q.status = status;
+      });
+    },
+    addQuestStage(questId, name) {
+      const n = String(name || "").trim().slice(0, 140);
+      if (!n) return null;
+      const stage = { id: uid(), name: n, note: "", done: false, doneAt: null };
+      update((d) => {
+        const q = (d.quests || []).find((x) => x.id === questId);
+        if (!q || q.status === "complete") return;
+        q.stages = [...(q.stages || []), stage];
+      });
+      return stage;
+    },
+    renameQuestStage(questId, stageId, name) {
+      const n = String(name || "").trim().slice(0, 140);
+      if (!n) return;
+      update((d) => {
+        const q = (d.quests || []).find((x) => x.id === questId);
+        const s = q && (q.stages || []).find((x) => x.id === stageId);
+        if (s) s.name = n;
+      });
+    },
+    deleteQuestStage(questId, stageId) {
+      update((d) => {
+        const q = (d.quests || []).find((x) => x.id === questId);
+        if (!q || q.status === "complete") return;
+        q.stages = (q.stages || []).filter((x) => x.id !== stageId);
+      });
+    },
+    toggleQuestStage(questId, stageId) {
+      update((d) => {
+        const q = (d.quests || []).find((x) => x.id === questId);
+        const s = q && (q.stages || []).find((x) => x.id === stageId);
+        if (!s || q.status === "complete") return;
+        s.done = !s.done;
+        s.doneAt = s.done ? Date.now() : null;
+      });
+    },
+    /** Complete a quest. Crowns the linked thread when one is linked —
+       the progression writes into the Nebula, not a separate economy. */
+    completeQuest(id) {
+      let threadId = null;
+      update((d) => {
+        const quest = (d.quests || []).find((x) => x.id === id);
+        if (!quest || quest.status === "complete") return;
+        quest.status = "complete";
+        quest.completedAt = Date.now();
+        quest.stages = (quest.stages || []).map((s) =>
+          s.done ? s : { ...s, done: true, doneAt: Date.now() }
+        );
+        threadId = quest.threadId;
+        const t =
+          threadId && (d.stars || []).find((s) => s.id === threadId);
+        if (t) {
+          if (!t.crowned) t.crowned = true;
+          const entry = {
+            id: uid(),
+            text: `Quest "${quest.name}" completed`,
+            at: Date.now(),
+          };
+          t.manualEvidence = [...(t.manualEvidence || []), entry];
+        }
+      });
+      logEvent("quest.completed", { id, thread: threadId });
+    },
+
+    /* AI.d shell — sovereignty toggles and the (future) review content.
+       The suggestion confirm/dismiss machinery works structurally now;
+       content arrives with the intelligence layer. */
+    setAidRead(surface, on) {
+      const keys = ["readBattery", "readActions", "readThreads", "readJournal"];
+      if (!keys.includes(surface)) return;
+      update((d) => {
+        if (!d.aid || typeof d.aid !== "object") d.aid = normalizeAid(null);
+        d.aid[surface] = on === true;
+      });
+    },
+    decideAidSuggestion(reviewId, suggestionId, decision) {
+      if (decision !== "confirmed" && decision !== "dismissed") return;
+      update((d) => {
+        const r =
+          d.aid &&
+          (d.aid.reviews || []).find((x) => x.id === reviewId);
+        const s =
+          r && (r.suggestions || []).find((x) => x.id === suggestionId);
+        if (s) s.status = decision;
+      });
+      logEvent("aid.suggestion_decided", { reviewId, suggestionId, decision });
     },
 
     /* modes of energy */

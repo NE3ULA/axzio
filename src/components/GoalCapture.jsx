@@ -379,6 +379,16 @@ export default function GoalCapture({
           >
             Grow
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              window.location.hash = `#/forge?from=goal:${g.id}`;
+            }}
+            title="Forge this goal into a quest"
+            className="shrink-0 text-[11px] uppercase tracking-[0.14em] text-white/30 transition-colors hover:text-white/70"
+          >
+            Quest
+          </button>
           {confirmId === g.id ? (
             <span className="flex shrink-0 items-center gap-2">
               <button

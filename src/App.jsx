@@ -21,6 +21,9 @@ import Modes from "./views/Modes.jsx";
 
 import Tribe from "./views/Tribe.jsx";
 import Focus from "./views/Focus.jsx";
+import Forge from "./views/Forge.jsx";
+import Launch from "./views/Launch.jsx";
+import AidReview from "./views/AidReview.jsx";
 
 
 /* Hash-based routing — no react-router, works from static files.
@@ -42,6 +45,9 @@ const ROUTES = [
   { key: "practice", label: "Practice", view: Practices },
   { key: "modes", label: "Modes", view: Modes },
   { key: "tribe", label: "Tribe", view: Tribe },
+  { key: "forge", label: "Forge", view: Forge },
+  { key: "launch", label: "Launch", view: Launch },
+  { key: "aid", label: "AI.d", view: AidReview },
 ];
 const MAIN_ROUTES = ROUTES.filter((r) => r.main);
 /* Legacy hashes from before the rename. */
@@ -142,7 +148,7 @@ export default function App() {
   return (
     <div className="min-h-full bg-black text-white">
       <Starfield />
-      <TopNav route={route} name={state.identity.name} onFeedback={() => setFeedbackOpen(true)} />
+      <TopNav route={route} name={state.identity.name} aiEnabled={!!(state.settings && state.settings.aiEnabled)} onFeedback={() => setFeedbackOpen(true)} />
       <main
         key={route}
         className="relative z-10"
@@ -183,7 +189,7 @@ export default function App() {
   );
 }
 
-function TopNav({ route, name, onFeedback }) {
+function TopNav({ route, name, aiEnabled, onFeedback }) {
   const go = (key) => {
     window.location.hash = `#/${key}`;
   };
@@ -350,6 +356,14 @@ function TopNav({ route, name, onFeedback }) {
                 </button>
               ))}
               {drawerLink("#/atlas", "Atlas", "index tables")}
+              {drawerLink("#/forge", "Forge", "quests")}
+              {drawerLink("#/launch", "Launch Sequence", "the journey")}
+            </div>
+            <div>
+              <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.24em] text-white/35">
+                AI.d
+              </p>
+              {drawerLink("#/aid", "Weekly Review", aiEnabled ? "on" : "off")}
             </div>
             <div>
               <p className="mb-2 px-3 text-[10px] uppercase tracking-[0.24em] text-white/35">
@@ -382,7 +396,6 @@ function TopNav({ route, name, onFeedback }) {
               </p>
               {drawerLink("#/modes", "Modes", "being placed")}
               {drawerLink("#/tribe", "Tribe", "being placed")}
-              {drawerLink("#/atlas?section=launch", "Launch Sequence", "placeholder")}
             </div>
           </div>
           <div className="mx-auto mt-4 max-w-6xl border-t border-white/10 px-3 pt-4">
